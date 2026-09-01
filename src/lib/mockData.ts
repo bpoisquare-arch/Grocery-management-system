@@ -59,18 +59,8 @@ export const mockUsers: User[] = [
   },
 ];
 
-// Initial Budgets for Lahore and Multan
-export const mockBudgets: Budget[] = [
-  { entity: 'Lahore', month: 'September', year: 2026, amount: 100000 },
-  { entity: 'Lahore', month: 'August', year: 2026, amount: 100000 },
-  { entity: 'Lahore', month: 'July', year: 2026, amount: 100000 },
-  { entity: 'Lahore', month: 'June', year: 2026, amount: 90000 },
-  
-  { entity: 'Multan', month: 'September', year: 2026, amount: 80000 },
-  { entity: 'Multan', month: 'August', year: 2026, amount: 80000 },
-  { entity: 'Multan', month: 'July', year: 2026, amount: 80000 },
-  { entity: 'Multan', month: 'June', year: 2026, amount: 75000 },
-];
+// Initial Budgets for Lahore and Multan (Clean by default, configured via Budget page)
+export const mockBudgets: Budget[] = [];
 
 // 24 entries for Lahore in August 2026 (Total: Rs. 65,000)
 // 10 entries for Multan in August 2026 (Total: Rs. 45,000)

@@ -71,3 +71,47 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// DELETE /api/budgets - Delete single budget or clean all
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    const entity = searchParams.get('entity');
+    const month = searchParams.get('month');
+    const year = searchParams.get('year');
+    const clearAll = searchParams.get('clearAll');
+
+    if (clearAll === 'true') {
+      await prisma.budget.deleteMany({});
+      return NextResponse.json({ success: true, message: 'All budgets cleared successfully.' });
+    }
+
+    if (id) {
+      await prisma.budget.delete({ where: { id } });
+      return NextResponse.json({ success: true, message: 'Budget deleted successfully.' });
+    }
+
+    if (entity && month && year) {
+      await prisma.budget.deleteMany({
+        where: {
+          entity,
+          month,
+          year: parseInt(year, 10),
+        },
+      });
+      return NextResponse.json({ success: true, message: 'Budget deleted successfully.' });
+    }
+
+    return NextResponse.json(
+      { success: false, error: 'Provide id, (entity, month, year), or clearAll=true' },
+      { status: 400 }
+    );
+  } catch (error: any) {
+    console.error('Failed to delete budget:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || 'Failed to delete budget' },
+      { status: 500 }
+    );
+  }
+}

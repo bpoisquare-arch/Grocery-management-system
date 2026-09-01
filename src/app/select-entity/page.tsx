@@ -37,7 +37,7 @@ export default function SelectEntityPage() {
   }
 
   // Calculate stats for Lahore
-  const lahoreBudget = getEntityBudget("Lahore", currentMonth, currentYear);
+  const lahoreBudget = getEntityBudget("Lahore", "all");
   const lahoreSpent = groceryEntries
     .filter((e) => e.entity === "Lahore")
     .reduce((sum, e) => sum + e.amount, 0);
@@ -45,7 +45,7 @@ export default function SelectEntityPage() {
   const lahorePct = lahoreBudget > 0 ? Math.round((lahoreSpent / lahoreBudget) * 100) : 0;
 
   // Calculate stats for Multan
-  const multanBudget = getEntityBudget("Multan", currentMonth, currentYear);
+  const multanBudget = getEntityBudget("Multan", "all");
   const multanSpent = groceryEntries
     .filter((e) => e.entity === "Multan")
     .reduce((sum, e) => sum + e.amount, 0);

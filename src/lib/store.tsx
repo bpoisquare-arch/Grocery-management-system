@@ -38,6 +38,8 @@ interface StoreContextType {
   deleteGroceryEntries: (ids: string[]) => Promise<void>;
   approveEntryWithoutSlip: (id: string) => Promise<void>;
   setMonthlyBudget: (entity: Entity, month: string, year: number, amount: number) => Promise<void>;
+  deleteMonthlyBudget: (entity: Entity, month: string, year: number) => Promise<void>;
+  clearAllBudgets: () => Promise<void>;
   getEntityBudget: (entity: Entity, month?: string, year?: number) => number;
 }
 
@@ -134,7 +136,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               localStorage.setItem('gem_entity', 'Multan');
             }
           } else {
-            // Check fallback storedUser if offline
             const storedUser = localStorage.getItem('gem_user');
             if (storedUser) {
               try {
@@ -155,7 +156,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           setIsLoaded(true);
         });
 
-      // Fetch live updates from Aiven MySQL database
+      // Fetch live updates from database
       refreshData();
     }
   }, [refreshData]);
@@ -452,6 +453,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('gem_grocery', JSON.stringify(updated));
   };
 
+  // Upsert or update monthly budget for entity & month & year
   const setMonthlyBudget = async (entity: Entity, month: string, year: number, amount: number) => {
     if (currentUser?.role !== 'ADMIN') return;
 
@@ -487,7 +489,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     // Local fallback
     const existingBudgetIndex = budgets.findIndex(
-      (b) => b.entity === entity && b.month === month && b.year === year
+      (b) => b.entity === entity && b.month.toLowerCase() === month.toLowerCase() && b.year === year
     );
 
     let updatedBudgets = [...budgets];
@@ -501,19 +503,62 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('gem_budgets', JSON.stringify(updatedBudgets));
   };
 
+  // Delete a specific monthly budget
+  const deleteMonthlyBudget = async (entity: Entity, month: string, year: number) => {
+    if (currentUser?.role !== 'ADMIN') return;
+
+    try {
+      await fetch(`/api/budgets?entity=${entity}&month=${month}&year=${year}`, {
+        method: 'DELETE',
+      });
+    } catch (e) {
+      console.error('Failed to delete budget via API:', e);
+    }
+
+    const updatedBudgets = budgets.filter(
+      (b) => !(b.entity === entity && b.month.toLowerCase() === month.toLowerCase() && b.year === year)
+    );
+    setBudgets(updatedBudgets);
+    localStorage.setItem('gem_budgets', JSON.stringify(updatedBudgets));
+  };
+
+  // Clear all budgets
+  const clearAllBudgets = async () => {
+    if (currentUser?.role !== 'ADMIN') return;
+
+    try {
+      await fetch('/api/budgets?clearAll=true', {
+        method: 'DELETE',
+      });
+    } catch (e) {
+      console.error('Failed to clear all budgets via API:', e);
+    }
+
+    setBudgets([]);
+    localStorage.setItem('gem_budgets', JSON.stringify([]));
+  };
+
+  // Accurate real-time budget calculation for an entity
   const getEntityBudget = (entity: Entity, month?: string, year?: number): number => {
-    const targetMonth = month || currentMonth;
     const targetYear = year || currentYear;
 
+    // If month is "all" or omitted, return sum of budgets for this entity or latest budget
+    if (!month || month === 'all') {
+      const entityBudgets = budgets.filter((b) => b.entity === entity);
+      if (entityBudgets.length > 0) {
+        // Return sum of all assigned budgets for this entity
+        return entityBudgets.reduce((sum, b) => sum + b.amount, 0);
+      }
+      return 0;
+    }
+
+    // Exact match for the specified month and year
     const exact = budgets.find(
-      (b) => b.entity === entity && b.month.toLowerCase() === targetMonth.toLowerCase() && b.year === targetYear
+      (b) => b.entity === entity && b.month.toLowerCase() === month.toLowerCase() && b.year === targetYear
     );
-    if (exact && exact.amount > 0) return exact.amount;
+    if (exact && exact.amount !== undefined) return exact.amount;
 
-    const anyForEntity = budgets.find((b) => b.entity === entity && b.amount > 0);
-    if (anyForEntity) return anyForEntity.amount;
-
-    return entity === 'Lahore' ? 100000 : 80000;
+    return 0;
   };
 
   return (
@@ -538,6 +583,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         deleteGroceryEntries,
         approveEntryWithoutSlip,
         setMonthlyBudget,
+        deleteMonthlyBudget,
+        clearAllBudgets,
         getEntityBudget,
       }}
     >

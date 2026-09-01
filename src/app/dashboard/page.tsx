@@ -75,11 +75,15 @@ export default function DashboardPage() {
   // Determine budget based on period
   const totalBudget = useMemo(() => {
     if (selectedPeriod === "all") {
-      return getEntityBudget(activeEntity, currentMonth, currentYear);
+      const entityBudgets = budgets.filter((b) => b.entity === activeEntity);
+      if (entityBudgets.length > 0) {
+        return entityBudgets.reduce((sum, b) => sum + b.amount, 0);
+      }
+      return 0;
     }
     const [month, yearStr] = selectedPeriod.split("-");
     return getEntityBudget(activeEntity, month, parseInt(yearStr, 10));
-  }, [activeEntity, selectedPeriod, currentMonth, currentYear, budgets, getEntityBudget]);
+  }, [activeEntity, selectedPeriod, budgets, getEntityBudget]);
 
   // Filter entries for active entity and selected period, sorted by date descending
   const filteredEntries = useMemo(() => {
