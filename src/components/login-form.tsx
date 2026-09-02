@@ -48,10 +48,8 @@ export function LoginForm({
 
         if (callbackUrl) {
           router.push(callbackUrl);
-        } else if (result.user.role === "ADMIN") {
-          router.push("/select-entity");
         } else {
-          router.push("/dashboard");
+          router.push("/select-module");
         }
       } else {
         toast.error(result.error || "Invalid email or password. Please try again.");

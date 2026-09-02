@@ -4,7 +4,15 @@ import { jwtVerify } from 'jose';
 const AUTH_COOKIE_NAME = 'gem_auth_token';
 
 // Protected application routes
-const protectedRoutes = ['/dashboard', '/grocery', '/budget', '/reports', '/select-entity'];
+const protectedRoutes = [
+  '/dashboard',
+  '/grocery',
+  '/budget',
+  '/reports',
+  '/select-entity',
+  '/select-module',
+  '/commissions',
+];
 const authRoutes = ['/login'];
 
 export async function middleware(request: NextRequest) {
@@ -35,20 +43,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // If already authenticated and accessing /login, redirect to /dashboard
+  // If already authenticated and accessing /login, redirect to /select-module
   if (isAuthRoute && isAuthenticated) {
-    if (userPayload?.role === 'ADMIN') {
-      return NextResponse.redirect(new URL('/select-entity', request.url));
-    }
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    return NextResponse.redirect(new URL('/select-module', request.url));
   }
 
   // Root redirect
   if (pathname === '/') {
     if (isAuthenticated) {
-      return NextResponse.redirect(
-        new URL(userPayload?.role === 'ADMIN' ? '/select-entity' : '/dashboard', request.url)
-      );
+      return NextResponse.redirect(new URL('/select-module', request.url));
     } else {
       return NextResponse.redirect(new URL('/login', request.url));
     }
@@ -61,10 +64,12 @@ export const config = {
   matcher: [
     '/',
     '/login',
+    '/select-module/:path*',
+    '/select-entity/:path*',
+    '/commissions/:path*',
     '/dashboard/:path*',
     '/grocery/:path*',
     '/budget/:path*',
     '/reports/:path*',
-    '/select-entity/:path*',
   ],
 };

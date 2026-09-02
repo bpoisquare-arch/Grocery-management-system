@@ -1,13 +1,31 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { User, GroceryEntry, Budget, mockBudgets, mockGroceryEntries, Entity, SlipStatus } from './mockData';
+import {
+  User,
+  GroceryEntry,
+  Budget,
+  mockBudgets,
+  mockGroceryEntries,
+  Entity,
+  SlipStatus,
+  CommissionEntry,
+  Counselor,
+  CommissionService,
+  mockCommissionEntries,
+  initialCounselors,
+  CounselorServiceCommissions,
+  defaultServiceCommissions,
+  defaultBmServiceCommissions,
+} from './mockData';
 
 interface StoreContextType {
   currentUser: User | null;
   activeEntity: Entity;
   groceryEntries: GroceryEntry[];
   budgets: Budget[];
+  commissionEntries: CommissionEntry[];
+  counselors: Counselor[];
   currentMonth: string;
   currentYear: number;
   isLoading: boolean;
@@ -41,6 +59,57 @@ interface StoreContextType {
   deleteMonthlyBudget: (entity: Entity, month: string, year: number) => Promise<void>;
   clearAllBudgets: () => Promise<void>;
   getEntityBudget: (entity: Entity, month?: string, year?: number) => number;
+  // Commission & Counselor Methods
+  addCommissionEntry: (entry: {
+    studentName: string;
+    service: CommissionService;
+    counselor: string;
+    amount: number;
+    date: string;
+    fullReceived: boolean;
+    counselorCommission?: number;
+    bmCommission?: number;
+    notes?: string;
+    slipFile?: File | null;
+  }) => Promise<void>;
+  updateCommissionEntry: (
+    id: string,
+    updatedData: {
+      studentName?: string;
+      service?: CommissionService;
+      counselor?: string;
+      amount?: number;
+      date?: string;
+      fullReceived?: boolean;
+      counselorCommission?: number;
+      bmCommission?: number;
+      status?: SlipStatus;
+      notes?: string;
+      slipFile?: File | null;
+    }
+  ) => Promise<void>;
+  deleteCommissionEntry: (id: string) => Promise<void>;
+  deleteCommissionEntries: (ids: string[]) => Promise<void>;
+  addCounselor: (counselor: {
+    name: string;
+    entity?: Entity | 'All';
+    email?: string;
+    phone?: string;
+    serviceCommissions?: CounselorServiceCommissions;
+    bmServiceCommissions?: CounselorServiceCommissions;
+  }) => Promise<void>;
+  updateCounselor: (
+    id: string,
+    data: {
+      name?: string;
+      entity?: Entity | 'All';
+      email?: string;
+      phone?: string;
+      serviceCommissions?: CounselorServiceCommissions;
+      bmServiceCommissions?: CounselorServiceCommissions;
+    }
+  ) => Promise<void>;
+  deleteCounselor: (id: string) => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -50,6 +119,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [activeEntity, setActiveEntity] = useState<Entity>('Lahore');
   const [groceryEntries, setGroceryEntries] = useState<GroceryEntry[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [commissionEntries, setCommissionEntries] = useState<CommissionEntry[]>([]);
+  const [counselors, setCounselors] = useState<Counselor[]>([]);
   const [currentMonth, setCurrentMonthState] = useState<string>('August');
   const [currentYear, setCurrentYearState] = useState<number>(2026);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -91,6 +162,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const storedEntity = localStorage.getItem('gem_entity');
       const storedGrocery = localStorage.getItem('gem_grocery');
       const storedBudgets = localStorage.getItem('gem_budgets');
+      const storedCommissions = localStorage.getItem('gem_commissions');
+      const storedCounselors = localStorage.getItem('gem_counselors');
       const storedMonth = localStorage.getItem('gem_month');
       const storedYear = localStorage.getItem('gem_year');
 
@@ -116,6 +189,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         setBudgets(mockBudgets);
+      }
+
+      if (storedCommissions) {
+        try {
+          setCommissionEntries(JSON.parse(storedCommissions));
+        } catch (e) {
+          setCommissionEntries(mockCommissionEntries);
+        }
+      } else {
+        setCommissionEntries(mockCommissionEntries);
+      }
+
+      if (storedCounselors) {
+        try {
+          setCounselors(JSON.parse(storedCounselors));
+        } catch (e) {
+          setCounselors(initialCounselors);
+        }
+      } else {
+        setCounselors(initialCounselors);
       }
 
       // Check current session from /api/auth/me
@@ -561,6 +654,165 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return 0;
   };
 
+  // Commission Operations
+  const addCommissionEntry = async (entry: {
+    studentName: string;
+    service: CommissionService;
+    counselor: string;
+    amount: number;
+    date: string;
+    fullReceived: boolean;
+    counselorCommission?: number;
+    bmCommission?: number;
+    notes?: string;
+    slipFile?: File | null;
+  }) => {
+    let slipUrl = undefined;
+    let slipType: 'image' | 'pdf' | undefined = undefined;
+
+    if (entry.slipFile) {
+      try {
+        slipUrl = await fileToDataUrl(entry.slipFile);
+        slipType = entry.slipFile.type.includes('pdf') ? 'pdf' : 'image';
+      } catch (err) {
+        console.error('Error reading slip file:', err);
+      }
+    }
+
+    const newEntry: CommissionEntry = {
+      id: `comm-${Date.now()}`,
+      entity: activeEntity,
+      studentName: entry.studentName,
+      service: entry.service,
+      counselor: entry.counselor,
+      amount: entry.amount,
+      date: entry.date,
+      fullReceived: entry.fullReceived,
+      counselorCommission: entry.counselorCommission || 0,
+      bmCommission: entry.bmCommission || 0,
+      notes: entry.notes,
+      status: slipUrl ? 'Slip Uploaded' : 'Slip Missing',
+      slipUrl,
+      slipType,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const updated = [newEntry, ...commissionEntries];
+    setCommissionEntries(updated);
+    localStorage.setItem('gem_commissions', JSON.stringify(updated));
+  };
+
+  const updateCommissionEntry = async (
+    id: string,
+    updatedData: {
+      studentName?: string;
+      service?: CommissionService;
+      counselor?: string;
+      amount?: number;
+      date?: string;
+      fullReceived?: boolean;
+      counselorCommission?: number;
+      bmCommission?: number;
+      status?: SlipStatus;
+      notes?: string;
+      slipFile?: File | null;
+    }
+  ) => {
+    let slipUrl = undefined;
+    let slipType: 'image' | 'pdf' | undefined = undefined;
+
+    if (updatedData.slipFile) {
+      try {
+        slipUrl = await fileToDataUrl(updatedData.slipFile);
+        slipType = updatedData.slipFile.type.includes('pdf') ? 'pdf' : 'image';
+      } catch (err) {
+        console.error('Error reading slip file:', err);
+      }
+    }
+
+    const updated = commissionEntries.map((entry) => {
+      if (entry.id === id) {
+        return {
+          ...entry,
+          ...updatedData,
+          ...(slipUrl ? { slipUrl, slipType, status: 'Slip Uploaded' as SlipStatus } : {}),
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return entry;
+    });
+
+    setCommissionEntries(updated);
+    localStorage.setItem('gem_commissions', JSON.stringify(updated));
+  };
+
+  const deleteCommissionEntry = async (id: string) => {
+    const updated = commissionEntries.filter((entry) => entry.id !== id);
+    setCommissionEntries(updated);
+    localStorage.setItem('gem_commissions', JSON.stringify(updated));
+  };
+
+  const deleteCommissionEntries = async (ids: string[]) => {
+    const updated = commissionEntries.filter((entry) => !ids.includes(entry.id));
+    setCommissionEntries(updated);
+    localStorage.setItem('gem_commissions', JSON.stringify(updated));
+  };
+
+  const addCounselor = async (counselor: {
+    name: string;
+    entity?: Entity | 'All';
+    email?: string;
+    phone?: string;
+    serviceCommissions?: CounselorServiceCommissions;
+    bmServiceCommissions?: CounselorServiceCommissions;
+  }) => {
+    const newCounselor: Counselor = {
+      id: `coun-${Date.now()}`,
+      name: counselor.name,
+      entity: counselor.entity || 'All',
+      email: counselor.email,
+      phone: counselor.phone,
+      serviceCommissions: counselor.serviceCommissions || { ...defaultServiceCommissions },
+      bmServiceCommissions: counselor.bmServiceCommissions || { ...defaultBmServiceCommissions },
+      createdAt: new Date().toISOString(),
+    };
+
+    const updated = [...counselors, newCounselor];
+    setCounselors(updated);
+    localStorage.setItem('gem_counselors', JSON.stringify(updated));
+  };
+
+  const updateCounselor = async (
+    id: string,
+    data: {
+      name?: string;
+      entity?: Entity | 'All';
+      email?: string;
+      phone?: string;
+      serviceCommissions?: CounselorServiceCommissions;
+      bmServiceCommissions?: CounselorServiceCommissions;
+    }
+  ) => {
+    const updated = counselors.map((c) => {
+      if (c.id === id) {
+        return {
+          ...c,
+          ...data,
+        };
+      }
+      return c;
+    });
+    setCounselors(updated);
+    localStorage.setItem('gem_counselors', JSON.stringify(updated));
+  };
+
+  const deleteCounselor = async (id: string) => {
+    const updated = counselors.filter((c) => c.id !== id);
+    setCounselors(updated);
+    localStorage.setItem('gem_counselors', JSON.stringify(updated));
+  };
+
   return (
     <StoreContext.Provider
       value={{
@@ -568,6 +820,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         activeEntity,
         groceryEntries,
         budgets,
+        commissionEntries,
+        counselors,
         currentMonth,
         currentYear,
         isLoading,
@@ -586,6 +840,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         deleteMonthlyBudget,
         clearAllBudgets,
         getEntityBudget,
+        addCommissionEntry,
+        updateCommissionEntry,
+        deleteCommissionEntry,
+        deleteCommissionEntries,
+        addCounselor,
+        updateCounselor,
+        deleteCounselor,
       }}
     >
       {isLoaded && children}

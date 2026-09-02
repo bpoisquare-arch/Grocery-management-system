@@ -17,20 +17,19 @@ import {
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboardIcon,
-  ShoppingBagIcon,
+  BadgePercentIcon,
+  UsersIcon,
   FileBarChart2Icon,
-  Settings2Icon,
-  HelpCircleIcon,
   LogOutIcon,
   Building2Icon,
   GitCompareIcon,
-  CoinsIcon,
-  BadgePercentIcon,
+  ShoppingBagIcon,
   LayoutGridIcon,
+  AwardIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,7 +39,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function CommissionsSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const router = useRouter();
   const { currentUser, activeEntity, switchEntity, logout } = useStore();
@@ -48,25 +47,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const isAdmin = currentUser?.role === "ADMIN";
 
-  // Build main navigation items
+  // Build commissions navigation items
   const navItems = [
     {
-      title: "Dashboard",
-      url: "/dashboard",
+      title: "Commissions Dashboard",
+      url: "/commissions/dashboard",
       icon: LayoutDashboardIcon,
       visible: true,
     },
     {
-      title: "Grocery Management",
-      url: "/grocery",
-      icon: ShoppingBagIcon,
+      title: "Manage Counselors",
+      url: "/commissions/counselors",
+      icon: UsersIcon,
       visible: true,
-    },
-    {
-      title: "Monthly Budget",
-      url: "/budget",
-      icon: CoinsIcon,
-      visible: isAdmin, // Admin only
     },
   ];
 
@@ -76,11 +69,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <div className="flex flex-col gap-2">
           {/* Logo */}
           <div className="flex items-center gap-2">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-600 text-white">
-              <ShoppingBagIcon className="size-5" />
+            <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-2xs">
+              <BadgePercentIcon className="size-5" />
             </div>
             <div className="flex flex-col">
-              <span className="text-sm font-semibold leading-none text-gray-900">Grocery Expense</span>
+              <span className="text-sm font-semibold leading-none text-gray-900">Employee Commission</span>
               <span className="text-xs text-gray-500 font-medium">Manager</span>
             </div>
           </div>
@@ -94,7 +87,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               )}
             >
               <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
-              {isAdmin ? "ADMIN" : `${activeEntity.toUpperCase()} USER`}
+              {isAdmin ? `ADMIN • ${activeEntity.toUpperCase()}` : `${activeEntity.toUpperCase()} BRANCH`}
             </Badge>
           </div>
         </div>
@@ -130,15 +123,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               );
             })}
 
-          {/* Admin Entity Switcher Link */}
+          {/* Admin Commission Entity Switcher */}
           {isAdmin && (
             <SidebarMenuItem>
               <DropdownMenu>
                 <DropdownMenuTrigger
                   render={
                     <SidebarMenuButton
-                      tooltip="Switch Entity"
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                      tooltip="Switch Commission Entity"
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 cursor-pointer"
                     />
                   }
                 >
@@ -147,21 +140,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <span className="text-[10px] text-gray-400 font-mono bg-gray-100 px-1 rounded">Admin</span>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-52">
-                  <DropdownMenuLabel>Select Active Entity</DropdownMenuLabel>
+                  <DropdownMenuLabel>Select Active Branch</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => switchEntity("Lahore")}
-                    className={cn(activeEntity === "Lahore" && "bg-emerald-50 text-emerald-700 font-semibold")}
+                    className={cn(activeEntity === "Lahore" && "bg-emerald-50 text-emerald-700 font-semibold", "cursor-pointer")}
                   >
                     <Building2Icon className="size-4 mr-2" />
-                    Lahore Entity
+                    Lahore Commission
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => switchEntity("Multan")}
-                    className={cn(activeEntity === "Multan" && "bg-emerald-50 text-emerald-700 font-semibold")}
+                    className={cn(activeEntity === "Multan" && "bg-emerald-50 text-emerald-700 font-semibold", "cursor-pointer")}
                   >
                     <Building2Icon className="size-4 mr-2" />
-                    Multan Entity
+                    Multan Commission
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -182,12 +175,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
           <SidebarMenuItem>
             <SidebarMenuButton
-              render={<Link href="/commissions/dashboard" />}
-              tooltip="Employee Commissions"
+              render={<Link href="/dashboard" />}
+              tooltip="Grocery Module"
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-emerald-50 hover:text-emerald-700"
             >
-              <BadgePercentIcon className="size-5 text-emerald-600" />
-              <span>Commissions Module</span>
+              <ShoppingBagIcon className="size-5 text-emerald-600" />
+              <span>Grocery Module</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -195,10 +188,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       <SidebarFooter className="border-t border-border p-3 bg-white">
         <SidebarMenu>
-
           {/* User Profile Area */}
           {currentUser && (
-            <SidebarMenuItem className="mt-2 border-t border-gray-100 pt-2">
+            <SidebarMenuItem className="mt-1">
               <div className="flex items-center justify-between gap-1 w-full">
                 <div className="flex items-center gap-2 flex-1 min-w-0 px-2 py-1.5">
                   <Avatar className="size-9 rounded-lg shrink-0">
@@ -216,7 +208,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   size="icon"
                   onClick={logout}
                   title="Log out"
-                  className="size-8 text-gray-500 hover:text-red-600 hover:bg-red-50 shrink-0 rounded-lg"
+                  className="size-8 text-gray-500 hover:text-red-600 hover:bg-red-50 shrink-0 rounded-lg cursor-pointer"
                 >
                   <LogOutIcon className="size-4" />
                 </Button>

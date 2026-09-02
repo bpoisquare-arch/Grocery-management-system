@@ -7,7 +7,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Building2Icon, ArrowRightIcon, CoinsIcon, ShoppingBagIcon, LogOutIcon } from "lucide-react";
+import { Building2Icon, ArrowRightIcon, CoinsIcon, ShoppingBagIcon, LogOutIcon, ArrowLeftIcon, LayoutGridIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Entity } from "@/lib/mockData";
 
@@ -62,11 +62,23 @@ export default function SelectEntityPage() {
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-between py-12 px-6 sm:px-12">
       {/* Top Bar / Logout */}
       <div className="max-w-4xl w-full mx-auto flex justify-between items-center mb-10">
-        <div className="flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-600 text-white">
-            <ShoppingBagIcon className="size-5" />
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push("/select-module")}
+            className="h-8 px-2 text-xs font-semibold text-gray-600 hover:text-emerald-700 hover:bg-emerald-50 gap-1"
+          >
+            <ArrowLeftIcon className="size-3.5" />
+            <span>Modules</span>
+          </Button>
+          <div className="h-4 w-px bg-gray-200" />
+          <div className="flex items-center gap-2">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-2xs">
+              <ShoppingBagIcon className="size-4" />
+            </div>
+            <span className="text-sm font-bold text-gray-900">Grocery Expense Manager</span>
           </div>
-          <span className="text-sm font-bold text-gray-900">Grocery Expense Manager</span>
         </div>
 
         <div className="flex items-center gap-4">

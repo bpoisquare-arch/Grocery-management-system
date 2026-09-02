@@ -5,15 +5,17 @@ import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export default function Home() {
+export default function CommissionsRootPage() {
   const { currentUser } = useStore();
   const router = useRouter();
 
   useEffect(() => {
     if (!currentUser) {
       router.push("/login");
+    } else if (currentUser.role === "ADMIN") {
+      router.push("/commissions/select-entity");
     } else {
-      router.push("/select-module");
+      router.push("/commissions/dashboard");
     }
   }, [currentUser, router]);
 

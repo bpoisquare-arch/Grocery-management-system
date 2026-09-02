@@ -2,6 +2,110 @@ export type Role = 'ADMIN' | 'LAHORE_USER' | 'MULTAN_USER';
 export type Entity = 'Lahore' | 'Multan';
 export type SlipStatus = 'Slip Uploaded' | 'Slip Missing' | 'Approved Without Slip';
 
+export type CommissionService =
+  | 'Visa Processing'
+  | 'PTE'
+  | 'Visa Granted'
+  | 'IELTS'
+  | 'FBR Document'
+  | 'Proof of Deposit';
+
+export const COMMISSION_SERVICES: CommissionService[] = [
+  'Visa Processing',
+  'PTE',
+  'Visa Granted',
+  'IELTS',
+  'FBR Document',
+  'Proof of Deposit',
+];
+
+export type CommissionCalculationType = 'percentage' | 'fixed';
+
+export interface ServiceCommissionRule {
+  type: CommissionCalculationType;
+  value: number;
+}
+
+export type CounselorServiceCommissions = Partial<Record<CommissionService, ServiceCommissionRule>>;
+
+export const defaultServiceCommissions: Record<CommissionService, ServiceCommissionRule> = {
+  'Visa Processing': { type: 'percentage', value: 10 },
+  'PTE': { type: 'percentage', value: 10 },
+  'Visa Granted': { type: 'percentage', value: 10 },
+  'IELTS': { type: 'percentage', value: 10 },
+  'FBR Document': { type: 'percentage', value: 10 },
+  'Proof of Deposit': { type: 'percentage', value: 10 },
+};
+
+export const defaultBmServiceCommissions: Record<CommissionService, ServiceCommissionRule> = {
+  'Visa Processing': { type: 'percentage', value: 5 },
+  'PTE': { type: 'percentage', value: 5 },
+  'Visa Granted': { type: 'percentage', value: 5 },
+  'IELTS': { type: 'percentage', value: 5 },
+  'FBR Document': { type: 'percentage', value: 5 },
+  'Proof of Deposit': { type: 'percentage', value: 5 },
+};
+
+export interface Counselor {
+  id: string;
+  name: string;
+  entity?: Entity | 'All';
+  email?: string;
+  phone?: string;
+  serviceCommissions?: CounselorServiceCommissions;
+  bmServiceCommissions?: CounselorServiceCommissions;
+  createdAt?: string;
+}
+
+export const initialCounselors: Counselor[] = [
+  {
+    id: 'coun-1',
+    name: 'Humaira Amin',
+    entity: 'All',
+    email: 'humaira@isquarebpo.com',
+    phone: '+92 300 1122334',
+    serviceCommissions: { ...defaultServiceCommissions },
+    bmServiceCommissions: { ...defaultBmServiceCommissions },
+  },
+  {
+    id: 'coun-2',
+    name: 'Laraib Nadeem',
+    entity: 'All',
+    email: 'laraib@isquarebpo.com',
+    phone: '+92 300 2233445',
+    serviceCommissions: { ...defaultServiceCommissions },
+    bmServiceCommissions: { ...defaultBmServiceCommissions },
+  },
+  {
+    id: 'coun-3',
+    name: 'Laiba Nasir',
+    entity: 'All',
+    email: 'laiba@isquarebpo.com',
+    phone: '+92 300 3344556',
+    serviceCommissions: { ...defaultServiceCommissions },
+    bmServiceCommissions: { ...defaultBmServiceCommissions },
+  },
+];
+
+export interface CommissionEntry {
+  id: string;
+  entity: Entity;
+  studentName: string;
+  service: CommissionService;
+  counselor: string;
+  amount: number;
+  date: string; // YYYY-MM-DD
+  fullReceived: boolean;
+  counselorCommission: number; // C.C
+  bmCommission: number; // B.M
+  status: SlipStatus;
+  slipUrl?: string; // Path or base64 data URL
+  slipType?: 'image' | 'pdf';
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -61,6 +165,141 @@ export const mockUsers: User[] = [
 
 // Initial Budgets for Lahore and Multan (Clean by default, configured via Budget page)
 export const mockBudgets: Budget[] = [];
+
+// Sample Commission Entries for Lahore & Multan
+export const mockCommissionEntries: CommissionEntry[] = [
+  {
+    id: 'comm-lah-1',
+    entity: 'Lahore',
+    studentName: 'Muhammad Hamza',
+    service: 'Visa Processing',
+    counselor: 'Humaira Amin',
+    amount: 150000,
+    date: '2026-08-28',
+    fullReceived: true,
+    counselorCommission: 15000,
+    bmCommission: 7500,
+    status: 'Slip Uploaded',
+    slipUrl: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=600&auto=format&fit=crop',
+    slipType: 'image',
+    createdAt: '2026-08-28T10:00:00Z',
+    updatedAt: '2026-08-28T10:00:00Z',
+  },
+  {
+    id: 'comm-lah-2',
+    entity: 'Lahore',
+    studentName: 'Ayesha Siddiqui',
+    service: 'IELTS',
+    counselor: 'Laraib Nadeem',
+    amount: 45000,
+    date: '2026-08-27',
+    fullReceived: true,
+    counselorCommission: 4500,
+    bmCommission: 2250,
+    status: 'Slip Uploaded',
+    slipUrl: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?q=80&w=600&auto=format&fit=crop',
+    slipType: 'image',
+    createdAt: '2026-08-27T12:00:00Z',
+    updatedAt: '2026-08-27T12:00:00Z',
+  },
+  {
+    id: 'comm-lah-3',
+    entity: 'Lahore',
+    studentName: 'Zain Ul Abideen',
+    service: 'PTE',
+    counselor: 'Laiba Nasir',
+    amount: 35000,
+    date: '2026-08-25',
+    fullReceived: false,
+    counselorCommission: 0,
+    bmCommission: 0,
+    status: 'Slip Missing',
+    createdAt: '2026-08-25T14:30:00Z',
+    updatedAt: '2026-08-25T14:30:00Z',
+  },
+  {
+    id: 'comm-lah-4',
+    entity: 'Lahore',
+    studentName: 'Fatima Noor',
+    service: 'Visa Granted',
+    counselor: 'Humaira Amin',
+    amount: 200000,
+    date: '2026-08-22',
+    fullReceived: true,
+    counselorCommission: 20000,
+    bmCommission: 10000,
+    status: 'Slip Uploaded',
+    slipUrl: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=600&auto=format&fit=crop',
+    slipType: 'image',
+    createdAt: '2026-08-22T09:15:00Z',
+    updatedAt: '2026-08-22T09:15:00Z',
+  },
+  {
+    id: 'comm-lah-5',
+    entity: 'Lahore',
+    studentName: 'Bilal Ahmed',
+    service: 'Proof of Deposit',
+    counselor: 'Laraib Nadeem',
+    amount: 80000,
+    date: '2026-08-20',
+    fullReceived: true,
+    counselorCommission: 8000,
+    bmCommission: 4000,
+    status: 'Approved Without Slip',
+    createdAt: '2026-08-20T11:00:00Z',
+    updatedAt: '2026-08-20T11:00:00Z',
+  },
+  // --- MULTAN ENTITY ---
+  {
+    id: 'comm-mul-1',
+    entity: 'Multan',
+    studentName: 'Usman Tariq',
+    service: 'Visa Processing',
+    counselor: 'Humaira Amin',
+    amount: 140000,
+    date: '2026-08-28',
+    fullReceived: true,
+    counselorCommission: 14000,
+    bmCommission: 7000,
+    status: 'Slip Uploaded',
+    slipUrl: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=600&auto=format&fit=crop',
+    slipType: 'image',
+    createdAt: '2026-08-28T11:00:00Z',
+    updatedAt: '2026-08-28T11:00:00Z',
+  },
+  {
+    id: 'comm-mul-2',
+    entity: 'Multan',
+    studentName: 'Maryam Bibi',
+    service: 'FBR Document',
+    counselor: 'Laiba Nasir',
+    amount: 60000,
+    date: '2026-08-26',
+    fullReceived: false,
+    counselorCommission: 0,
+    bmCommission: 0,
+    status: 'Slip Missing',
+    createdAt: '2026-08-26T15:00:00Z',
+    updatedAt: '2026-08-26T15:00:00Z',
+  },
+  {
+    id: 'comm-mul-3',
+    entity: 'Multan',
+    studentName: 'Saad Rafique',
+    service: 'IELTS',
+    counselor: 'Laraib Nadeem',
+    amount: 45000,
+    date: '2026-08-24',
+    fullReceived: true,
+    counselorCommission: 4500,
+    bmCommission: 2250,
+    status: 'Slip Uploaded',
+    slipUrl: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?q=80&w=600&auto=format&fit=crop',
+    slipType: 'image',
+    createdAt: '2026-08-24T10:30:00Z',
+    updatedAt: '2026-08-24T10:30:00Z',
+  },
+];
 
 // 24 entries for Lahore in August 2026 (Total: Rs. 65,000)
 // 10 entries for Multan in August 2026 (Total: Rs. 45,000)
