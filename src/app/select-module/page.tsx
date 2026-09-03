@@ -55,6 +55,10 @@ export default function SelectModulePage() {
       switchEntity("Multan");
       toast.success("Opening Multan Grocery Management");
       router.push("/dashboard");
+    } else if (currentUser.role === "ISQUAREBPO_USER") {
+      switchEntity("ISquareBPO");
+      toast.success("Opening ISquareBPO Grocery Management");
+      router.push("/dashboard");
     }
   };
 
@@ -69,6 +73,8 @@ export default function SelectModulePage() {
       switchEntity("Multan");
       toast.success("Opening Multan Employee Commissions");
       router.push("/commissions/dashboard");
+    } else if (currentUser.role === "ISQUAREBPO_USER") {
+      toast.info("Employee Commissions module is exclusively configured for Lahore & Multan branches.");
     }
   };
 
@@ -160,7 +166,7 @@ export default function SelectModulePage() {
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Building2Icon className="size-4 text-emerald-600 shrink-0" />
-                  <span>{isAdmin ? "Lahore & Multan" : `${activeEntity} Office`}</span>
+                  <span>{isAdmin ? "Lahore, Multan & ISquareBPO" : `${activeEntity} Entity`}</span>
                 </div>
               </div>
             </CardContent>
@@ -181,7 +187,11 @@ export default function SelectModulePage() {
           {/* 2. EMPLOYEE COMMISSIONS MODULE CARD */}
           <Card
             onClick={handleSelectCommissions}
-            className="group border border-gray-200 hover:border-emerald-500/70 bg-white shadow-xs hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden"
+            className={`group border border-gray-200 bg-white shadow-xs transition-all duration-200 flex flex-col justify-between overflow-hidden ${
+              currentUser.role === "ISQUAREBPO_USER"
+                ? "opacity-60 cursor-not-allowed hover:border-gray-200"
+                : "hover:border-emerald-500/70 hover:shadow-lg cursor-pointer"
+            }`}
           >
             <CardHeader className="pb-4">
               <div className="flex justify-between items-start">
@@ -189,7 +199,7 @@ export default function SelectModulePage() {
                   <BadgePercentIcon className="size-7" />
                 </div>
                 <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 font-semibold text-[11px]">
-                  Commissions & Payroll
+                  {currentUser.role === "ISQUAREBPO_USER" ? "Lahore & Multan Only" : "Commissions & Payroll"}
                 </Badge>
               </div>
               <CardTitle className="text-2xl font-bold text-gray-900 mt-5 group-hover:text-emerald-700 transition-colors">
@@ -218,10 +228,23 @@ export default function SelectModulePage() {
                   e.stopPropagation();
                   handleSelectCommissions();
                 }}
-                className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 group-hover:shadow-md cursor-pointer"
+                disabled={currentUser.role === "ISQUAREBPO_USER"}
+                className={`w-full h-11 text-white font-semibold transition-colors flex items-center justify-center gap-2 ${
+                  currentUser.role === "ISQUAREBPO_USER"
+                    ? "bg-gray-400 cursor-not-allowed"
+                    : "bg-emerald-600 hover:bg-emerald-700 group-hover:shadow-md cursor-pointer"
+                }`}
               >
-                <span>{isAdmin ? "Open Commissions Entity Selector" : `Open ${activeEntity} Commissions`}</span>
-                <ArrowRightIcon className="size-4 group-hover:translate-x-1 transition-transform" />
+                <span>
+                  {currentUser.role === "ISQUAREBPO_USER"
+                    ? "Not Applicable for ISquareBPO"
+                    : isAdmin
+                    ? "Open Commissions Entity Selector"
+                    : `Open ${activeEntity} Commissions`}
+                </span>
+                {currentUser.role !== "ISQUAREBPO_USER" && (
+                  <ArrowRightIcon className="size-4 group-hover:translate-x-1 transition-transform" />
+                )}
               </Button>
             </CardFooter>
           </Card>

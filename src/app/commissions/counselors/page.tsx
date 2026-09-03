@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useStore } from "@/lib/store";
 import { CommissionsLayout } from "@/components/commissions/CommissionsLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -62,7 +64,6 @@ import {
   UserCheckIcon,
   BriefcaseIcon,
 } from "lucide-react";
-import { toast } from "sonner";
 import {
   Entity,
   Counselor,
@@ -75,16 +76,20 @@ import {
 
 export default function CounselorsPage() {
   const { counselors, addCounselor, updateCounselor, deleteCounselor, activeEntity, switchEntity, currentUser } = useStore();
+  const router = useRouter();
   const isAdmin = currentUser?.role === "ADMIN";
 
   // Strict branch isolation for non-admin users
   React.useEffect(() => {
-    if (currentUser?.role === "LAHORE_USER" && activeEntity !== "Lahore") {
+    if (currentUser?.role === "ISQUAREBPO_USER") {
+      toast.error("Commissions Module is not available for ISquareBPO entity.");
+      router.push("/dashboard");
+    } else if (currentUser?.role === "LAHORE_USER" && activeEntity !== "Lahore") {
       switchEntity("Lahore");
     } else if (currentUser?.role === "MULTAN_USER" && activeEntity !== "Multan") {
       switchEntity("Multan");
     }
-  }, [currentUser, activeEntity, switchEntity]);
+  }, [currentUser, activeEntity, switchEntity, router]);
 
   // Modals state
   const [addModalOpen, setAddModalOpen] = useState(false);

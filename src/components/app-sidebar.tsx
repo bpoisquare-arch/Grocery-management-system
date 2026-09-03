@@ -163,6 +163,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <Building2Icon className="size-4 mr-2" />
                     Multan Entity
                   </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => switchEntity("ISquareBPO")}
+                    className={cn(activeEntity === "ISquareBPO" && "bg-emerald-50 text-emerald-700 font-semibold")}
+                  >
+                    <Building2Icon className="size-4 mr-2" />
+                    ISquareBPO Entity
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </SidebarMenuItem>
@@ -180,16 +187,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarMenuButton>
           </SidebarMenuItem>
 
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              render={<Link href="/commissions/dashboard" />}
-              tooltip="Employee Commissions"
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-emerald-50 hover:text-emerald-700"
-            >
-              <BadgePercentIcon className="size-5 text-emerald-600" />
-              <span>Commissions Module</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {currentUser?.role !== "ISQUAREBPO_USER" && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                render={<Link href="/commissions/dashboard" />}
+                tooltip="Employee Commissions"
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-emerald-50 hover:text-emerald-700"
+              >
+                <BadgePercentIcon className="size-5 text-emerald-600" />
+                <span>Commissions Module</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
         </SidebarMenu>
       </SidebarContent>
 
@@ -203,7 +212,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <div className="flex items-center gap-2 flex-1 min-w-0 px-2 py-1.5">
                   <Avatar className="size-9 rounded-lg shrink-0">
                     <AvatarFallback className="rounded-lg bg-emerald-100 text-emerald-700 text-sm font-bold flex items-center justify-center">
-                      {currentUser.role === "ADMIN" ? "A" : currentUser.role === "LAHORE_USER" ? "L" : "M"}
+                      {currentUser.role === "ADMIN"
+                        ? "A"
+                        : currentUser.role === "LAHORE_USER"
+                        ? "L"
+                        : currentUser.role === "MULTAN_USER"
+                        ? "M"
+                        : "I"}
                     </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight min-w-0">

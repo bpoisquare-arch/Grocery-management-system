@@ -1,5 +1,5 @@
-export type Role = 'ADMIN' | 'LAHORE_USER' | 'MULTAN_USER';
-export type Entity = 'Lahore' | 'Multan';
+export type Role = 'ADMIN' | 'LAHORE_USER' | 'MULTAN_USER' | 'ISQUAREBPO_USER';
+export type Entity = 'Lahore' | 'Multan' | 'ISquareBPO';
 export type SlipStatus = 'Slip Uploaded' | 'Slip Missing' | 'Approved Without Slip';
 
 export type CommissionService =
@@ -141,7 +141,7 @@ export interface Budget {
 export const mockUsers: User[] = [
   {
     id: 'user-admin',
-    name: 'ISquareBPO',
+    name: 'Admin',
     email: 'admin@grocerymanager.com',
     avatar: '',
     role: 'ADMIN',
@@ -161,6 +161,14 @@ export const mockUsers: User[] = [
     avatar: '',
     role: 'MULTAN_USER',
     assignedEntity: 'Multan',
+  },
+  {
+    id: 'user-isquarebpo',
+    name: 'ISquareBPO User',
+    email: 'isquarebpo@grocerymanager.com',
+    avatar: '',
+    role: 'ISQUAREBPO_USER',
+    assignedEntity: 'ISquareBPO',
   },
 ];
 
@@ -732,5 +740,32 @@ export const mockGroceryEntries: GroceryEntry[] = [
     slipType: 'image',
     createdAt: '2026-08-01T10:00:00Z',
     updatedAt: '2026-08-01T10:00:00Z',
+  },
+  // --- ISQUAREBPO ENTITY ---
+  {
+    id: 'isq-1',
+    entity: 'ISquareBPO',
+    date: '2026-08-28',
+    details: 'Office Pantry & Kitchen Supplies (Tea bags, Milk packs, Sugar, Mineral Water)',
+    amount: 6500,
+    addedBy: 'ISquareBPO User',
+    status: 'Slip Uploaded',
+    slipUrl: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=600&auto=format&fit=crop',
+    slipType: 'image',
+    createdAt: '2026-08-28T10:00:00Z',
+    updatedAt: '2026-08-28T10:00:00Z',
+  },
+  {
+    id: 'isq-2',
+    entity: 'ISquareBPO',
+    date: '2026-08-25',
+    details: 'Cleaning detergents, Handwash, Dishwashing bar & Tissue rolls',
+    amount: 3200,
+    addedBy: 'ISquareBPO User',
+    status: 'Slip Uploaded',
+    slipUrl: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=600&auto=format&fit=crop',
+    slipType: 'image',
+    createdAt: '2026-08-25T11:30:00Z',
+    updatedAt: '2026-08-25T11:30:00Z',
   },
 ];

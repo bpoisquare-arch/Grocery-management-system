@@ -177,8 +177,8 @@ export default function BudgetPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">Monthly Budget Management</h1>
-            <p className="text-sm text-gray-500 font-medium mt-0.5">
-              Set, update, and manage monthly allocated grocery budgets for Lahore and Multan entities in real time.
+            <p className="text-sm text-gray-500 font-medium">
+              Set, update, and manage monthly allocated grocery budgets for Lahore, Multan, and ISquareBPO entities in real time.
             </p>
           </div>
 
@@ -234,6 +234,7 @@ export default function BudgetPage() {
                     <SelectContent>
                       <SelectItem value="Lahore">Lahore Entity</SelectItem>
                       <SelectItem value="Multan">Multan Entity</SelectItem>
+                      <SelectItem value="ISquareBPO">ISquareBPO Entity</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

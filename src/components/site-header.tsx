@@ -76,6 +76,12 @@ export function SiteHeader() {
       if (pathname === "/budget" || pathname === "/select-entity") {
         router.push("/dashboard");
       }
+    } else if (role === "ISQUAREBPO_USER") {
+      switchEntity("ISquareBPO");
+      toast.success("Switched view to ISquareBPO User");
+      if (pathname === "/budget" || pathname === "/select-entity") {
+        router.push("/dashboard");
+      }
     }
   };
 
@@ -144,6 +150,13 @@ export function SiteHeader() {
               >
                 <UserIcon className="size-4 mr-2 text-amber-600" />
                 Multan User (Limited)
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => handleRoleChange("ISQUAREBPO_USER")}
+                className={(currentUser.role as string) === "ISQUAREBPO_USER" ? "bg-emerald-50 text-emerald-800 font-bold" : ""}
+              >
+                <UserIcon className="size-4 mr-2 text-emerald-600" />
+                ISquareBPO User (Limited)
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

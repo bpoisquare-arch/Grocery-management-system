@@ -209,6 +209,7 @@ export default function ReportsPage() {
                   <SelectContent>
                     <SelectItem value="Lahore">Lahore Entity</SelectItem>
                     <SelectItem value="Multan">Multan Entity</SelectItem>
+                    <SelectItem value="ISquareBPO">ISquareBPO Entity</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

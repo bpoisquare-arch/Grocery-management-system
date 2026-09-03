@@ -28,6 +28,9 @@ export default function CommissionSelectEntityPage() {
   useEffect(() => {
     if (!currentUser) {
       router.push("/login");
+    } else if (currentUser.role === "ISQUAREBPO_USER") {
+      toast.error("Commissions Module is not available for ISquareBPO entity.");
+      router.push("/dashboard");
     } else if (currentUser.role !== "ADMIN") {
       // Normal users go straight to commission dashboard
       router.push("/commissions/dashboard");

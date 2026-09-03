@@ -13,12 +13,13 @@ async function ensureDatabaseInitialized() {
       const adminHash = await hashPassword('AdminPassword123!');
       const lahoreHash = await hashPassword('LahorePassword123!');
       const multanHash = await hashPassword('MultanPassword123!');
+      const isquareHash = await hashPassword('ISquarePassword123!');
 
       await prisma.user.createMany({
         data: [
           {
             id: 'user-admin',
-            name: 'ISquareBPO',
+            name: 'Admin',
             email: 'admin@grocerymanager.com',
             password: adminHash,
             role: 'ADMIN',
@@ -38,6 +39,14 @@ async function ensureDatabaseInitialized() {
             password: multanHash,
             role: 'MULTAN_USER',
             assignedEntity: 'Multan',
+          },
+          {
+            id: 'user-isquarebpo',
+            name: 'ISquareBPO User',
+            email: 'isquarebpo@grocerymanager.com',
+            password: isquareHash,
+            role: 'ISQUAREBPO_USER',
+            assignedEntity: 'ISquareBPO',
           },
         ],
       });
@@ -126,6 +135,7 @@ export async function POST(request: NextRequest) {
           'admin@grocerymanager.com': 'AdminPassword123!',
           'lahore@grocerymanager.com': 'LahorePassword123!',
           'multan@grocerymanager.com': 'MultanPassword123!',
+          'isquarebpo@grocerymanager.com': 'ISquarePassword123!',
         };
 
         const expectedPass = defaultPasswords[normalizedEmail];

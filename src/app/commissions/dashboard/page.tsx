@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { useStore } from "@/lib/store";
 import { CommissionsLayout } from "@/components/commissions/CommissionsLayout";
@@ -74,17 +75,21 @@ export default function CommissionsDashboardPage() {
     currentMonth,
     currentYear,
   } = useStore();
+  const router = useRouter();
 
   const isAdmin = currentUser?.role === "ADMIN";
 
   // Strict branch isolation for non-admin users
   useEffect(() => {
-    if (currentUser?.role === "LAHORE_USER" && activeEntity !== "Lahore") {
+    if (currentUser?.role === "ISQUAREBPO_USER") {
+      toast.error("Commissions Module is not available for ISquareBPO entity.");
+      router.push("/dashboard");
+    } else if (currentUser?.role === "LAHORE_USER" && activeEntity !== "Lahore") {
       switchEntity("Lahore");
     } else if (currentUser?.role === "MULTAN_USER" && activeEntity !== "Multan") {
       switchEntity("Multan");
     }
-  }, [currentUser, activeEntity, switchEntity]);
+  }, [currentUser, activeEntity, switchEntity, router]);
 
   // Search & Filter State
   const [search, setSearch] = useState("");

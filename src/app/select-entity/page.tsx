@@ -52,6 +52,14 @@ export default function SelectEntityPage() {
   const multanRemaining = multanBudget - multanSpent;
   const multanPct = multanBudget > 0 ? Math.round((multanSpent / multanBudget) * 100) : 0;
 
+  // Calculate stats for ISquareBPO
+  const isquareBudget = getEntityBudget("ISquareBPO", "all");
+  const isquareSpent = groceryEntries
+    .filter((e) => e.entity === "ISquareBPO")
+    .reduce((sum, e) => sum + e.amount, 0);
+  const isquareRemaining = isquareBudget - isquareSpent;
+  const isquarePct = isquareBudget > 0 ? Math.round((isquareSpent / isquareBudget) * 100) : 0;
+
   const handleSelectEntity = (entity: Entity) => {
     switchEntity(entity);
     toast.success(`Active Entity switched to ${entity}.`);
@@ -61,7 +69,7 @@ export default function SelectEntityPage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-between py-12 px-6 sm:px-12">
       {/* Top Bar / Logout */}
-      <div className="max-w-4xl w-full mx-auto flex justify-between items-center mb-10">
+      <div className="max-w-5xl w-full mx-auto flex justify-between items-center mb-10">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -99,7 +107,7 @@ export default function SelectEntityPage() {
       </div>
 
       {/* Main Panel */}
-      <div className="max-w-4xl w-full mx-auto space-y-8 flex-1 flex flex-col justify-center">
+      <div className="max-w-5xl w-full mx-auto space-y-8 flex-1 flex flex-col justify-center">
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Select an Entity</h1>
           <p className="text-sm text-gray-500 font-medium max-w-md mx-auto">
@@ -108,7 +116,7 @@ export default function SelectEntityPage() {
         </div>
 
         {/* Entity Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* LAHORE CARD */}
           <Card className="border border-gray-200 hover:border-emerald-500/50 bg-white shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between">
             <CardHeader className="pb-4">
@@ -127,15 +135,15 @@ export default function SelectEntityPage() {
               <div className="grid grid-cols-3 gap-2 border-y border-gray-100 py-3 text-center">
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Budget</span>
-                  <span className="text-sm font-bold text-gray-900">Rs. {lahoreBudget.toLocaleString()}</span>
+                  <span className="text-xs sm:text-sm font-bold text-gray-900">Rs. {lahoreBudget.toLocaleString()}</span>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Spending</span>
-                  <span className="text-sm font-bold text-emerald-600">Rs. {lahoreSpent.toLocaleString()}</span>
+                  <span className="text-xs sm:text-sm font-bold text-emerald-600">Rs. {lahoreSpent.toLocaleString()}</span>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Remaining</span>
-                  <span className={`text-sm font-bold ${lahoreRemaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                  <span className={`text-xs sm:text-sm font-bold ${lahoreRemaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
                     Rs. {lahoreRemaining.toLocaleString()}
                   </span>
                 </div>
@@ -184,15 +192,15 @@ export default function SelectEntityPage() {
               <div className="grid grid-cols-3 gap-2 border-y border-gray-100 py-3 text-center">
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Budget</span>
-                  <span className="text-sm font-bold text-gray-900">Rs. {multanBudget.toLocaleString()}</span>
+                  <span className="text-xs sm:text-sm font-bold text-gray-900">Rs. {multanBudget.toLocaleString()}</span>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Spending</span>
-                  <span className="text-sm font-bold text-emerald-600">Rs. {multanSpent.toLocaleString()}</span>
+                  <span className="text-xs sm:text-sm font-bold text-emerald-600">Rs. {multanSpent.toLocaleString()}</span>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Remaining</span>
-                  <span className={`text-sm font-bold ${multanRemaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                  <span className={`text-xs sm:text-sm font-bold ${multanRemaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
                     Rs. {multanRemaining.toLocaleString()}
                   </span>
                 </div>
@@ -222,10 +230,67 @@ export default function SelectEntityPage() {
               </Button>
             </CardFooter>
           </Card>
+
+          {/* ISQUAREBPO CARD */}
+          <Card className="border border-gray-200 hover:border-emerald-500/50 bg-white shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between">
+            <CardHeader className="pb-4">
+              <div className="flex justify-between items-start">
+                <div className="size-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-2xs">
+                  <Building2Icon className="size-6" />
+                </div>
+                <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-semibold">
+                  ISquareBPO Office
+                </Badge>
+              </div>
+              <CardTitle className="text-xl font-bold text-gray-900 mt-4">ISQUAREBPO</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Financial metrics */}
+              <div className="grid grid-cols-3 gap-2 border-y border-gray-100 py-3 text-center">
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Budget</span>
+                  <span className="text-xs sm:text-sm font-bold text-gray-900">Rs. {isquareBudget.toLocaleString()}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Spending</span>
+                  <span className="text-xs sm:text-sm font-bold text-emerald-600">Rs. {isquareSpent.toLocaleString()}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Remaining</span>
+                  <span className={`text-xs sm:text-sm font-bold ${isquareRemaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                    Rs. {isquareRemaining.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Progress bar */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs font-semibold text-gray-500">
+                  <span>Usage</span>
+                  <span>{isquarePct}%</span>
+                </div>
+                <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-600 rounded-full transition-all duration-300"
+                    style={{ width: `${isquarePct}%` }}
+                  />
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="pt-2">
+              <Button
+                onClick={() => handleSelectEntity("ISquareBPO")}
+                className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 group"
+              >
+                Manage ISquareBPO
+                <ArrowRightIcon className="size-4 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </CardFooter>
+          </Card>
         </div>
       </div>
 
-      <div className="max-w-4xl w-full mx-auto text-center text-xs font-semibold text-gray-400 mt-10">
+      <div className="max-w-5xl w-full mx-auto text-center text-xs font-semibold text-gray-400 mt-10">
         Active Testing Month: {currentMonth} {currentYear} • Switch Active month using the Header in the main dashboard.
       </div>
     </div>

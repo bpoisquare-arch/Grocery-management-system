@@ -227,10 +227,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             localStorage.setItem('gem_user', JSON.stringify(data.user));
             if (data.user.role === 'LAHORE_USER') {
               setActiveEntity('Lahore');
-              localStorage.setItem('gem_entity', 'Lahore');
+              safeSetLocalStorage('gem_entity', 'Lahore');
             } else if (data.user.role === 'MULTAN_USER') {
               setActiveEntity('Multan');
-              localStorage.setItem('gem_entity', 'Multan');
+              safeSetLocalStorage('gem_entity', 'Multan');
+            } else if (data.user.role === 'ISQUAREBPO_USER') {
+              setActiveEntity('ISquareBPO');
+              safeSetLocalStorage('gem_entity', 'ISquareBPO');
             }
           } else {
             const storedUser = localStorage.getItem('gem_user');
@@ -303,10 +306,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         saveUser(data.user);
         if (data.user.role === 'LAHORE_USER') {
           setActiveEntity('Lahore');
-          localStorage.setItem('gem_entity', 'Lahore');
+          safeSetLocalStorage('gem_entity', 'Lahore');
         } else if (data.user.role === 'MULTAN_USER') {
           setActiveEntity('Multan');
-          localStorage.setItem('gem_entity', 'Multan');
+          safeSetLocalStorage('gem_entity', 'Multan');
+        } else if (data.user.role === 'ISQUAREBPO_USER') {
+          setActiveEntity('ISquareBPO');
+          safeSetLocalStorage('gem_entity', 'ISquareBPO');
         }
         return { success: true, user: data.user };
       }
