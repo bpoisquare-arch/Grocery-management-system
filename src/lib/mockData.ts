@@ -100,6 +100,7 @@ export interface CommissionEntry {
   bmCommission: number; // B.M
   status: SlipStatus;
   slipUrl?: string; // Path or base64 data URL
+  slipUrls?: string[]; // Array of up to 5 slip URLs
   slipType?: 'image' | 'pdf';
   notes?: string;
   createdAt: string;

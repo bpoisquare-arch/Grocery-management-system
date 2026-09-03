@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,13 +76,19 @@ export default function SelectModulePage() {
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-between py-10 px-6 sm:px-12">
       {/* Top Bar */}
       <div className="max-w-4xl w-full mx-auto flex justify-between items-center mb-8">
-        <div className="flex items-center gap-2.5">
-          <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
-            <Building2Icon className="size-5" />
+        <div className="flex items-center gap-3.5">
+          <div className="flex size-14 items-center justify-center rounded-2xl bg-emerald-700/10 p-1 border border-emerald-600/20 shadow-sm">
+            <Image
+              src="/isquarebpo.png"
+              alt="Logo"
+              width={70}
+              height={70}
+              className="size-full object-contain"
+            />
           </div>
           <div>
-            <span className="text-sm font-bold text-gray-900 block leading-tight">ISquareBPO Management</span>
-            <span className="text-[11px] text-gray-500 font-medium">Business Operations Portal</span>
+            <span className="text-base font-bold text-gray-900 block leading-tight">Branch Management System</span>
+            <span className="text-xs text-gray-500 font-medium">Business Operations Portal</span>
           </div>
         </div>
 

@@ -71,6 +71,8 @@ interface StoreContextType {
     bmCommission?: number;
     notes?: string;
     slipFile?: File | null;
+    slipFiles?: File[];
+    slipUrls?: string[];
   }) => Promise<void>;
   updateCommissionEntry: (
     id: string,
@@ -86,6 +88,8 @@ interface StoreContextType {
       status?: SlipStatus;
       notes?: string;
       slipFile?: File | null;
+      slipFiles?: File[];
+      slipUrls?: string[];
     }
   ) => Promise<void>;
   deleteCommissionEntry: (id: string) => Promise<void>;
@@ -327,12 +331,69 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Convert File to DataUrl (base64) for visual slip previews and storage
+  // Safe localStorage helper to prevent quota exceptions
+  const safeSetLocalStorage = (key: string, value: string) => {
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(key, value);
+      }
+    } catch (err) {
+      console.warn(`localStorage quota warning for key '${key}':`, err);
+    }
+  };
+
+  // Convert File to DataUrl (with canvas compression for images to preserve storage quota)
   const fileToDataUrl = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
+      // If PDF or non-image, read directly
+      if (file.type.includes('pdf') || !file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(file);
+        return;
+      }
+
+      // If image, compress via canvas
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(reader.error);
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        if (!dataUrl) {
+          resolve('');
+          return;
+        }
+
+        const img = new Image();
+        img.onload = () => {
+          const maxDim = 1200;
+          let { width, height } = img;
+
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressed = canvas.toDataURL('image/jpeg', 0.72);
+            resolve(compressed);
+          } else {
+            resolve(dataUrl);
+          }
+        };
+        img.onerror = () => resolve(dataUrl);
+        img.src = dataUrl;
+      };
+      reader.onerror = () => resolve('');
       reader.readAsDataURL(file);
     });
   };
@@ -666,18 +727,39 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     bmCommission?: number;
     notes?: string;
     slipFile?: File | null;
+    slipFiles?: File[];
+    slipUrls?: string[];
   }) => {
-    let slipUrl = undefined;
-    let slipType: 'image' | 'pdf' | undefined = undefined;
+    const finalSlipUrls: string[] = [];
 
-    if (entry.slipFile) {
+    if (entry.slipUrls && Array.isArray(entry.slipUrls)) {
+      finalSlipUrls.push(...entry.slipUrls);
+    }
+
+    if (entry.slipFiles && entry.slipFiles.length > 0) {
+      for (const file of entry.slipFiles.slice(0, 5 - finalSlipUrls.length)) {
+        try {
+          const url = await fileToDataUrl(file);
+          finalSlipUrls.push(url);
+        } catch (err) {
+          console.error('Error reading slip file:', err);
+        }
+      }
+    } else if (entry.slipFile && finalSlipUrls.length < 5) {
       try {
-        slipUrl = await fileToDataUrl(entry.slipFile);
-        slipType = entry.slipFile.type.includes('pdf') ? 'pdf' : 'image';
+        const url = await fileToDataUrl(entry.slipFile);
+        finalSlipUrls.push(url);
       } catch (err) {
         console.error('Error reading slip file:', err);
       }
     }
+
+    const primarySlipUrl = finalSlipUrls[0] || undefined;
+    const slipType: 'image' | 'pdf' | undefined = primarySlipUrl
+      ? primarySlipUrl.includes('application/pdf') || primarySlipUrl.endsWith('.pdf')
+        ? 'pdf'
+        : 'image'
+      : undefined;
 
     const newEntry: CommissionEntry = {
       id: `comm-${Date.now()}`,
@@ -691,8 +773,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       counselorCommission: entry.counselorCommission || 0,
       bmCommission: entry.bmCommission || 0,
       notes: entry.notes,
-      status: slipUrl ? 'Slip Uploaded' : 'Slip Missing',
-      slipUrl,
+      status: finalSlipUrls.length > 0 ? 'Slip Uploaded' : 'Slip Missing',
+      slipUrl: primarySlipUrl,
+      slipUrls: finalSlipUrls.length > 0 ? finalSlipUrls : undefined,
       slipType,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -700,7 +783,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = [newEntry, ...commissionEntries];
     setCommissionEntries(updated);
-    localStorage.setItem('gem_commissions', JSON.stringify(updated));
+    safeSetLocalStorage('gem_commissions', JSON.stringify(updated));
   };
 
   const updateCommissionEntry = async (
@@ -717,26 +800,60 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       status?: SlipStatus;
       notes?: string;
       slipFile?: File | null;
+      slipFiles?: File[];
+      slipUrls?: string[];
     }
   ) => {
-    let slipUrl = undefined;
-    let slipType: 'image' | 'pdf' | undefined = undefined;
+    const existing = commissionEntries.find((e) => e.id === id);
+    const finalSlipUrls: string[] = [];
 
-    if (updatedData.slipFile) {
+    if (updatedData.slipUrls !== undefined) {
+      finalSlipUrls.push(...updatedData.slipUrls);
+    } else if (existing?.slipUrls) {
+      finalSlipUrls.push(...existing.slipUrls);
+    } else if (existing?.slipUrl) {
+      finalSlipUrls.push(existing.slipUrl);
+    }
+
+    if (updatedData.slipFiles && updatedData.slipFiles.length > 0) {
+      for (const file of updatedData.slipFiles.slice(0, 5 - finalSlipUrls.length)) {
+        try {
+          const url = await fileToDataUrl(file);
+          finalSlipUrls.push(url);
+        } catch (err) {
+          console.error('Error reading slip file:', err);
+        }
+      }
+    } else if (updatedData.slipFile && finalSlipUrls.length < 5) {
       try {
-        slipUrl = await fileToDataUrl(updatedData.slipFile);
-        slipType = updatedData.slipFile.type.includes('pdf') ? 'pdf' : 'image';
+        const url = await fileToDataUrl(updatedData.slipFile);
+        finalSlipUrls.push(url);
       } catch (err) {
         console.error('Error reading slip file:', err);
       }
     }
 
+    const primarySlipUrl = finalSlipUrls[0] || undefined;
+    const slipType: 'image' | 'pdf' | undefined = primarySlipUrl
+      ? primarySlipUrl.includes('application/pdf') || primarySlipUrl.endsWith('.pdf')
+        ? 'pdf'
+        : 'image'
+      : undefined;
+
     const updated = commissionEntries.map((entry) => {
       if (entry.id === id) {
+        const hasSlips = finalSlipUrls.length > 0;
+        const newStatus: SlipStatus = hasSlips
+          ? 'Slip Uploaded'
+          : updatedData.status || (entry.status === 'Approved Without Slip' ? 'Approved Without Slip' : 'Slip Missing');
+
         return {
           ...entry,
           ...updatedData,
-          ...(slipUrl ? { slipUrl, slipType, status: 'Slip Uploaded' as SlipStatus } : {}),
+          status: newStatus,
+          slipUrl: primarySlipUrl,
+          slipUrls: hasSlips ? finalSlipUrls : [],
+          slipType,
           updatedAt: new Date().toISOString(),
         };
       }
@@ -744,19 +861,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     });
 
     setCommissionEntries(updated);
-    localStorage.setItem('gem_commissions', JSON.stringify(updated));
+    safeSetLocalStorage('gem_commissions', JSON.stringify(updated));
   };
 
   const deleteCommissionEntry = async (id: string) => {
     const updated = commissionEntries.filter((entry) => entry.id !== id);
     setCommissionEntries(updated);
-    localStorage.setItem('gem_commissions', JSON.stringify(updated));
+    safeSetLocalStorage('gem_commissions', JSON.stringify(updated));
   };
 
   const deleteCommissionEntries = async (ids: string[]) => {
     const updated = commissionEntries.filter((entry) => !ids.includes(entry.id));
     setCommissionEntries(updated);
-    localStorage.setItem('gem_commissions', JSON.stringify(updated));
+    safeSetLocalStorage('gem_commissions', JSON.stringify(updated));
   };
 
   const addCounselor = async (counselor: {
@@ -780,7 +897,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = [...counselors, newCounselor];
     setCounselors(updated);
-    localStorage.setItem('gem_counselors', JSON.stringify(updated));
+    safeSetLocalStorage('gem_counselors', JSON.stringify(updated));
   };
 
   const updateCounselor = async (
@@ -804,13 +921,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return c;
     });
     setCounselors(updated);
-    localStorage.setItem('gem_counselors', JSON.stringify(updated));
+    safeSetLocalStorage('gem_counselors', JSON.stringify(updated));
   };
 
   const deleteCounselor = async (id: string) => {
     const updated = counselors.filter((c) => c.id !== id);
     setCounselors(updated);
-    localStorage.setItem('gem_counselors', JSON.stringify(updated));
+    safeSetLocalStorage('gem_counselors', JSON.stringify(updated));
   };
 
   return (
