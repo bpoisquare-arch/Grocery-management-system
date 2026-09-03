@@ -56,7 +56,6 @@ import {
   Building2Icon,
   TrendingUpIcon,
   GraduationCapIcon,
-  UserCheckIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CommissionEntry, COMMISSION_SERVICES, SlipStatus } from "@/lib/mockData";
@@ -508,19 +507,19 @@ export default function CommissionsDashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Card 4: Full Payment Rate */}
+          {/* Card 4: Total Commission Entries */}
           <Card className="border border-gray-200 bg-white shadow-3xs">
             <CardContent className="p-5 space-y-3">
               <div className="flex justify-between items-center text-gray-400">
-                <span className="text-[10px] font-bold uppercase tracking-wider">Payment Completion</span>
-                <UserCheckIcon className="size-4 text-emerald-600" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Commission Entries</span>
+                <GraduationCapIcon className="size-4 text-emerald-600" />
               </div>
               <div>
                 <div className="text-2xl font-black text-gray-900">
-                  {totalFullReceivedCount} / {filteredEntries.length}
+                  {filteredEntries.length}
                 </div>
                 <div className="text-[10px] text-gray-500 font-semibold mt-1">
-                  Full received payment entries
+                  Total commission entries generated for {activeEntity}
                 </div>
               </div>
             </CardContent>
