@@ -133,16 +133,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // Function to load live data from database API routes
   const refreshData = useCallback(async () => {
     try {
-      const [groceriesRes, budgetsRes] = await Promise.all([
+      const [groceriesRes, budgetsRes, commissionsRes, counselorsRes] = await Promise.all([
         fetch('/api/groceries'),
         fetch('/api/budgets'),
+        fetch('/api/commissions'),
+        fetch('/api/counselors'),
       ]);
 
       if (groceriesRes.ok) {
         const groceriesJson = await groceriesRes.json();
         if (groceriesJson.success && Array.isArray(groceriesJson.data)) {
           setGroceryEntries(groceriesJson.data);
-          localStorage.setItem('gem_grocery', JSON.stringify(groceriesJson.data));
+          safeSetLocalStorage('gem_grocery', JSON.stringify(groceriesJson.data));
         }
       }
 
@@ -150,7 +152,136 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const budgetsJson = await budgetsRes.json();
         if (budgetsJson.success && Array.isArray(budgetsJson.data)) {
           setBudgets(budgetsJson.data);
-          localStorage.setItem('gem_budgets', JSON.stringify(budgetsJson.data));
+          safeSetLocalStorage('gem_budgets', JSON.stringify(budgetsJson.data));
+        }
+      }
+
+      let updatedCommissions = [];
+      if (commissionsRes.ok) {
+        const commissionsJson = await commissionsRes.json();
+        if (commissionsJson.success && Array.isArray(commissionsJson.data)) {
+          updatedCommissions = commissionsJson.data;
+
+          // Auto-sync: Check if Laptop A has locally saved commissions that are not yet in database
+          if (typeof window !== 'undefined') {
+            try {
+              const localCommsRaw = localStorage.getItem('gem_commissions');
+              if (localCommsRaw) {
+                const localComms: CommissionEntry[] = JSON.parse(localCommsRaw);
+                const mockIds = new Set(mockCommissionEntries.map((m) => m.id));
+                const serverKeys = new Set(
+                  updatedCommissions.map(
+                    (c: any) => `${c.studentName?.toLowerCase().trim()}_${c.amount}_${c.date}_${c.service}`
+                  )
+                );
+
+                const missingComms = localComms.filter((c) => {
+                  if (!c.studentName || mockIds.has(c.id)) return false;
+                  const key = `${c.studentName?.toLowerCase().trim()}_${c.amount}_${c.date}_${c.service}`;
+                  return !serverKeys.has(key);
+                });
+
+                if (missingComms.length > 0) {
+                  for (const comm of missingComms) {
+                    try {
+                      const postRes = await fetch('/api/commissions', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          entity: comm.entity,
+                          studentName: comm.studentName,
+                          service: comm.service,
+                          counselor: comm.counselor,
+                          amount: comm.amount,
+                          date: comm.date,
+                          fullReceived: comm.fullReceived,
+                          counselorCommission: comm.counselorCommission,
+                          bmCommission: comm.bmCommission,
+                          status: comm.status,
+                          slipUrl: comm.slipUrl,
+                          slipUrls: comm.slipUrls || (comm.slipUrl ? [comm.slipUrl] : undefined),
+                          slipType: comm.slipType,
+                          notes: comm.notes,
+                        }),
+                      });
+
+                      if (postRes.ok) {
+                        const postJson = await postRes.json();
+                        if (postJson.success && postJson.data) {
+                          updatedCommissions.unshift(postJson.data);
+                        }
+                      }
+                    } catch (syncErr) {
+                      console.error('Auto-sync commission error:', syncErr);
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              console.error('Error in commission auto-sync check:', e);
+            }
+          }
+
+          setCommissionEntries(updatedCommissions);
+          safeSetLocalStorage('gem_commissions', JSON.stringify(updatedCommissions));
+        }
+      }
+
+      let updatedCounselors = [];
+      if (counselorsRes.ok) {
+        const counselorsJson = await counselorsRes.json();
+        if (counselorsJson.success && Array.isArray(counselorsJson.data)) {
+          updatedCounselors = counselorsJson.data;
+
+          // Auto-sync: Check if Laptop A has locally saved counselors not yet in database
+          if (typeof window !== 'undefined') {
+            try {
+              const localCounselorsRaw = localStorage.getItem('gem_counselors');
+              if (localCounselorsRaw) {
+                const localCounselors: Counselor[] = JSON.parse(localCounselorsRaw);
+                const serverNames = new Set(
+                  updatedCounselors.map((c: any) => c.name?.toLowerCase().trim())
+                );
+
+                const missingCounselors = localCounselors.filter(
+                  (c) => c.name && !serverNames.has(c.name.toLowerCase().trim())
+                );
+
+                if (missingCounselors.length > 0) {
+                  for (const c of missingCounselors) {
+                    try {
+                      const postRes = await fetch('/api/counselors', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          name: c.name,
+                          entity: c.entity || 'All',
+                          email: c.email,
+                          phone: c.phone,
+                          serviceCommissions: c.serviceCommissions,
+                          bmServiceCommissions: c.bmServiceCommissions,
+                        }),
+                      });
+
+                      if (postRes.ok) {
+                        const postJson = await postRes.json();
+                        if (postJson.success && postJson.data) {
+                          updatedCounselors.push(postJson.data);
+                        }
+                      }
+                    } catch (syncErr) {
+                      console.error('Auto-sync counselor error:', syncErr);
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              console.error('Error in counselor auto-sync check:', e);
+            }
+          }
+
+          setCounselors(updatedCounselors);
+          safeSetLocalStorage('gem_counselors', JSON.stringify(updatedCounselors));
         }
       }
     } catch (error) {
@@ -767,6 +898,44 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         : 'image'
       : undefined;
 
+    const payload = {
+      entity: activeEntity,
+      studentName: entry.studentName,
+      service: entry.service,
+      counselor: entry.counselor,
+      amount: entry.amount,
+      date: entry.date,
+      fullReceived: entry.fullReceived,
+      counselorCommission: entry.counselorCommission || 0,
+      bmCommission: entry.bmCommission || 0,
+      notes: entry.notes,
+      status: finalSlipUrls.length > 0 ? 'Slip Uploaded' : 'Slip Missing',
+      slipUrl: primarySlipUrl,
+      slipUrls: finalSlipUrls.length > 0 ? finalSlipUrls : undefined,
+      slipType,
+    };
+
+    try {
+      const res = await fetch('/api/commissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          const updated = [json.data, ...commissionEntries];
+          setCommissionEntries(updated);
+          safeSetLocalStorage('gem_commissions', JSON.stringify(updated));
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to post commission to API, saving locally:', e);
+    }
+
+    // Local fallback
     const newEntry: CommissionEntry = {
       id: `comm-${Date.now()}`,
       entity: activeEntity,
@@ -846,13 +1015,41 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         : 'image'
       : undefined;
 
+    const hasSlips = finalSlipUrls.length > 0;
+    const newStatus: SlipStatus = hasSlips
+      ? 'Slip Uploaded'
+      : updatedData.status || (existing?.status === 'Approved Without Slip' ? 'Approved Without Slip' : 'Slip Missing');
+
+    const payload = {
+      ...updatedData,
+      status: newStatus,
+      slipUrl: primarySlipUrl,
+      slipUrls: hasSlips ? finalSlipUrls : [],
+      slipType,
+    };
+
+    try {
+      const res = await fetch(`/api/commissions/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          const updated = commissionEntries.map((entry) => (entry.id === id ? json.data : entry));
+          setCommissionEntries(updated);
+          safeSetLocalStorage('gem_commissions', JSON.stringify(updated));
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to update commission via API:', e);
+    }
+
     const updated = commissionEntries.map((entry) => {
       if (entry.id === id) {
-        const hasSlips = finalSlipUrls.length > 0;
-        const newStatus: SlipStatus = hasSlips
-          ? 'Slip Uploaded'
-          : updatedData.status || (entry.status === 'Approved Without Slip' ? 'Approved Without Slip' : 'Slip Missing');
-
         return {
           ...entry,
           ...updatedData,
@@ -871,12 +1068,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteCommissionEntry = async (id: string) => {
+    try {
+      await fetch(`/api/commissions/${id}`, { method: 'DELETE' });
+    } catch (e) {
+      console.error('Failed to delete commission via API:', e);
+    }
+
     const updated = commissionEntries.filter((entry) => entry.id !== id);
     setCommissionEntries(updated);
     safeSetLocalStorage('gem_commissions', JSON.stringify(updated));
   };
 
   const deleteCommissionEntries = async (ids: string[]) => {
+    try {
+      await fetch('/api/commissions/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+    } catch (e) {
+      console.error('Failed to bulk delete commissions via API:', e);
+    }
+
     const updated = commissionEntries.filter((entry) => !ids.includes(entry.id));
     setCommissionEntries(updated);
     safeSetLocalStorage('gem_commissions', JSON.stringify(updated));
@@ -890,6 +1103,35 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     serviceCommissions?: CounselorServiceCommissions;
     bmServiceCommissions?: CounselorServiceCommissions;
   }) => {
+    const payload = {
+      name: counselor.name,
+      entity: counselor.entity || 'All',
+      email: counselor.email,
+      phone: counselor.phone,
+      serviceCommissions: counselor.serviceCommissions || { ...defaultServiceCommissions },
+      bmServiceCommissions: counselor.bmServiceCommissions || { ...defaultBmServiceCommissions },
+    };
+
+    try {
+      const res = await fetch('/api/counselors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          const updated = [...counselors, json.data];
+          setCounselors(updated);
+          safeSetLocalStorage('gem_counselors', JSON.stringify(updated));
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to add counselor via API:', e);
+    }
+
     const newCounselor: Counselor = {
       id: `coun-${Date.now()}`,
       name: counselor.name,
@@ -917,6 +1159,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       bmServiceCommissions?: CounselorServiceCommissions;
     }
   ) => {
+    try {
+      const res = await fetch(`/api/counselors/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          const updated = counselors.map((c) => (c.id === id ? json.data : c));
+          setCounselors(updated);
+          safeSetLocalStorage('gem_counselors', JSON.stringify(updated));
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to update counselor via API:', e);
+    }
+
     const updated = counselors.map((c) => {
       if (c.id === id) {
         return {
@@ -931,6 +1193,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteCounselor = async (id: string) => {
+    try {
+      await fetch(`/api/counselors/${id}`, { method: 'DELETE' });
+    } catch (e) {
+      console.error('Failed to delete counselor via API:', e);
+    }
+
     const updated = counselors.filter((c) => c.id !== id);
     setCounselors(updated);
     safeSetLocalStorage('gem_counselors', JSON.stringify(updated));

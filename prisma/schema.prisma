@@ -45,3 +45,36 @@ model GroceryEntry {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
+
+model Counselor {
+  id                   String   @id @default(cuid())
+  name                 String
+  entity               String   @default("All") // "Lahore", "Multan", "ISquareBPO", "All"
+  email                String?
+  phone                String?
+  serviceCommissions   String?  @db.LongText // JSON string of CounselorServiceCommissions
+  bmServiceCommissions String?  @db.LongText // JSON string of CounselorServiceCommissions
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model CommissionEntry {
+  id                  String   @id @default(cuid())
+  entity              String   // Lahore, Multan, ISquareBPO
+  studentName         String
+  service             String   // Visa Processing, PTE, Visa Granted, IELTS, FBR Document, Proof of Deposit
+  counselor           String
+  amount              Float
+  date                String   // YYYY-MM-DD format
+  fullReceived        Boolean  @default(false)
+  counselorCommission Float    @default(0)
+  bmCommission        Float    @default(0)
+  status              String   @default("Slip Missing") // "Slip Uploaded", "Slip Missing", "Approved Without Slip"
+  slipUrl             String?  @db.LongText
+  slipUrls            String?  @db.LongText // JSON string array of URLs
+  slipType            String?  // "image", "pdf"
+  notes               String?  @db.Text
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+

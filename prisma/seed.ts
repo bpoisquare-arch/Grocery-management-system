@@ -132,6 +132,54 @@ async function main() {
     console.log(`ℹ Grocery entries already exist (${existingCount} entries).`);
   }
 
+  // 5. Seed Counselors (if table is empty)
+  const existingCounselors = await (prisma as any).counselor.count();
+  if (existingCounselors === 0) {
+    const { initialCounselors } = await import('../src/lib/mockData');
+    for (const c of initialCounselors) {
+      await (prisma as any).counselor.create({
+        data: {
+          id: c.id,
+          name: c.name,
+          entity: c.entity || 'All',
+          email: c.email || null,
+          phone: c.phone || null,
+          serviceCommissions: c.serviceCommissions ? JSON.stringify(c.serviceCommissions) : null,
+          bmServiceCommissions: c.bmServiceCommissions ? JSON.stringify(c.bmServiceCommissions) : null,
+        },
+      });
+    }
+    console.log(`✓ Initial counselors synchronized (${initialCounselors.length} counselors).`);
+  }
+
+  // 6. Seed Commission Entries (if table is empty)
+  const existingCommissions = await (prisma as any).commissionEntry.count();
+  if (existingCommissions === 0) {
+    const { mockCommissionEntries } = await import('../src/lib/mockData');
+    for (const comm of mockCommissionEntries) {
+      await (prisma as any).commissionEntry.create({
+        data: {
+          id: comm.id,
+          entity: comm.entity,
+          studentName: comm.studentName,
+          service: comm.service,
+          counselor: comm.counselor,
+          amount: comm.amount,
+          date: comm.date,
+          fullReceived: comm.fullReceived,
+          counselorCommission: comm.counselorCommission || 0,
+          bmCommission: comm.bmCommission || 0,
+          status: comm.status,
+          slipUrl: comm.slipUrl || null,
+          slipUrls: comm.slipUrls ? JSON.stringify(comm.slipUrls) : (comm.slipUrl ? JSON.stringify([comm.slipUrl]) : null),
+          slipType: comm.slipType || null,
+          notes: comm.notes || null,
+        },
+      });
+    }
+    console.log(`✓ Initial commission entries synchronized (${mockCommissionEntries.length} entries).`);
+  }
+
   console.log('🎉 Seeding successfully completed! All user passwords stored securely.');
 }
 
@@ -143,3 +191,4 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+
