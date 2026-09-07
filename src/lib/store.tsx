@@ -476,6 +476,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (err) {
       console.warn(`localStorage quota warning for key '${key}':`, err);
+      try {
+        if (typeof window !== 'undefined') {
+          if (key === 'gem_grocery' || key === 'gem_commissions') {
+            const parsed = JSON.parse(value);
+            if (Array.isArray(parsed)) {
+              // Strip heavy base64 slipUrls to stay well under quota limit
+              const light = parsed.map((item: any) => {
+                const { slipUrl, slipUrls, ...rest } = item;
+                return rest;
+              });
+              localStorage.setItem(key, JSON.stringify(light));
+            }
+          }
+        }
+      } catch (e) {
+        // Silently ignore if quota is full
+      }
     }
   };
 
@@ -577,7 +594,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (json.success && json.data) {
           const updated = [json.data, ...groceryEntries];
           setGroceryEntries(updated);
-          localStorage.setItem('gem_grocery', JSON.stringify(updated));
+          safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
           return;
         }
       }
@@ -602,7 +619,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = [newEntry, ...groceryEntries];
     setGroceryEntries(updated);
-    localStorage.setItem('gem_grocery', JSON.stringify(updated));
+    safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
   };
 
   const updateGroceryEntry = async (
@@ -644,7 +661,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (json.success && json.data) {
           const updated = groceryEntries.map((entry) => (entry.id === id ? json.data : entry));
           setGroceryEntries(updated);
-          localStorage.setItem('gem_grocery', JSON.stringify(updated));
+          safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
           return;
         }
       }
@@ -666,7 +683,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     });
 
     setGroceryEntries(updated);
-    localStorage.setItem('gem_grocery', JSON.stringify(updated));
+    safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
   };
 
   const deleteGroceryEntry = async (id: string) => {
@@ -680,7 +697,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = groceryEntries.filter((entry) => entry.id !== id);
     setGroceryEntries(updated);
-    localStorage.setItem('gem_grocery', JSON.stringify(updated));
+    safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
   };
 
   const deleteGroceryEntries = async (ids: string[]) => {
@@ -698,7 +715,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = groceryEntries.filter((entry) => !ids.includes(entry.id));
     setGroceryEntries(updated);
-    localStorage.setItem('gem_grocery', JSON.stringify(updated));
+    safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
   };
 
   const approveEntryWithoutSlip = async (id: string) => {
@@ -721,7 +738,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (json.success && json.data) {
           const updated = groceryEntries.map((entry) => (entry.id === id ? json.data : entry));
           setGroceryEntries(updated);
-          localStorage.setItem('gem_grocery', JSON.stringify(updated));
+          safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
           return;
         }
       }
@@ -741,7 +758,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return entry;
     });
     setGroceryEntries(updated);
-    localStorage.setItem('gem_grocery', JSON.stringify(updated));
+    safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
   };
 
   // Upsert or update monthly budget for entity & month & year
@@ -770,7 +787,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             updatedBudgets.push(json.data);
           }
           setBudgets(updatedBudgets);
-          localStorage.setItem('gem_budgets', JSON.stringify(updatedBudgets));
+          safeSetLocalStorage('gem_budgets', JSON.stringify(updatedBudgets));
           return;
         }
       }
@@ -791,7 +808,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     setBudgets(updatedBudgets);
-    localStorage.setItem('gem_budgets', JSON.stringify(updatedBudgets));
+    safeSetLocalStorage('gem_budgets', JSON.stringify(updatedBudgets));
   };
 
   // Delete a specific monthly budget
@@ -810,7 +827,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       (b) => !(b.entity === entity && b.month.toLowerCase() === month.toLowerCase() && b.year === year)
     );
     setBudgets(updatedBudgets);
-    localStorage.setItem('gem_budgets', JSON.stringify(updatedBudgets));
+    safeSetLocalStorage('gem_budgets', JSON.stringify(updatedBudgets));
   };
 
   // Clear all budgets
@@ -826,7 +843,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     setBudgets([]);
-    localStorage.setItem('gem_budgets', JSON.stringify([]));
+    safeSetLocalStorage('gem_budgets', JSON.stringify([]));
   };
 
   // Accurate real-time budget calculation for an entity
