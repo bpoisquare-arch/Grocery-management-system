@@ -593,15 +593,38 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
                   Slip preview ({previewModalItem.size})
                 </DialogDescription>
               </div>
-              <a
-                href={previewModalItem.previewUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-semibold px-2.5 py-1 rounded-md bg-emerald-50 border border-emerald-100"
+              <button
+                type="button"
+                onClick={() => {
+                  const url = previewModalItem.previewUrl;
+                  if (url.startsWith("blob:") || url.startsWith("http://") || url.startsWith("https://")) {
+                    window.open(url, "_blank");
+                  } else if (url.startsWith("data:")) {
+                    try {
+                      const parts = url.split(",");
+                      const mimeMatch = parts[0].match(/:(.*?);/);
+                      const mime = mimeMatch ? mimeMatch[1] : "application/pdf";
+                      const bstr = atob(parts[1]);
+                      let n = bstr.length;
+                      const u8arr = new Uint8Array(n);
+                      while (n--) {
+                        u8arr[n] = bstr.charCodeAt(n);
+                      }
+                      const blob = new Blob([u8arr], { type: mime });
+                      const objectUrl = URL.createObjectURL(blob);
+                      window.open(objectUrl, "_blank");
+                    } catch (e) {
+                      window.open(url, "_blank");
+                    }
+                  } else {
+                    window.open(url, "_blank");
+                  }
+                }}
+                className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-semibold px-2.5 py-1 rounded-md bg-emerald-50 border border-emerald-100 cursor-pointer"
               >
                 <ExternalLinkIcon className="size-3.5" />
                 Open Full Window
-              </a>
+              </button>
             </DialogHeader>
 
             <div className="flex-1 min-h-[400px] max-h-[65vh] overflow-auto bg-slate-900/5 rounded-xl border border-gray-200 p-2 flex items-center justify-center relative my-2">

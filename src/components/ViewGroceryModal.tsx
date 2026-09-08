@@ -54,6 +54,66 @@ export function ViewGroceryModal({ open, onOpenChange, entry }: ViewGroceryModal
   const isCurrentPdf = currentSlip
     ? currentSlip.includes("application/pdf") || currentSlip.toLowerCase().endsWith(".pdf")
     : false;
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+
+  // Convert base64 data URL to Blob URL for clean browser rendering and opening
+  useEffect(() => {
+    if (!currentSlip) {
+      setPdfBlobUrl(null);
+      return;
+    }
+
+    if (isCurrentPdf) {
+      if (currentSlip.startsWith("blob:") || currentSlip.startsWith("http://") || currentSlip.startsWith("https://")) {
+        setPdfBlobUrl(currentSlip);
+      } else if (currentSlip.startsWith("data:")) {
+        try {
+          const parts = currentSlip.split(",");
+          const mimeMatch = parts[0].match(/:(.*?);/);
+          const mime = mimeMatch ? mimeMatch[1] : "application/pdf";
+          const bstr = atob(parts[1]);
+          let n = bstr.length;
+          const u8arr = new Uint8Array(n);
+          while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+          }
+          const blob = new Blob([u8arr], { type: mime });
+          const objectUrl = URL.createObjectURL(blob);
+          setPdfBlobUrl(objectUrl);
+
+          return () => {
+            URL.revokeObjectURL(objectUrl);
+          };
+        } catch (err) {
+          console.error("Error creating Blob URL for PDF:", err);
+          setPdfBlobUrl(currentSlip);
+        }
+      }
+    } else {
+      setPdfBlobUrl(null);
+    }
+  }, [currentSlip, isCurrentPdf]);
+
+  const handleOpenPdfInNewTab = () => {
+    if (!pdfBlobUrl && !currentSlip) return;
+    const targetUrl = pdfBlobUrl || currentSlip!;
+    window.open(targetUrl, "_blank");
+  };
+
+  const handleDownloadPdf = () => {
+    if (!currentSlip) return;
+    try {
+      const targetUrl = pdfBlobUrl || currentSlip;
+      const a = document.createElement("a");
+      a.href = targetUrl;
+      a.download = `grocery-slip-${selectedSlipIndex + 1}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (e) {
+      console.error("Failed to download PDF:", e);
+    }
+  };
 
   const formatDateString = (isoString: string) => {
     try {
@@ -183,34 +243,49 @@ export function ViewGroceryModal({ open, onOpenChange, entry }: ViewGroceryModal
               {allSlips.length > 0 ? (
                 <div className="border border-gray-200 rounded-xl overflow-hidden bg-slate-50 p-3 space-y-3">
                   {/* Main Active Viewer */}
-                  <div className="relative rounded-lg overflow-hidden bg-white border border-gray-200 flex items-center justify-center min-h-[260px] max-h-[300px]">
+                  <div className="relative rounded-lg overflow-hidden bg-white border border-gray-200 flex flex-col items-center justify-center min-h-[280px] max-h-[350px]">
                     {isCurrentPdf ? (
-                      <div className="p-6 text-center space-y-3 flex flex-col items-center">
-                        <div className="size-14 rounded-2xl bg-red-50 flex items-center justify-center text-red-600 shadow-2xs">
-                          <FileTextIcon className="size-7" />
+                      <div className="w-full h-full flex flex-col justify-between p-2">
+                        {/* Interactive Embedded PDF Viewer */}
+                        <div className="w-full h-[250px] bg-slate-100 rounded-lg overflow-hidden border border-gray-200 relative">
+                          {pdfBlobUrl ? (
+                            <iframe
+                              src={pdfBlobUrl}
+                              title={`PDF Document ${selectedSlipIndex + 1}`}
+                              className="w-full h-full rounded-md border-none bg-white"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
+                              <FileTextIcon className="size-10 text-red-500 mb-2" />
+                              <span className="text-xs font-semibold text-gray-700">Loading PDF Document...</span>
+                            </div>
+                          )}
                         </div>
-                        <div>
-                          <p className="text-xs font-bold text-gray-800">PDF Document Attachment</p>
-                          <p className="text-[10px] text-gray-400 mt-0.5">Slip #{selectedSlipIndex + 1} of {allSlips.length}</p>
-                        </div>
-                        <div className="flex items-center gap-2 pt-1">
-                          <a
-                            href={currentSlip!}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 text-xs text-white font-semibold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 shadow-xs"
-                          >
-                            <ExternalLinkIcon className="size-3.5" />
-                            Open PDF in New Tab
-                          </a>
-                          <a
-                            href={currentSlip!}
-                            download={`grocery-slip-${selectedSlipIndex + 1}.pdf`}
-                            className="inline-flex items-center gap-1.5 text-xs text-gray-700 font-semibold px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 shadow-3xs"
-                          >
-                            <DownloadIcon className="size-3.5" />
-                            Download
-                          </a>
+
+                        {/* PDF Actions Bar */}
+                        <div className="flex items-center justify-between pt-2 px-1">
+                          <span className="text-[11px] font-semibold text-gray-600 flex items-center gap-1.5">
+                            <FileTextIcon className="size-3.5 text-red-500" />
+                            PDF Slip #{selectedSlipIndex + 1} of {allSlips.length}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleOpenPdfInNewTab}
+                              className="inline-flex items-center gap-1 text-xs text-white font-semibold px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 shadow-xs cursor-pointer transition-colors"
+                            >
+                              <ExternalLinkIcon className="size-3.5" />
+                              Open PDF in New Tab
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleDownloadPdf}
+                              className="inline-flex items-center gap-1 text-xs text-gray-700 font-semibold px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 shadow-3xs cursor-pointer transition-colors"
+                            >
+                              <DownloadIcon className="size-3.5" />
+                              Download
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ) : (
@@ -224,7 +299,7 @@ export function ViewGroceryModal({ open, onOpenChange, entry }: ViewGroceryModal
                         <button
                           type="button"
                           onClick={() => setLightboxUrl(currentSlip)}
-                          className="absolute bottom-3 right-3 bg-black/70 hover:bg-black/90 text-white p-2 rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-lg backdrop-blur-xs transition-transform active:scale-95"
+                          className="absolute bottom-3 right-3 bg-black/70 hover:bg-black/90 text-white p-2 rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-lg backdrop-blur-xs transition-transform active:scale-95 cursor-pointer"
                           title="View fullscreen"
                         >
                           <Maximize2Icon className="size-3.5" />

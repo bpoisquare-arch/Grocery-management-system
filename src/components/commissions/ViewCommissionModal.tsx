@@ -13,6 +13,7 @@ import {
   ImageIcon,
   Maximize2Icon,
   ExternalLinkIcon,
+  DownloadIcon,
   XIcon,
 } from "lucide-react";
 import {
@@ -54,6 +55,67 @@ export function ViewCommissionModal({ open, onOpenChange, entry }: ViewCommissio
   const isCurrentPdf = currentSlip
     ? currentSlip.includes("application/pdf") || currentSlip.toLowerCase().endsWith(".pdf")
     : false;
+
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+
+  // Convert base64 data URL to Blob URL for clean browser rendering and opening
+  useEffect(() => {
+    if (!currentSlip) {
+      setPdfBlobUrl(null);
+      return;
+    }
+
+    if (isCurrentPdf) {
+      if (currentSlip.startsWith("blob:") || currentSlip.startsWith("http://") || currentSlip.startsWith("https://")) {
+        setPdfBlobUrl(currentSlip);
+      } else if (currentSlip.startsWith("data:")) {
+        try {
+          const parts = currentSlip.split(",");
+          const mimeMatch = parts[0].match(/:(.*?);/);
+          const mime = mimeMatch ? mimeMatch[1] : "application/pdf";
+          const bstr = atob(parts[1]);
+          let n = bstr.length;
+          const u8arr = new Uint8Array(n);
+          while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+          }
+          const blob = new Blob([u8arr], { type: mime });
+          const objectUrl = URL.createObjectURL(blob);
+          setPdfBlobUrl(objectUrl);
+
+          return () => {
+            URL.revokeObjectURL(objectUrl);
+          };
+        } catch (err) {
+          console.error("Error creating Blob URL for PDF:", err);
+          setPdfBlobUrl(currentSlip);
+        }
+      }
+    } else {
+      setPdfBlobUrl(null);
+    }
+  }, [currentSlip, isCurrentPdf]);
+
+  const handleOpenPdfInNewTab = () => {
+    if (!pdfBlobUrl && !currentSlip) return;
+    const targetUrl = pdfBlobUrl || currentSlip!;
+    window.open(targetUrl, "_blank");
+  };
+
+  const handleDownloadPdf = () => {
+    if (!currentSlip) return;
+    try {
+      const targetUrl = pdfBlobUrl || currentSlip;
+      const a = document.createElement("a");
+      a.href = targetUrl;
+      a.download = `commission-slip-${selectedSlipIndex + 1}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (e) {
+      console.error("Failed to download PDF:", e);
+    }
+  };
 
   const getStatusBadge = () => {
     switch (entry.status) {
@@ -193,23 +255,50 @@ export function ViewCommissionModal({ open, onOpenChange, entry }: ViewCommissio
                 {allSlips.length > 0 ? (
                   <div className="border border-gray-200 rounded-xl overflow-hidden bg-slate-50 p-2 space-y-2">
                     {/* Active Main Preview */}
-                    <div className="relative rounded-lg overflow-hidden bg-black/5 flex items-center justify-center min-h-[190px] max-h-[220px]">
+                    <div className="relative rounded-lg overflow-hidden bg-white border border-gray-200 flex flex-col items-center justify-center min-h-[220px] max-h-[300px]">
                       {isCurrentPdf ? (
-                        <div className="p-6 text-center space-y-2">
-                          <FileTextIcon className="size-10 text-red-500 mx-auto" />
-                          <p className="text-xs font-semibold text-gray-800">PDF Document Attachment</p>
-                          <a
-                            href={currentSlip!}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-emerald-600 font-semibold underline mt-1"
-                          >
-                            <ExternalLinkIcon className="size-3" />
-                            Open PDF in new tab
-                          </a>
+                        <div className="w-full h-full flex flex-col justify-between p-2">
+                          <div className="w-full h-[200px] bg-slate-100 rounded-lg overflow-hidden border border-gray-200 relative">
+                            {pdfBlobUrl ? (
+                              <iframe
+                                src={pdfBlobUrl}
+                                title={`Commission Document ${selectedSlipIndex + 1}`}
+                                className="w-full h-full rounded-md border-none bg-white"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
+                                <FileTextIcon className="size-8 text-red-500 mb-1" />
+                                <span className="text-[11px] font-semibold text-gray-700">Loading Document...</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between pt-2 px-1">
+                            <span className="text-[10px] font-semibold text-gray-600 flex items-center gap-1">
+                              <FileTextIcon className="size-3 text-red-500" />
+                              PDF Slip #{selectedSlipIndex + 1}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={handleOpenPdfInNewTab}
+                                className="inline-flex items-center gap-1 text-[11px] text-white font-semibold px-2 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 shadow-xs cursor-pointer transition-colors"
+                              >
+                                <ExternalLinkIcon className="size-3" />
+                                Open PDF in New Tab
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleDownloadPdf}
+                                className="inline-flex items-center gap-1 text-[11px] text-gray-700 font-semibold px-2 py-1 rounded-md bg-white border border-gray-200 hover:bg-gray-50 shadow-3xs cursor-pointer transition-colors"
+                              >
+                                <DownloadIcon className="size-3" />
+                                Download
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       ) : (
-                        <div className="relative w-full h-full flex items-center justify-center group">
+                        <div className="relative w-full h-full flex items-center justify-center group p-1">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={currentSlip!}
@@ -219,7 +308,7 @@ export function ViewCommissionModal({ open, onOpenChange, entry }: ViewCommissio
                           <button
                             type="button"
                             onClick={() => setLightboxUrl(currentSlip)}
-                            className="absolute top-2 right-2 size-7 rounded-lg bg-black/60 hover:bg-black/80 text-white flex items-center justify-center shadow-md transition-colors"
+                            className="absolute top-2 right-2 size-7 rounded-lg bg-black/60 hover:bg-black/80 text-white flex items-center justify-center shadow-md transition-colors cursor-pointer"
                             title="Expand full image"
                           >
                             <Maximize2Icon className="size-3.5" />
