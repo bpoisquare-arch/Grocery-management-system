@@ -4,10 +4,10 @@ import { mockBudgets } from '@/lib/mockData';
 
 // GET /api/budgets - Fetch all budgets
 export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const entity = searchParams.get('entity');
+  const { searchParams } = new URL(request.url);
+  const entity = searchParams.get('entity');
 
+  try {
     const whereClause: any = {};
     if (entity) {
       whereClause.entity = entity;
@@ -23,11 +23,25 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: budgets });
   } catch (error: any) {
-    console.warn('Database offline locally on /api/budgets GET, returning local mock data.');
-    const { searchParams } = new URL(request.url);
-    const entity = searchParams.get('entity');
-    const data = entity ? mockBudgets.filter(b => b.entity === entity) : mockBudgets;
-    return NextResponse.json({ success: true, data });
+    console.warn('Prisma budget.findMany failed, trying raw query fallback:', error.message);
+    try {
+      let budgets: any[] = [];
+      if (entity) {
+        budgets = await prisma.$queryRawUnsafe<any[]>(
+          'SELECT * FROM `Budget` WHERE `entity` = ? ORDER BY `year` DESC, `createdAt` DESC',
+          entity
+        );
+      } else {
+        budgets = await prisma.$queryRawUnsafe<any[]>(
+          'SELECT * FROM `Budget` ORDER BY `year` DESC, `createdAt` DESC'
+        );
+      }
+      return NextResponse.json({ success: true, data: budgets });
+    } catch (rawErr: any) {
+      console.error('Final failure in GET /api/budgets:', rawErr);
+      const data = entity ? mockBudgets.filter(b => b.entity === entity) : mockBudgets;
+      return NextResponse.json({ success: true, data });
+    }
   }
 }
 

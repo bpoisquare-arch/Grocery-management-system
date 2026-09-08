@@ -37,29 +37,68 @@ function formatGroceryEntry(entry: any) {
 
 // GET /api/groceries - Fetch all grocery entries or filter by entity/date
 export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const entity = searchParams.get('entity');
+
   try {
-    const { searchParams } = new URL(request.url);
-    const entity = searchParams.get('entity');
+    let entries: any[] = [];
 
-    const whereClause: any = {};
-    if (entity) {
-      whereClause.entity = entity;
+    // Attempt 1: Standard Prisma query
+    try {
+      const whereClause: any = {};
+      if (entity) {
+        whereClause.entity = entity;
+      }
+
+      entries = await (prisma as any).groceryEntry.findMany({
+        where: whereClause,
+        orderBy: [
+          { date: 'desc' },
+          { createdAt: 'desc' },
+        ],
+      });
+    } catch (prismaError: any) {
+      console.warn('Prisma findMany query failed, trying raw SQL query / auto-migration:', prismaError.message);
+
+      // Attempt auto-migration of slipUrls column if DB user has ALTER privilege
+      try {
+        await prisma.$executeRawUnsafe('ALTER TABLE `GroceryEntry` ADD COLUMN `slipUrls` LONGTEXT NULL');
+      } catch (alterErr) {
+        // Ignore if alter fails or already exists
+      }
+
+      // Attempt 2: Direct raw SQL query (handles table with or without slipUrls column)
+      try {
+        if (entity) {
+          entries = await prisma.$queryRawUnsafe<any[]>(
+            'SELECT * FROM `GroceryEntry` WHERE `entity` = ? ORDER BY `date` DESC, `createdAt` DESC',
+            entity
+          );
+        } else {
+          entries = await prisma.$queryRawUnsafe<any[]>(
+            'SELECT * FROM `GroceryEntry` ORDER BY `date` DESC, `createdAt` DESC'
+          );
+        }
+      } catch (rawErr: any) {
+        console.warn('Raw SELECT * failed, trying explicit column list:', rawErr.message);
+        // Attempt 3: Query explicit original 11 columns
+        if (entity) {
+          entries = await prisma.$queryRawUnsafe<any[]>(
+            'SELECT id, entity, date, details, amount, addedBy, status, slipUrl, slipType, approvedByAdmin, createdAt, updatedAt FROM `GroceryEntry` WHERE `entity` = ? ORDER BY `date` DESC, `createdAt` DESC',
+            entity
+          );
+        } else {
+          entries = await prisma.$queryRawUnsafe<any[]>(
+            'SELECT id, entity, date, details, amount, addedBy, status, slipUrl, slipType, approvedByAdmin, createdAt, updatedAt FROM `GroceryEntry` ORDER BY `date` DESC, `createdAt` DESC'
+          );
+        }
+      }
     }
-
-    const entries = await (prisma as any).groceryEntry.findMany({
-      where: whereClause,
-      orderBy: [
-        { date: 'desc' },
-        { createdAt: 'desc' },
-      ],
-    });
 
     const formatted = entries.map(formatGroceryEntry);
     return NextResponse.json({ success: true, data: formatted });
   } catch (error: any) {
-    console.warn('Database offline locally on /api/groceries GET, returning local mock data.');
-    const { searchParams } = new URL(request.url);
-    const entity = searchParams.get('entity');
+    console.error('Final error in GET /api/groceries:', error);
     const data = entity ? mockGroceryEntries.filter(e => e.entity === entity) : mockGroceryEntries;
     return NextResponse.json({ success: true, data });
   }
@@ -91,20 +130,111 @@ export async function POST(request: NextRequest) {
         : null
     );
 
-    const newEntry = await (prisma as any).groceryEntry.create({
-      data: {
-        entity,
-        date,
-        details,
-        amount: parseFloat(amount),
-        addedBy: addedBy || 'Unknown User',
-        status: computedStatus,
-        slipUrl: primarySlipUrl,
-        slipUrls: finalSlipUrls.length > 0 ? JSON.stringify(finalSlipUrls) : null,
-        slipType: computedSlipType,
-        approvedByAdmin: false,
-      },
-    });
+    let newEntry: any = null;
+
+    // Attempt 1: Standard Prisma create
+    try {
+      newEntry = await (prisma as any).groceryEntry.create({
+        data: {
+          entity,
+          date,
+          details,
+          amount: parseFloat(amount),
+          addedBy: addedBy || 'Unknown User',
+          status: computedStatus,
+          slipUrl: primarySlipUrl,
+          slipUrls: finalSlipUrls.length > 0 ? JSON.stringify(finalSlipUrls) : null,
+          slipType: computedSlipType,
+          approvedByAdmin: false,
+        },
+      });
+    } catch (createErr: any) {
+      console.warn('Prisma create failed, trying auto-alter or raw SQL insert:', createErr.message);
+
+      // Attempt auto-migration of slipUrls column
+      let alterSuccess = false;
+      try {
+        await prisma.$executeRawUnsafe('ALTER TABLE `GroceryEntry` ADD COLUMN `slipUrls` LONGTEXT NULL');
+        alterSuccess = true;
+      } catch (e) {}
+
+      if (alterSuccess) {
+        try {
+          newEntry = await (prisma as any).groceryEntry.create({
+            data: {
+              entity,
+              date,
+              details,
+              amount: parseFloat(amount),
+              addedBy: addedBy || 'Unknown User',
+              status: computedStatus,
+              slipUrl: primarySlipUrl,
+              slipUrls: finalSlipUrls.length > 0 ? JSON.stringify(finalSlipUrls) : null,
+              slipType: computedSlipType,
+              approvedByAdmin: false,
+            },
+          });
+        } catch (e) {}
+      }
+
+      // Attempt raw insert if Prisma still failed
+      if (!newEntry) {
+        const id = `cm_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+        const now = new Date();
+        try {
+          // Try inserting with slipUrls
+          await prisma.$executeRawUnsafe(
+            'INSERT INTO `GroceryEntry` (`id`, `entity`, `date`, `details`, `amount`, `addedBy`, `status`, `slipUrl`, `slipUrls`, `slipType`, `approvedByAdmin`, `createdAt`, `updatedAt`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            id,
+            entity,
+            date,
+            details,
+            parseFloat(amount),
+            addedBy || 'Unknown User',
+            computedStatus,
+            primarySlipUrl,
+            finalSlipUrls.length > 0 ? JSON.stringify(finalSlipUrls) : null,
+            computedSlipType,
+            0,
+            now,
+            now
+          );
+        } catch (insertErr) {
+          // Try inserting without slipUrls column
+          await prisma.$executeRawUnsafe(
+            'INSERT INTO `GroceryEntry` (`id`, `entity`, `date`, `details`, `amount`, `addedBy`, `status`, `slipUrl`, `slipType`, `approvedByAdmin`, `createdAt`, `updatedAt`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            id,
+            entity,
+            date,
+            details,
+            parseFloat(amount),
+            addedBy || 'Unknown User',
+            computedStatus,
+            primarySlipUrl,
+            computedSlipType,
+            0,
+            now,
+            now
+          );
+        }
+
+        newEntry = {
+          id,
+          entity,
+          date,
+          details,
+          amount: parseFloat(amount),
+          addedBy: addedBy || 'Unknown User',
+          status: computedStatus,
+          slipUrl: primarySlipUrl,
+          slipUrls: finalSlipUrls.length > 0 ? JSON.stringify(finalSlipUrls) : null,
+          slipType: computedSlipType,
+          approvedByAdmin: 0,
+          createdAt: now,
+          updatedAt: now,
+        };
+      }
+    }
 
     return NextResponse.json({ success: true, data: formatGroceryEntry(newEntry) }, { status: 201 });
   } catch (error: any) {

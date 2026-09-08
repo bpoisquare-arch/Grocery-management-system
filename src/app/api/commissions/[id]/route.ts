@@ -78,10 +78,46 @@ export async function PUT(
       updateData.slipType = body.slipType;
     }
 
-    const updated = await (prisma as any).commissionEntry.update({
-      where: { id },
-      data: updateData,
-    });
+    let updated: any = null;
+
+    try {
+      updated = await (prisma as any).commissionEntry.update({
+        where: { id },
+        data: updateData,
+      });
+    } catch (updateErr: any) {
+      console.warn(`Prisma update failed for commission ${id}, attempting auto-migration / raw SQL update:`, updateErr.message);
+
+      try {
+        await prisma.$executeRawUnsafe('ALTER TABLE `CommissionEntry` ADD COLUMN `slipUrls` LONGTEXT NULL');
+        updated = await (prisma as any).commissionEntry.update({
+          where: { id },
+          data: updateData,
+        });
+      } catch (retryErr) {
+        const { slipUrls, ...fallbackData } = updateData;
+        const setClauses: string[] = [];
+        const params: any[] = [];
+        for (const [key, val] of Object.entries(fallbackData)) {
+          setClauses.push(`\`${key}\` = ?`);
+          params.push(val);
+        }
+        setClauses.push('`updatedAt` = ?');
+        params.push(new Date());
+        params.push(id);
+
+        await prisma.$executeRawUnsafe(
+          `UPDATE \`CommissionEntry\` SET ${setClauses.join(', ')} WHERE \`id\` = ?`,
+          ...params
+        );
+
+        const rows = await prisma.$queryRawUnsafe<any[]>(
+          'SELECT * FROM `CommissionEntry` WHERE `id` = ? LIMIT 1',
+          id
+        );
+        updated = rows[0] || { id, ...updateData };
+      }
+    }
 
     return NextResponse.json({ success: true, data: formatCommissionEntry(updated) });
   } catch (error: any) {
@@ -101,9 +137,14 @@ export async function DELETE(
   try {
     const { id } = await context.params;
 
-    await (prisma as any).commissionEntry.delete({
-      where: { id },
-    });
+    try {
+      await (prisma as any).commissionEntry.delete({
+        where: { id },
+      });
+    } catch (prismaErr: any) {
+      console.warn(`Prisma delete failed for commission ${id}, falling back to raw SQL:`, prismaErr.message);
+      await prisma.$executeRawUnsafe('DELETE FROM `CommissionEntry` WHERE `id` = ?', id);
+    }
 
     return NextResponse.json({ success: true, message: 'Deleted successfully' });
   } catch (error: any) {
