@@ -36,6 +36,7 @@ interface ViewCommissionModalProps {
 export function ViewCommissionModal({ open, onOpenChange, entry }: ViewCommissionModalProps) {
   const [selectedSlipIndex, setSelectedSlipIndex] = useState(0);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
 
   const allSlips: string[] = React.useMemo(() => {
     if (!entry) return [];
@@ -44,57 +45,54 @@ export function ViewCommissionModal({ open, onOpenChange, entry }: ViewCommissio
     return [];
   }, [entry]);
 
-  useEffect(() => {
-    setSelectedSlipIndex(0);
-    setLightboxUrl(null);
-  }, [entry, open]);
-
-  if (!entry) return null;
-
   const currentSlip = allSlips[selectedSlipIndex] || null;
   const isCurrentPdf = currentSlip
     ? currentSlip.includes("application/pdf") || currentSlip.toLowerCase().endsWith(".pdf")
     : false;
 
-  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  useEffect(() => {
+    setSelectedSlipIndex(0);
+    setLightboxUrl(null);
+  }, [entry, open]);
 
   // Convert base64 data URL to Blob URL for clean browser rendering and opening
   useEffect(() => {
-    if (!currentSlip) {
+    if (!currentSlip || !isCurrentPdf) {
       setPdfBlobUrl(null);
       return;
     }
 
-    if (isCurrentPdf) {
-      if (currentSlip.startsWith("blob:") || currentSlip.startsWith("http://") || currentSlip.startsWith("https://")) {
-        setPdfBlobUrl(currentSlip);
-      } else if (currentSlip.startsWith("data:")) {
-        try {
-          const parts = currentSlip.split(",");
-          const mimeMatch = parts[0].match(/:(.*?);/);
-          const mime = mimeMatch ? mimeMatch[1] : "application/pdf";
-          const bstr = atob(parts[1]);
-          let n = bstr.length;
-          const u8arr = new Uint8Array(n);
-          while (n--) {
-            u8arr[n] = bstr.charCodeAt(n);
-          }
-          const blob = new Blob([u8arr], { type: mime });
-          const objectUrl = URL.createObjectURL(blob);
-          setPdfBlobUrl(objectUrl);
+    if (currentSlip.startsWith("blob:") || currentSlip.startsWith("http://") || currentSlip.startsWith("https://")) {
+      setPdfBlobUrl(currentSlip);
+      return;
+    }
 
-          return () => {
-            URL.revokeObjectURL(objectUrl);
-          };
-        } catch (err) {
-          console.error("Error creating Blob URL for PDF:", err);
-          setPdfBlobUrl(currentSlip);
+    if (currentSlip.startsWith("data:")) {
+      try {
+        const parts = currentSlip.split(",");
+        const mimeMatch = parts[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : "application/pdf";
+        const bstr = atob(parts[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
         }
+        const blob = new Blob([u8arr], { type: mime });
+        const objectUrl = URL.createObjectURL(blob);
+        setPdfBlobUrl(objectUrl);
+
+        return () => {
+          URL.revokeObjectURL(objectUrl);
+        };
+      } catch (err) {
+        console.error("Error creating Blob URL for PDF:", err);
+        setPdfBlobUrl(currentSlip);
       }
-    } else {
-      setPdfBlobUrl(null);
     }
   }, [currentSlip, isCurrentPdf]);
+
+  if (!entry) return null;
 
   const handleOpenPdfInNewTab = () => {
     if (!pdfBlobUrl && !currentSlip) return;

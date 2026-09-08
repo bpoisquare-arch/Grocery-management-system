@@ -33,6 +33,7 @@ interface ViewGroceryModalProps {
 export function ViewGroceryModal({ open, onOpenChange, entry }: ViewGroceryModalProps) {
   const [selectedSlipIndex, setSelectedSlipIndex] = useState(0);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
 
   const allSlips: string[] = React.useMemo(() => {
     if (!entry) return [];
@@ -43,56 +44,54 @@ export function ViewGroceryModal({ open, onOpenChange, entry }: ViewGroceryModal
     return [];
   }, [entry]);
 
+  const currentSlip = allSlips[selectedSlipIndex] || null;
+  const isCurrentPdf = currentSlip
+    ? currentSlip.includes("application/pdf") || currentSlip.toLowerCase().endsWith(".pdf")
+    : false;
+
   useEffect(() => {
     setSelectedSlipIndex(0);
     setLightboxUrl(null);
   }, [entry, open]);
 
-  if (!entry) return null;
-
-  const currentSlip = allSlips[selectedSlipIndex] || null;
-  const isCurrentPdf = currentSlip
-    ? currentSlip.includes("application/pdf") || currentSlip.toLowerCase().endsWith(".pdf")
-    : false;
-  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
-
   // Convert base64 data URL to Blob URL for clean browser rendering and opening
   useEffect(() => {
-    if (!currentSlip) {
+    if (!currentSlip || !isCurrentPdf) {
       setPdfBlobUrl(null);
       return;
     }
 
-    if (isCurrentPdf) {
-      if (currentSlip.startsWith("blob:") || currentSlip.startsWith("http://") || currentSlip.startsWith("https://")) {
-        setPdfBlobUrl(currentSlip);
-      } else if (currentSlip.startsWith("data:")) {
-        try {
-          const parts = currentSlip.split(",");
-          const mimeMatch = parts[0].match(/:(.*?);/);
-          const mime = mimeMatch ? mimeMatch[1] : "application/pdf";
-          const bstr = atob(parts[1]);
-          let n = bstr.length;
-          const u8arr = new Uint8Array(n);
-          while (n--) {
-            u8arr[n] = bstr.charCodeAt(n);
-          }
-          const blob = new Blob([u8arr], { type: mime });
-          const objectUrl = URL.createObjectURL(blob);
-          setPdfBlobUrl(objectUrl);
+    if (currentSlip.startsWith("blob:") || currentSlip.startsWith("http://") || currentSlip.startsWith("https://")) {
+      setPdfBlobUrl(currentSlip);
+      return;
+    }
 
-          return () => {
-            URL.revokeObjectURL(objectUrl);
-          };
-        } catch (err) {
-          console.error("Error creating Blob URL for PDF:", err);
-          setPdfBlobUrl(currentSlip);
+    if (currentSlip.startsWith("data:")) {
+      try {
+        const parts = currentSlip.split(",");
+        const mimeMatch = parts[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : "application/pdf";
+        const bstr = atob(parts[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
         }
+        const blob = new Blob([u8arr], { type: mime });
+        const objectUrl = URL.createObjectURL(blob);
+        setPdfBlobUrl(objectUrl);
+
+        return () => {
+          URL.revokeObjectURL(objectUrl);
+        };
+      } catch (err) {
+        console.error("Error creating Blob URL for PDF:", err);
+        setPdfBlobUrl(currentSlip);
       }
-    } else {
-      setPdfBlobUrl(null);
     }
   }, [currentSlip, isCurrentPdf]);
+
+  if (!entry) return null;
 
   const handleOpenPdfInNewTab = () => {
     if (!pdfBlobUrl && !currentSlip) return;
@@ -115,11 +114,14 @@ export function ViewGroceryModal({ open, onOpenChange, entry }: ViewGroceryModal
     }
   };
 
-  const formatDateString = (isoString: string) => {
+  const formatDateString = (isoString?: string | Date | null) => {
+    if (!isoString) return "-";
     try {
-      return format(parseISO(isoString), "PPP p");
+      const d = typeof isoString === "string" ? new Date(isoString) : isoString;
+      if (isNaN(d.getTime())) return String(isoString);
+      return format(d, "dd MMM yyyy, hh:mm a");
     } catch (e) {
-      return isoString;
+      return String(isoString);
     }
   };
 
@@ -172,7 +174,7 @@ export function ViewGroceryModal({ open, onOpenChange, entry }: ViewGroceryModal
             <div className="lg:col-span-5 space-y-3.5 text-xs text-gray-600">
               <div className="border-b border-gray-100 pb-2">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Entity / Branch</span>
-                <span className="font-bold text-gray-900 text-sm mt-0.5 block">{entry.entity.toUpperCase()}</span>
+                <span className="font-bold text-gray-900 text-sm mt-0.5 block">{(entry.entity || "Lahore").toUpperCase()}</span>
               </div>
 
               <div className="border-b border-gray-100 pb-2">
@@ -180,8 +182,12 @@ export function ViewGroceryModal({ open, onOpenChange, entry }: ViewGroceryModal
                 <span className="font-semibold text-gray-900 text-xs mt-0.5 block">
                   {entry.date ? (
                     (() => {
-                      const d = new Date(entry.date);
-                      return isNaN(d.getTime()) ? entry.date : format(d, "dd MMMM yyyy");
+                      try {
+                        const d = new Date(entry.date);
+                        return isNaN(d.getTime()) ? entry.date : format(d, "dd MMMM yyyy");
+                      } catch (e) {
+                        return entry.date;
+                      }
                     })()
                   ) : (
                     "-"
@@ -192,7 +198,7 @@ export function ViewGroceryModal({ open, onOpenChange, entry }: ViewGroceryModal
               <div className="border-b border-gray-100 pb-2">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Expense Amount</span>
                 <span className="text-lg font-bold text-emerald-700 block mt-0.5">
-                  Rs. {entry.amount.toLocaleString()}
+                  Rs. {(typeof entry.amount === "number" ? entry.amount : parseFloat(entry.amount) || 0).toLocaleString()}
                 </span>
               </div>
 
