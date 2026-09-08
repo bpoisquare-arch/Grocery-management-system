@@ -19,6 +19,16 @@ import {
   defaultBmServiceCommissions,
 } from './mockData';
 
+export interface BudgetBreakdown {
+  baseBudget: number;
+  carryoverBalance: number;
+  previousPeriodLabel?: string;
+  effectiveBudget: number;
+  totalSpent: number;
+  remainingBalance: number;
+  isOverspent: boolean;
+}
+
 interface StoreContextType {
   currentUser: User | null;
   activeEntity: Entity;
@@ -37,6 +47,8 @@ interface StoreContextType {
   refreshData: () => Promise<void>;
   addGroceryEntry: (entry: {
     date: string;
+    budgetMonth?: string;
+    budgetYear?: number;
     details: string;
     amount: number;
     status: SlipStatus;
@@ -48,6 +60,8 @@ interface StoreContextType {
     id: string,
     updatedData: {
       date?: string;
+      budgetMonth?: string;
+      budgetYear?: number;
       details?: string;
       amount?: number;
       status?: SlipStatus;
@@ -63,6 +77,8 @@ interface StoreContextType {
   deleteMonthlyBudget: (entity: Entity, month: string, year: number) => Promise<void>;
   clearAllBudgets: () => Promise<void>;
   getEntityBudget: (entity: Entity, month?: string, year?: number) => number;
+  getEntityBudgetBreakdown: (entity: Entity, month?: string, year?: number) => BudgetBreakdown;
+  calculateEntityBudgetChain: (entity: Entity) => (BudgetBreakdown & { entity: Entity; month: string; year: number })[];
   // Commission & Counselor Methods
   addCommissionEntry: (entry: {
     studentName: string;
@@ -565,6 +581,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const addGroceryEntry = async (entry: {
     date: string;
+    budgetMonth?: string;
+    budgetYear?: number;
     details: string;
     amount: number;
     status: SlipStatus;
@@ -607,9 +625,29 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ? 'Slip Uploaded'
       : entry.status || 'Slip Missing';
 
+    // Derive budget month/year from entry.date if not explicitly provided
+    let derivedMonth = 'August';
+    let derivedYear = 2026;
+    try {
+      const d = new Date(entry.date);
+      if (!isNaN(d.getTime())) {
+        const monthNames = [
+          'January', 'February', 'March', 'April', 'May', 'June',
+          'July', 'August', 'September', 'October', 'November', 'December'
+        ];
+        derivedMonth = monthNames[d.getMonth()];
+        derivedYear = d.getFullYear();
+      }
+    } catch (e) {}
+
+    const assignedBudgetMonth = entry.budgetMonth || derivedMonth;
+    const assignedBudgetYear = entry.budgetYear || derivedYear;
+
     const payload = {
       entity: activeEntity,
       date: entry.date,
+      budgetMonth: assignedBudgetMonth,
+      budgetYear: assignedBudgetYear,
       details: entry.details,
       amount: entry.amount,
       addedBy: currentUser ? currentUser.name : 'Unknown User',
@@ -644,6 +682,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       id: `grocery-${Date.now()}`,
       entity: activeEntity,
       date: entry.date,
+      budgetMonth: assignedBudgetMonth,
+      budgetYear: assignedBudgetYear,
       details: entry.details,
       amount: entry.amount,
       addedBy: currentUser ? currentUser.name : 'Unknown User',
@@ -664,6 +704,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     id: string,
     updatedData: {
       date?: string;
+      budgetMonth?: string;
+      budgetYear?: number;
       details?: string;
       amount?: number;
       status?: SlipStatus;
@@ -921,27 +963,153 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     safeSetLocalStorage('gem_budgets', JSON.stringify([]));
   };
 
-  // Accurate real-time budget calculation for an entity
-  const getEntityBudget = (entity: Entity, month?: string, year?: number): number => {
-    const targetYear = year || currentYear;
+  const MONTHS_ORDER = [
+    'january', 'february', 'march', 'april', 'may', 'june',
+    'july', 'august', 'september', 'october', 'november', 'december'
+  ];
 
-    // If month is "all" or omitted, return sum of budgets for this entity or latest budget
+  // Helper to calculate sequential rollover budget chain for an entity
+  const calculateEntityBudgetChain = (targetEntity: Entity) => {
+    // 1. Get all budgets for this entity
+    const entityBudgets = budgets.filter((b) => b.entity === targetEntity);
+
+    // 2. Sort chronologically (year asc, monthIndex asc)
+    const sorted = [...entityBudgets].sort((a, b) => {
+      if (a.year !== b.year) return a.year - b.year;
+      return MONTHS_ORDER.indexOf(a.month.toLowerCase()) - MONTHS_ORDER.indexOf(b.month.toLowerCase());
+    });
+
+    const chain: (BudgetBreakdown & { entity: Entity; month: string; year: number })[] = [];
+
+    let runningCarryover = 0;
+    let prevLabel: string | undefined = undefined;
+
+    for (let i = 0; i < sorted.length; i++) {
+      const b = sorted[i];
+      const baseBudget = b.amount || 0;
+      const carryoverBalance = runningCarryover;
+      const previousPeriodLabel = prevLabel;
+      const effectiveBudget = baseBudget + carryoverBalance;
+
+      // Calculate total spent assigned to this specific budget period
+      const totalSpent = groceryEntries
+        .filter((entry) => {
+          if (entry.entity !== targetEntity) return false;
+          let eMonth = entry.budgetMonth;
+          let eYear = entry.budgetYear;
+          if (!eMonth && entry.date) {
+            try {
+              const d = new Date(entry.date);
+              if (!isNaN(d.getTime())) {
+                const ALL_M = [
+                  'January', 'February', 'March', 'April', 'May', 'June',
+                  'July', 'August', 'September', 'October', 'November', 'December'
+                ];
+                eMonth = ALL_M[d.getMonth()];
+                eYear = d.getFullYear();
+              }
+            } catch (err) {}
+          }
+          return (
+            (eMonth || '').toLowerCase() === b.month.toLowerCase() &&
+            (eYear ? Number(eYear) : currentYear) === b.year
+          );
+        })
+        .reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
+
+      const remainingBalance = effectiveBudget - totalSpent;
+      const isOverspent = remainingBalance < 0;
+
+      chain.push({
+        entity: targetEntity,
+        month: b.month,
+        year: b.year,
+        baseBudget,
+        carryoverBalance,
+        previousPeriodLabel,
+        effectiveBudget,
+        totalSpent,
+        remainingBalance,
+        isOverspent,
+      });
+
+      // Pass remaining balance as carryover to the next month
+      runningCarryover = remainingBalance;
+      prevLabel = `${b.month} ${b.year}`;
+    }
+
+    return chain;
+  };
+
+  // Get full budget breakdown for an entity & month & year with automated rollover
+  const getEntityBudgetBreakdown = (entity: Entity, month?: string, year?: number): BudgetBreakdown => {
+    const chain = calculateEntityBudgetChain(entity);
+
+    if (!month || month === 'all') {
+      const totalBase = chain.reduce((sum, c) => sum + c.baseBudget, 0);
+      const totalSpent = chain.reduce((sum, c) => sum + c.totalSpent, 0);
+      const latestRemaining = chain.length > 0 ? chain[chain.length - 1].remainingBalance : 0;
+      return {
+        baseBudget: totalBase,
+        carryoverBalance: 0,
+        effectiveBudget: totalBase,
+        totalSpent,
+        remainingBalance: latestRemaining,
+        isOverspent: latestRemaining < 0,
+      };
+    }
+
+    const targetYear = year || currentYear;
+    const existing = chain.find(
+      (c) => c.month.toLowerCase() === month.toLowerCase() && c.year === targetYear
+    );
+
+    if (existing) {
+      return existing;
+    }
+
+    // If month not in chain yet, find the most recent prior budget for carryover
+    const targetVal = targetYear * 12 + MONTHS_ORDER.indexOf(month.toLowerCase());
+    const priorBudgets = chain.filter(
+      (c) => c.year * 12 + MONTHS_ORDER.indexOf(c.month.toLowerCase()) < targetVal
+    );
+
+    if (priorBudgets.length > 0) {
+      const lastPrior = priorBudgets[priorBudgets.length - 1];
+      const carryoverBalance = lastPrior.remainingBalance;
+      return {
+        baseBudget: 0,
+        carryoverBalance,
+        previousPeriodLabel: `${lastPrior.month} ${lastPrior.year}`,
+        effectiveBudget: carryoverBalance,
+        totalSpent: 0,
+        remainingBalance: carryoverBalance,
+        isOverspent: carryoverBalance < 0,
+      };
+    }
+
+    return {
+      baseBudget: 0,
+      carryoverBalance: 0,
+      effectiveBudget: 0,
+      totalSpent: 0,
+      remainingBalance: 0,
+      isOverspent: false,
+    };
+  };
+
+  // Accurate real-time budget calculation for an entity (returns effective budget)
+  const getEntityBudget = (entity: Entity, month?: string, year?: number): number => {
     if (!month || month === 'all') {
       const entityBudgets = budgets.filter((b) => b.entity === entity);
       if (entityBudgets.length > 0) {
-        // Return sum of all assigned budgets for this entity
         return entityBudgets.reduce((sum, b) => sum + b.amount, 0);
       }
       return 0;
     }
 
-    // Exact match for the specified month and year
-    const exact = budgets.find(
-      (b) => b.entity === entity && b.month.toLowerCase() === month.toLowerCase() && b.year === targetYear
-    );
-    if (exact && exact.amount !== undefined) return exact.amount;
-
-    return 0;
+    const breakdown = getEntityBudgetBreakdown(entity, month, year);
+    return breakdown.effectiveBudget;
   };
 
   // Commission Operations
@@ -1456,6 +1624,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 body: JSON.stringify({
                   entity: groc.entity,
                   date: groc.date,
+                  budgetMonth: groc.budgetMonth,
+                  budgetYear: groc.budgetYear,
                   details: groc.details,
                   amount: groc.amount,
                   addedBy: groc.addedBy,
@@ -1527,6 +1697,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         deleteMonthlyBudget,
         clearAllBudgets,
         getEntityBudget,
+        getEntityBudgetBreakdown,
+        calculateEntityBudgetChain,
         addCommissionEntry,
         updateCommissionEntry,
         deleteCommissionEntry,

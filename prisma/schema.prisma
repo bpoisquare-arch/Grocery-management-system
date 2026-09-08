@@ -39,6 +39,8 @@ model GroceryEntry {
   amount          Float
   addedBy         String
   status          String   // "Slip Uploaded", "Slip Missing", "Approved Without Slip"
+  budgetMonth     String?  // Assigned Budget Month e.g. "August"
+  budgetYear      Int?     // Assigned Budget Year e.g. 2026
   slipUrl         String?  @db.LongText
   slipUrls        String?  @db.LongText // JSON string array of up to 10 URLs
   slipType        String?  // "image", "pdf"

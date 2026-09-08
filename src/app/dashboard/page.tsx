@@ -60,6 +60,7 @@ export default function DashboardPage() {
     budgets,
     groceryEntries,
     getEntityBudget,
+    getEntityBudgetBreakdown,
   } = useStore();
 
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -68,14 +69,51 @@ export default function DashboardPage() {
   const [approveModalOpen, setApproveModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<any>(null);
-  const [selectedPeriod, setSelectedPeriod] = useState<string>("all");
+  const currentRealMonth = format(new Date(), "MMMM");
+  const currentRealYear = new Date().getFullYear();
 
   const isAdmin = currentUser?.role === "ADMIN";
+
+  const entityBudgets = useMemo(() => {
+    return budgets.filter((b) => b.entity === activeEntity);
+  }, [budgets, activeEntity]);
+
+  const budgetOptions = useMemo(() => {
+    return entityBudgets.map((b) => ({
+      key: `${b.month}-${b.year}`,
+      month: b.month,
+      year: b.year,
+      label: `${b.month} ${b.year}`,
+      amount: b.amount,
+    }));
+  }, [entityBudgets]);
+
+  const [selectedPeriod, setSelectedPeriod] = useState<string>(() => {
+    const hasCurrent = entityBudgets.find(
+      (b) => b.month.toLowerCase() === currentRealMonth.toLowerCase() && b.year === currentRealYear
+    );
+    if (hasCurrent) return `${hasCurrent.month}-${hasCurrent.year}`;
+    if (entityBudgets.length > 0) return `${entityBudgets[0].month}-${entityBudgets[0].year}`;
+    return "all";
+  });
+
+  // Sync selected period when activeEntity or entityBudgets change
+  React.useEffect(() => {
+    const hasCurrent = entityBudgets.find(
+      (b) => b.month.toLowerCase() === currentRealMonth.toLowerCase() && b.year === currentRealYear
+    );
+    if (hasCurrent) {
+      setSelectedPeriod(`${hasCurrent.month}-${hasCurrent.year}`);
+    } else if (entityBudgets.length > 0) {
+      setSelectedPeriod(`${entityBudgets[0].month}-${entityBudgets[0].year}`);
+    } else {
+      setSelectedPeriod("all");
+    }
+  }, [activeEntity, entityBudgets, currentRealMonth, currentRealYear]);
 
   // Determine budget based on period
   const totalBudget = useMemo(() => {
     if (selectedPeriod === "all") {
-      const entityBudgets = budgets.filter((b) => b.entity === activeEntity);
       if (entityBudgets.length > 0) {
         return entityBudgets.reduce((sum, b) => sum + b.amount, 0);
       }
@@ -83,7 +121,37 @@ export default function DashboardPage() {
     }
     const [month, yearStr] = selectedPeriod.split("-");
     return getEntityBudget(activeEntity, month, parseInt(yearStr, 10));
-  }, [activeEntity, selectedPeriod, budgets, getEntityBudget]);
+  }, [activeEntity, selectedPeriod, entityBudgets, getEntityBudget]);
+
+  const dashboardBreakdown = useMemo(() => {
+    if (selectedPeriod === "all") {
+      return getEntityBudgetBreakdown(activeEntity, "all");
+    }
+    const [month, yearStr] = selectedPeriod.split("-");
+    return getEntityBudgetBreakdown(activeEntity, month, parseInt(yearStr, 10));
+  }, [activeEntity, selectedPeriod, getEntityBudgetBreakdown]);
+
+  const deriveEntryMonthYear = (entry: any) => {
+    if (entry.budgetMonth && entry.budgetYear) {
+      return { month: entry.budgetMonth, year: Number(entry.budgetYear) };
+    }
+    if (entry.budgetMonth) {
+      return { month: entry.budgetMonth, year: currentYear };
+    }
+    if (entry.date) {
+      try {
+        const d = new Date(entry.date);
+        if (!isNaN(d.getTime())) {
+          const ALL_MONTHS = [
+            'January', 'February', 'March', 'April', 'May', 'June',
+            'July', 'August', 'September', 'October', 'November', 'December'
+          ];
+          return { month: ALL_MONTHS[d.getMonth()], year: d.getFullYear() };
+        }
+      } catch (e) {}
+    }
+    return { month: currentMonth, year: currentYear };
+  };
 
   // Filter entries for active entity and selected period, sorted by date descending
   const filteredEntries = useMemo(() => {
@@ -91,26 +159,16 @@ export default function DashboardPage() {
       .filter((entry) => {
         if (entry.entity !== activeEntity) return false;
         if (selectedPeriod === "all") return true;
-        if (!entry.date) return false;
-
-        const parts = entry.date.split("-");
-        if (parts.length < 3) return false;
-        const year = parseInt(parts[0], 10);
-        const monthVal = parseInt(parts[1], 10);
-        const months = [
-          "January", "February", "March", "April", "May", "June",
-          "July", "August", "September", "October", "November", "December"
-        ];
-        const monthName = months[monthVal - 1];
 
         const [filterMonth, filterYearStr] = selectedPeriod.split("-");
+        const entryMY = deriveEntryMonthYear(entry);
         return (
-          monthName.toLowerCase() === filterMonth.toLowerCase() &&
-          year === parseInt(filterYearStr, 10)
+          entryMY.month.toLowerCase() === filterMonth.toLowerCase() &&
+          entryMY.year === parseInt(filterYearStr, 10)
         );
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [groceryEntries, activeEntity, selectedPeriod]);
+  }, [groceryEntries, activeEntity, selectedPeriod, currentMonth, currentYear]);
 
   const recentEntries = useMemo(() => {
     return filteredEntries.slice(0, 5);
@@ -183,17 +241,26 @@ export default function DashboardPage() {
 
           <div className="flex flex-wrap items-center gap-2.5">
             {/* Period / Month Selector */}
-            <div className="w-40">
+            <div className="w-44">
               <Select value={selectedPeriod} onValueChange={(val) => setSelectedPeriod(val || "all")}>
                 <SelectTrigger className="h-9 border-gray-200 text-xs font-semibold bg-white">
                   <SelectValue placeholder="Select Period" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Records</SelectItem>
-                  <SelectItem value="September-2026">September 2026</SelectItem>
-                  <SelectItem value="August-2026">August 2026</SelectItem>
-                  <SelectItem value="July-2026">July 2026</SelectItem>
-                  <SelectItem value="June-2026">June 2026</SelectItem>
+                <SelectContent className="bg-white border-gray-200">
+                  <SelectItem value="all" className="text-xs font-semibold cursor-pointer">
+                    All Budget Periods
+                  </SelectItem>
+                  {budgetOptions.length === 0 ? (
+                    <SelectItem value="none" disabled className="text-xs text-gray-400">
+                      No budget assigned yet
+                    </SelectItem>
+                  ) : (
+                    budgetOptions.map((opt) => (
+                      <SelectItem key={opt.key} value={opt.key} className="text-xs font-medium cursor-pointer">
+                        {opt.label}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -235,7 +302,12 @@ export default function DashboardPage() {
                   Rs. {totalBudget.toLocaleString()}
                 </div>
                 <div className="text-[10px] text-gray-500 font-semibold mt-1">
-                  {selectedPeriod === "all" ? "Allocated Monthly Budget" : `Allocated for ${getPeriodLabel()}`}
+                  <span>{selectedPeriod === "all" ? "Allocated Monthly Budget" : `Effective for ${getPeriodLabel()}`}</span>
+                  {dashboardBreakdown.carryoverBalance !== 0 && (
+                    <span className={cn("block text-[10px] font-semibold mt-0.5", dashboardBreakdown.carryoverBalance < 0 ? "text-red-600" : "text-emerald-600")}>
+                      (Base: Rs. {dashboardBreakdown.baseBudget.toLocaleString()} | {dashboardBreakdown.carryoverBalance < 0 ? "-Rs. " : "+Rs. "}{Math.abs(dashboardBreakdown.carryoverBalance).toLocaleString()} Rollover)
+                    </span>
+                  )}
                 </div>
               </div>
             </CardContent>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { format } from "date-fns";
 import {
   CalendarIcon,
@@ -14,6 +14,13 @@ import {
   ExternalLinkIcon,
   XIcon,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useStore } from "@/lib/store";
 import {
   Dialog,
@@ -53,17 +60,25 @@ interface SlipItem {
   isExisting: boolean;
 }
 
+const ALL_MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
 export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModalProps) {
   const {
     activeEntity,
     currentMonth,
     currentYear,
     groceryEntries,
+    budgets,
     updateGroceryEntry,
     getEntityBudget,
   } = useStore();
 
   const [date, setDate] = useState<Date | undefined>(undefined);
+  const [assignedBudgetMonth, setAssignedBudgetMonth] = useState<string>(currentMonth);
+  const [assignedBudgetYear, setAssignedBudgetYear] = useState<number>(currentYear);
   const [details, setDetails] = useState("");
   const [amountStr, setAmountStr] = useState("");
   const [slipItems, setSlipItems] = useState<SlipItem[]>([]);
@@ -81,6 +96,60 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
     });
   };
 
+  const currentRealMonth = format(new Date(), "MMMM");
+  const currentRealYear = new Date().getFullYear();
+
+  const targetEntity = entry?.entity || activeEntity;
+  const entityBudgets = useMemo(() => {
+    return budgets.filter((b) => b.entity === targetEntity);
+  }, [budgets, targetEntity]);
+
+  const budgetOptions = useMemo(() => {
+    const opts: { month: string; year: number; key: string; label: string; amount?: number }[] = [];
+    const keys = new Set<string>();
+
+    entityBudgets.forEach((b) => {
+      const key = `${b.month}_${b.year}`;
+      keys.add(key);
+      opts.push({
+        month: b.month,
+        year: b.year,
+        key,
+        label: `${b.month} ${b.year} (Allocated: Rs. ${b.amount.toLocaleString()})`,
+        amount: b.amount,
+      });
+    });
+
+    // If entry had a specific assigned month/year, keep it in options so it remains selected
+    if (entry) {
+      let eMonth = entry.budgetMonth;
+      let eYear = entry.budgetYear;
+      if (!eMonth && entry.date) {
+        try {
+          const d = new Date(entry.date);
+          if (!isNaN(d.getTime())) {
+            eMonth = ALL_MONTHS[d.getMonth()];
+            eYear = d.getFullYear();
+          }
+        } catch (e) {}
+      }
+      if (eMonth && eYear) {
+        const key = `${eMonth}_${eYear}`;
+        if (!keys.has(key)) {
+          opts.unshift({
+            month: eMonth,
+            year: eYear,
+            key,
+            label: `${eMonth} ${eYear}`,
+            amount: 0,
+          });
+        }
+      }
+    }
+
+    return opts;
+  }, [entityBudgets, entry]);
+
   // Initialize fields with entry data
   useEffect(() => {
     if (open && entry) {
@@ -90,6 +159,38 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
       } catch (e) {
         setDate(new Date());
       }
+
+      let initialMonth = entry.budgetMonth;
+      let initialYear = entry.budgetYear;
+      if (!initialMonth && entry.date) {
+        try {
+          const d = new Date(entry.date);
+          if (!isNaN(d.getTime())) {
+            initialMonth = ALL_MONTHS[d.getMonth()];
+            initialYear = d.getFullYear();
+          }
+        } catch (e) {}
+      }
+
+      if (initialMonth && initialYear) {
+        setAssignedBudgetMonth(initialMonth);
+        setAssignedBudgetYear(initialYear);
+      } else {
+        const hasCurrentMonth = entityBudgets.find(
+          (b) => b.month.toLowerCase() === currentRealMonth.toLowerCase() && b.year === currentRealYear
+        );
+        if (hasCurrentMonth) {
+          setAssignedBudgetMonth(hasCurrentMonth.month);
+          setAssignedBudgetYear(hasCurrentMonth.year);
+        } else if (entityBudgets.length > 0) {
+          setAssignedBudgetMonth(entityBudgets[0].month);
+          setAssignedBudgetYear(entityBudgets[0].year);
+        } else {
+          setAssignedBudgetMonth(currentRealMonth);
+          setAssignedBudgetYear(currentRealYear);
+        }
+      }
+
       setDetails(entry.details || "");
       setAmountStr(entry.amount ? entry.amount.toString() : "");
 
@@ -122,22 +223,42 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, entry]);
 
-  if (!entry) return null;
+  // Live Budget calculations for selected assigned budget month
+  const totalBudget = getEntityBudget(targetEntity, assignedBudgetMonth, assignedBudgetYear);
 
-  // Budget calculations
-  const selectedDateMonth = date ? format(date, "MMMM") : currentMonth;
-  const selectedDateYear = date ? parseInt(format(date, "yyyy"), 10) : currentYear;
-  const totalBudget = getEntityBudget(activeEntity, selectedDateMonth, selectedDateYear);
-
-  const totalSpent = groceryEntries
-    .filter((item) => item.entity === activeEntity)
+  const totalSpentInAssignedMonth = groceryEntries
+    .filter((item) => {
+      if (item.entity !== targetEntity) return false;
+      let eMonth = item.budgetMonth;
+      let eYear = item.budgetYear;
+      if (!eMonth && item.date) {
+        try {
+          const d = new Date(item.date);
+          if (!isNaN(d.getTime())) {
+            eMonth = ALL_MONTHS[d.getMonth()];
+            eYear = d.getFullYear();
+          }
+        } catch (e) {}
+      }
+      return (
+        (eMonth || '').toLowerCase() === assignedBudgetMonth.toLowerCase() &&
+        (eYear || currentYear) === assignedBudgetYear
+      );
+    })
     .reduce((sum, item) => sum + item.amount, 0);
 
-  const remainingBalance = totalBudget - totalSpent;
-  const originalAmount = entry.amount;
-  const newAmount = parseFloat(amountStr) || 0;
+  const originalAmount = entry?.amount || 0;
+  const isSameBudgetMonthAsOriginal =
+    entry &&
+    (entry.budgetMonth || (entry.date ? ALL_MONTHS[new Date(entry.date).getMonth()] : '')) === assignedBudgetMonth;
 
-  const remainingAfterSave = remainingBalance + originalAmount - newAmount;
+  const currentAdjustedSpent = isSameBudgetMonthAsOriginal
+    ? totalSpentInAssignedMonth - originalAmount
+    : totalSpentInAssignedMonth;
+
+  const remainingBalance = totalBudget - totalSpentInAssignedMonth;
+  const newAmount = parseFloat(amountStr) || 0;
+  const remainingAfterSave = totalBudget - (currentAdjustedSpent + newAmount);
   const isOverBudget = remainingAfterSave < 0;
 
   // File Upload Handlers (Up to 10 slips, 30MB for PDF)
@@ -232,6 +353,7 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!entry) return;
     if (!date) {
       toast.error("Please select a date.");
       return;
@@ -264,6 +386,8 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
 
       await updateGroceryEntry(entry.id, {
         date: format(date, "yyyy-MM-dd"),
+        budgetMonth: assignedBudgetMonth,
+        budgetYear: assignedBudgetYear,
         details: details.trim(),
         amount: newAmount,
         status: newStatus,
@@ -281,6 +405,8 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
     }
   };
 
+  if (!entry) return null;
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -295,11 +421,53 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
           <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-4 items-start">
             {/* Left Inputs Section (7 Columns) */}
             <div className="lg:col-span-7 space-y-4">
+              {/* Assign Budget Month Selector */}
+              <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-emerald-50/50 border border-emerald-100/80">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="edit-assign-budget-month" className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                    ASSIGN BUDGET MONTH *
+                  </Label>
+                  <span className="text-[10px] text-emerald-700 font-medium">
+                    Calculated against this budget
+                  </span>
+                </div>
+                <Select
+                  value={`${assignedBudgetMonth}_${assignedBudgetYear}`}
+                  onValueChange={(val) => {
+                    if (val) {
+                      const [m, y] = (val as string).split('_');
+                      setAssignedBudgetMonth(m);
+                      setAssignedBudgetYear(parseInt(y, 10));
+                    }
+                  }}
+                >
+                  <SelectTrigger id="edit-assign-budget-month" className="h-10 border-emerald-200 text-xs font-semibold bg-white focus:border-emerald-500 focus:ring-emerald-500">
+                    <SelectValue placeholder="Select Budget Month" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-gray-200">
+                    {budgetOptions.length === 0 ? (
+                      <SelectItem value="none" disabled className="text-xs text-gray-400">
+                        No budget assigned yet by Admin for {targetEntity}
+                      </SelectItem>
+                    ) : (
+                      budgetOptions.map((opt) => (
+                        <SelectItem key={opt.key} value={opt.key} className="text-xs font-medium cursor-pointer">
+                          {opt.label}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-gray-500 mt-0.5">
+                  Admin assigned budgets for {targetEntity}. Expense is deducted from the selected month&apos;s budget.
+                </p>
+              </div>
+
               {/* Date & Amount Row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Date */}
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="edit-date" className="text-xs font-semibold text-gray-700">DATE *</Label>
+                  <Label htmlFor="edit-date" className="text-xs font-semibold text-gray-700">TRANSACTION / BILL DATE *</Label>
                   <Popover>
                     <PopoverTrigger
                       render={
@@ -449,9 +617,7 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
                               <Badge className={cn("text-[9px] px-1.5 py-0 h-4 border-none font-bold", item.isPdf ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700")}>
                                 {item.isPdf ? "PDF" : "IMAGE"}
                               </Badge>
-                              <span className="text-[10px] text-gray-400 font-medium">
-                                {item.isExisting ? "Existing" : item.size}
-                              </span>
+                              <span className="text-[10px] text-gray-400 font-medium">{item.size}</span>
                             </div>
                           </div>
 
@@ -496,19 +662,19 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
                 <CardContent className="p-4 space-y-3.5">
                   <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider flex items-center justify-between">
                     <span>Budget Calculation</span>
-                    <Badge variant="outline" className="bg-white border-gray-200 text-gray-600 text-[10px]">
-                      {selectedDateMonth} {selectedDateYear}
+                    <Badge variant="outline" className="bg-emerald-50 border-emerald-200 text-emerald-700 text-[10px] font-bold">
+                      {assignedBudgetMonth} {assignedBudgetYear}
                     </Badge>
                   </h3>
 
                   <div className="space-y-2 text-xs font-medium text-gray-600">
                     <div className="flex justify-between">
-                      <span>Monthly Budget ({activeEntity}):</span>
+                      <span>Monthly Budget ({targetEntity}):</span>
                       <span className="font-semibold text-gray-900">Rs. {totalBudget.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Total Spent (Current):</span>
-                      <span className="font-semibold text-gray-900">Rs. {totalSpent.toLocaleString()}</span>
+                      <span>Assigned Month Spent:</span>
+                      <span className="font-semibold text-gray-900">Rs. {totalSpentInAssignedMonth.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Previous Entry Amount:</span>

@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
 import { useStore } from "@/lib/store";
+import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -61,10 +62,61 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export default function GroceryPage() {
-  const { currentUser, activeEntity, groceryEntries, deleteGroceryEntries, currentMonth, currentYear, budgets, getEntityBudget } = useStore();
+  const {
+    currentUser,
+    activeEntity,
+    groceryEntries,
+    deleteGroceryEntries,
+    currentMonth,
+    currentYear,
+    budgets,
+    getEntityBudget,
+    getEntityBudgetBreakdown,
+  } = useStore();
   const isAdmin = currentUser?.role === "ADMIN";
 
-  // Search & Filter State
+  const currentRealMonth = format(new Date(), "MMMM");
+  const currentRealYear = new Date().getFullYear();
+
+  const entityBudgets = useMemo(() => {
+    return budgets.filter((b) => b.entity === activeEntity);
+  }, [budgets, activeEntity]);
+
+  // ONLY Admin assigned budget months for activeEntity
+  const budgetOptions = useMemo(() => {
+    return entityBudgets.map((b) => ({
+      key: `${b.month}_${b.year}`,
+      month: b.month,
+      year: b.year,
+      label: `${b.month} ${b.year}`,
+      amount: b.amount,
+    }));
+  }, [entityBudgets]);
+
+  // Search & Filter State - default to current month if assigned, or latest budget
+  const [selectedBudgetPeriod, setSelectedBudgetPeriod] = useState<string>(() => {
+    const hasCurrent = entityBudgets.find(
+      (b) => b.month.toLowerCase() === currentRealMonth.toLowerCase() && b.year === currentRealYear
+    );
+    if (hasCurrent) return `${hasCurrent.month}_${hasCurrent.year}`;
+    if (entityBudgets.length > 0) return `${entityBudgets[0].month}_${entityBudgets[0].year}`;
+    return "all";
+  });
+
+  // Sync selected budget period when active entity changes
+  useEffect(() => {
+    const hasCurrent = entityBudgets.find(
+      (b) => b.month.toLowerCase() === currentRealMonth.toLowerCase() && b.year === currentRealYear
+    );
+    if (hasCurrent) {
+      setSelectedBudgetPeriod(`${hasCurrent.month}_${hasCurrent.year}`);
+    } else if (entityBudgets.length > 0) {
+      setSelectedBudgetPeriod(`${entityBudgets[0].month}_${entityBudgets[0].year}`);
+    } else {
+      setSelectedBudgetPeriod("all");
+    }
+  }, [activeEntity, entityBudgets, currentRealMonth, currentRealYear]);
+
   const [search, setSearch] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -85,11 +137,45 @@ export default function GroceryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  const deriveEntryMonthYear = (entry: any) => {
+    if (entry.budgetMonth && entry.budgetYear) {
+      return { month: entry.budgetMonth, year: Number(entry.budgetYear) };
+    }
+    if (entry.budgetMonth) {
+      return { month: entry.budgetMonth, year: currentYear };
+    }
+    if (entry.date) {
+      try {
+        const d = new Date(entry.date);
+        if (!isNaN(d.getTime())) {
+          const ALL_MONTHS = [
+            'January', 'February', 'March', 'April', 'May', 'June',
+            'July', 'August', 'September', 'October', 'November', 'December'
+          ];
+          return { month: ALL_MONTHS[d.getMonth()], year: d.getFullYear() };
+        }
+      } catch (e) {}
+    }
+    return { month: currentMonth, year: currentYear };
+  };
+
   // Filter Logic
   const filteredEntries = useMemo(() => {
     return groceryEntries.filter((entry) => {
       // Must match active entity
       if (entry.entity !== activeEntity) return false;
+
+      // Budget Month Period filter
+      if (selectedBudgetPeriod !== "all") {
+        const [selMonth, selYearStr] = selectedBudgetPeriod.split("_");
+        const entryMY = deriveEntryMonthYear(entry);
+        if (
+          entryMY.month.toLowerCase() !== selMonth.toLowerCase() ||
+          entryMY.year !== parseInt(selYearStr, 10)
+        ) {
+          return false;
+        }
+      }
 
       // Search keyword filter
       if (search.trim()) {
@@ -117,10 +203,27 @@ export default function GroceryPage() {
 
       return true;
     });
-  }, [groceryEntries, activeEntity, search, fromDate, toDate, statusFilter]);
+  }, [groceryEntries, activeEntity, selectedBudgetPeriod, search, fromDate, toDate, statusFilter, currentMonth, currentYear]);
 
-  // Calculate dashboard totals for active entity (used in exports)
-  const totalBudget = getEntityBudget(activeEntity, currentMonth, currentYear);
+  // Calculate allocated budget, total spent, and remaining for selected period
+  const totalBudget = useMemo(() => {
+    if (selectedBudgetPeriod === "all") {
+      if (entityBudgets.length > 0) {
+        return entityBudgets.reduce((sum, b) => sum + b.amount, 0);
+      }
+      return 0;
+    }
+    const [month, yearStr] = selectedBudgetPeriod.split("_");
+    return getEntityBudget(activeEntity, month, parseInt(yearStr, 10));
+  }, [activeEntity, selectedBudgetPeriod, entityBudgets, getEntityBudget]);
+
+  const currentPeriodBreakdown = useMemo(() => {
+    if (selectedBudgetPeriod === "all") {
+      return getEntityBudgetBreakdown(activeEntity, "all");
+    }
+    const [month, yearStr] = selectedBudgetPeriod.split("_");
+    return getEntityBudgetBreakdown(activeEntity, month, parseInt(yearStr, 10));
+  }, [activeEntity, selectedBudgetPeriod, getEntityBudgetBreakdown]);
 
   const totalSpent = useMemo(() => {
     return filteredEntries.reduce((sum, entry) => sum + entry.amount, 0);
@@ -128,6 +231,7 @@ export default function GroceryPage() {
 
   const remainingBalance = totalBudget - totalSpent;
   const totalEntriesCount = filteredEntries.length;
+  const isOverBudget = remainingBalance < 0;
 
 
 
@@ -217,11 +321,11 @@ export default function GroceryPage() {
   const handleExportExcel = () => {
     toast.loading("Generating Excel spreadsheet...", { id: "export-excel" });
     try {
-      // Prepare array of arrays (AOA) data with a prominent header at the top
+      const periodLabel = selectedBudgetPeriod === "all" ? "All Time" : selectedBudgetPeriod.replace("_", " ");
       const titleText = `${activeEntity.toUpperCase()} GROCERY EXPENSES REPORT`;
-      const subtitleText = `Period: ${currentMonth} ${currentYear} | Exported: ${format(new Date(), "dd MMM yyyy, hh:mm a")}`;
+      const subtitleText = `Period: ${periodLabel} | Exported: ${format(new Date(), "dd MMM yyyy, hh:mm a")}`;
       
-      const summaryBudget = `Monthly Budget: Rs. ${totalBudget.toLocaleString()}`;
+      const summaryBudget = `Allocated Budget: Rs. ${totalBudget.toLocaleString()}`;
       const summarySpent = `Total Spent: Rs. ${totalSpent.toLocaleString()}`;
       const summaryRemaining = `Remaining Balance: Rs. ${remainingBalance.toLocaleString()}`;
       const summaryCount = `Total Grocery Entries: ${totalEntriesCount}`;
@@ -233,12 +337,15 @@ export default function GroceryPage() {
         [summaryBudget, "", summarySpent, ""],
         [summaryRemaining, "", summaryCount, ""],
         [], // Spacing row
-        ["Date", "Details", "Amount (Rs.)", "Status"] // Headers
+        ["Slip", "Date", "Assigned Budget Month", "Details", "Amount (Rs.)", "Status"] // Headers
       ];
 
       filteredEntries.forEach((e) => {
+        const my = deriveEntryMonthYear(e);
         aoaData.push([
+          e.status === "Slip Uploaded" ? "Yes" : "No",
           e.date ? format(new Date(e.date), "dd MMM yyyy") : "-",
+          `${my.month} ${my.year}`,
           e.details,
           e.amount,
           e.status
@@ -248,30 +355,20 @@ export default function GroceryPage() {
       // Create sheet from array of arrays
       const worksheet = XLSX.utils.aoa_to_sheet(aoaData);
 
-      // Merge first two rows across the columns (A to D) and summary cards
+      // Merge first two rows across the columns and summary cards
       worksheet["!merges"] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }, // Merge A1:D1 for Title
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } }, // Merge A2:D2 for Subtitle
-        { s: { r: 3, c: 0 }, e: { r: 3, c: 1 } }, // Merge A4:B4 (Budget)
-        { s: { r: 3, c: 2 }, e: { r: 3, c: 3 } }, // Merge C4:D4 (Spent)
-        { s: { r: 4, c: 0 }, e: { r: 4, c: 1 } }, // Merge A5:B5 (Remaining)
-        { s: { r: 4, c: 2 }, e: { r: 4, c: 3 } }  // Merge C5:D5 (Count)
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }, // Merge Title
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } }, // Merge Subtitle
+        { s: { r: 3, c: 0 }, e: { r: 3, c: 2 } }, // Merge Budget
+        { s: { r: 3, c: 3 }, e: { r: 3, c: 5 } }, // Merge Spent
+        { s: { r: 4, c: 0 }, e: { r: 4, c: 2 } }, // Merge Remaining
+        { s: { r: 4, c: 3 }, e: { r: 4, c: 5 } }  // Merge Count
       ];
 
-      // Set taller row heights for the header rows to make them stand out
-      worksheet["!rows"] = [
-        { hpt: 35 }, // Heading row
-        { hpt: 20 }, // Subtitle row
-        { hpt: 10 }, // Spacer row
-        { hpt: 20 }, // Summary row 1
-        { hpt: 20 }, // Summary row 2
-        { hpt: 10 }, // Spacer row
-        { hpt: 22 }  // Table Headers row
-      ];
-
-      // Auto-fit column widths so details and other fields aren't squished
       worksheet["!cols"] = [
+        { wch: 10 }, // Slip
         { wch: 15 }, // Date
+        { wch: 22 }, // Assigned Budget Month
         { wch: 45 }, // Details
         { wch: 15 }, // Amount
         { wch: 20 }  // Status
@@ -282,7 +379,7 @@ export default function GroceryPage() {
       XLSX.utils.book_append_sheet(workbook, worksheet, "Expenses");
 
       // Generate file and trigger download
-      const filename = `grocery_expenses_${activeEntity.toLowerCase()}_${currentMonth.toLowerCase()}_${currentYear}.xlsx`;
+      const filename = `grocery_expenses_${activeEntity.toLowerCase()}_${periodLabel.toLowerCase().replace(/\s+/g, "_")}.xlsx`;
       XLSX.writeFile(workbook, filename);
 
       toast.success("Excel sheet downloaded successfully.", { id: "export-excel" });
@@ -296,6 +393,7 @@ export default function GroceryPage() {
     toast.loading("Generating PDF document...", { id: "export-pdf" });
     try {
       const doc = new jsPDF();
+      const periodLabel = selectedBudgetPeriod === "all" ? "All Time" : selectedBudgetPeriod.replace("_", " ");
       
       // Title Section
       doc.setFont("helvetica", "bold");
@@ -307,8 +405,8 @@ export default function GroceryPage() {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
       doc.setTextColor(100, 116, 139); // Slate-500
-      doc.text(`Entity: ${activeEntity} User`, 14, 28);
-      doc.text(`Period: ${currentMonth} ${currentYear}`, 14, 34);
+      doc.text(`Entity: ${activeEntity} Branch`, 14, 28);
+      doc.text(`Assigned Budget Period: ${periodLabel}`, 14, 34);
       doc.text(`Report Generated: ${format(new Date(), "dd MMMM yyyy, hh:mm a")}`, 14, 40);
 
       // Divider line
@@ -339,13 +437,17 @@ export default function GroceryPage() {
       doc.text(`${totalEntriesCount}`, 158, 62);
 
       // Table Header and Rows
-      const headers = [["Date", "Details", "Amount", "Status"]];
-      const rows = filteredEntries.map((e) => [
-        e.date ? format(new Date(e.date), "dd MMM yyyy") : "-",
-        e.details,
-        `Rs. ${e.amount.toLocaleString()}`,
-        e.status
-      ]);
+      const headers = [["Date", "Assigned Month", "Details", "Amount", "Status"]];
+      const rows = filteredEntries.map((e) => {
+        const my = deriveEntryMonthYear(e);
+        return [
+          e.date ? format(new Date(e.date), "dd MMM yyyy") : "-",
+          `${my.month} ${my.year}`,
+          e.details,
+          `Rs. ${e.amount.toLocaleString()}`,
+          e.status
+        ];
+      });
 
       // Call autoTable
       autoTable(doc, {
@@ -355,11 +457,11 @@ export default function GroceryPage() {
         headStyles: {
           fillColor: [5, 150, 105], // Emerald green
           textColor: [255, 255, 255],
-          fontSize: 10,
+          fontSize: 9,
           fontStyle: "bold"
         },
         bodyStyles: {
-          fontSize: 9,
+          fontSize: 8.5,
           textColor: [30, 41, 59] // Dark slate
         },
         alternateRowStyles: {
@@ -368,7 +470,7 @@ export default function GroceryPage() {
         margin: { left: 14, right: 14 }
       });
 
-      const filename = `grocery_expenses_${activeEntity.toLowerCase()}_${currentMonth.toLowerCase()}_${currentYear}.pdf`;
+      const filename = `grocery_expenses_${activeEntity.toLowerCase()}_${periodLabel.toLowerCase().replace(/\s+/g, "_")}.pdf`;
       doc.save(filename);
 
       toast.success("PDF document downloaded successfully.", { id: "export-pdf" });
@@ -376,6 +478,12 @@ export default function GroceryPage() {
       console.error(error);
       toast.error("Failed to generate PDF document.", { id: "export-pdf" });
     }
+  };
+
+  const getSelectedPeriodLabel = () => {
+    if (selectedBudgetPeriod === "all") return "All Budget Periods";
+    const [m, y] = selectedBudgetPeriod.split("_");
+    return `${m} ${y}`;
   };
 
   return (
@@ -419,12 +527,100 @@ export default function GroceryPage() {
           </div>
         </div>
 
+        {/* Live Budget Summary Metrics Bar for Selected Month */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Allocated Budget */}
+          <Card className="border border-gray-200 bg-white shadow-2xs">
+            <CardContent className="p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                  Effective Budget
+                </p>
+                <p className="text-xl font-bold text-gray-900 mt-1">
+                  Rs. {totalBudget.toLocaleString()}
+                </p>
+                <div className="text-[10px] text-gray-500 font-medium mt-0.5">
+                  <span>{getSelectedPeriodLabel()}</span>
+                  {currentPeriodBreakdown.carryoverBalance !== 0 && (
+                    <span className={cn("block font-semibold mt-0.5", currentPeriodBreakdown.carryoverBalance < 0 ? "text-red-600" : "text-emerald-600")}>
+                      Base: Rs. {currentPeriodBreakdown.baseBudget.toLocaleString()} | {currentPeriodBreakdown.carryoverBalance < 0 ? "-Rs. " : "+Rs. "}{Math.abs(currentPeriodBreakdown.carryoverBalance).toLocaleString()} Rollover
+                    </span>
+                  )}
+                </div>
+              </div>
+              <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200 text-[10px] font-bold">
+                {activeEntity}
+              </Badge>
+            </CardContent>
+          </Card>
+
+          {/* Total Spent in Month */}
+          <Card className="border border-gray-200 bg-white shadow-2xs">
+            <CardContent className="p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                  Total Spent
+                </p>
+                <p className="text-xl font-bold text-emerald-700 mt-1">
+                  Rs. {totalSpent.toLocaleString()}
+                </p>
+                <span className="text-[10px] text-emerald-600 font-medium">
+                  Assigned to this budget
+                </span>
+              </div>
+              <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-emerald-200 text-[10px] font-bold">
+                {totalBudget > 0 ? `${Math.round((totalSpent / totalBudget) * 100)}% Used` : "0%"}
+              </Badge>
+            </CardContent>
+          </Card>
+
+          {/* Remaining Balance */}
+          <Card className="border border-gray-200 bg-white shadow-2xs">
+            <CardContent className="p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                  Remaining Balance
+                </p>
+                <p className={cn("text-xl font-bold mt-1", isOverBudget ? "text-red-600" : "text-emerald-700")}>
+                  Rs. {remainingBalance.toLocaleString()}
+                </p>
+                <span className={cn("text-[10px] font-medium", isOverBudget ? "text-red-500" : "text-gray-500")}>
+                  {isOverBudget ? "Over budget limit" : "Available to spend"}
+                </span>
+              </div>
+              <Badge className={cn("text-[10px] font-bold", isOverBudget ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-800")}>
+                {isOverBudget ? "Over Budget" : "Healthy"}
+              </Badge>
+            </CardContent>
+          </Card>
+
+          {/* Total Entries */}
+          <Card className="border border-gray-200 bg-white shadow-2xs">
+            <CardContent className="p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                  Total Entries
+                </p>
+                <p className="text-xl font-bold text-gray-900 mt-1">
+                  {totalEntriesCount}
+                </p>
+                <span className="text-[10px] text-gray-500 font-medium">
+                  Recorded in {getSelectedPeriodLabel()}
+                </span>
+              </div>
+              <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 text-[10px]">
+                Active
+              </Badge>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Toolbar: Search and Filter fields */}
         <Card className="border border-gray-200 bg-white shadow-2xs">
           <CardContent className="p-4 md:p-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3.5 items-end">
               {/* Search Bar */}
-              <div className="lg:col-span-4 flex flex-col gap-1.5">
+              <div className="lg:col-span-3 sm:col-span-2 flex flex-col gap-1.5">
                 <Label htmlFor="search" className="text-xs font-semibold text-gray-700">Search details</Label>
                 <div className="relative">
                   <SearchIcon className="absolute left-3 top-3 size-4 text-gray-400" />
@@ -441,8 +637,40 @@ export default function GroceryPage() {
                 </div>
               </div>
 
+              {/* Budget Month Selector */}
+              <div className="lg:col-span-2 sm:col-span-2 flex flex-col gap-1.5">
+                <Label htmlFor="budgetMonthFilter" className="text-xs font-semibold text-gray-700">Budget Month</Label>
+                <Select
+                  value={selectedBudgetPeriod}
+                  onValueChange={(val) => {
+                    setSelectedBudgetPeriod(val || "all");
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger id="budgetMonthFilter" className="w-full h-10 border-gray-200 text-xs font-semibold bg-white">
+                    <SelectValue placeholder="Select Month" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-gray-200">
+                    <SelectItem value="all" className="text-xs font-semibold cursor-pointer">
+                      All Budget Months
+                    </SelectItem>
+                    {budgetOptions.length === 0 ? (
+                      <SelectItem value="none" disabled className="text-xs text-gray-400">
+                        No budget assigned yet
+                      </SelectItem>
+                    ) : (
+                      budgetOptions.map((opt) => (
+                        <SelectItem key={opt.key} value={opt.key} className="text-xs font-medium cursor-pointer">
+                          {opt.label}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* From Date */}
-              <div className="lg:col-span-2 flex flex-col gap-1.5">
+              <div className="lg:col-span-2 sm:col-span-1 flex flex-col gap-1.5">
                 <Label htmlFor="fromDate" className="text-xs font-semibold text-gray-700">From Date</Label>
                 <Input
                   id="fromDate"
@@ -457,7 +685,7 @@ export default function GroceryPage() {
               </div>
 
               {/* To Date */}
-              <div className="lg:col-span-2 flex flex-col gap-1.5">
+              <div className="lg:col-span-2 sm:col-span-1 flex flex-col gap-1.5">
                 <Label htmlFor="toDate" className="text-xs font-semibold text-gray-700">To Date</Label>
                 <Input
                   id="toDate"
@@ -472,7 +700,7 @@ export default function GroceryPage() {
               </div>
 
               {/* Slip Status Filter */}
-              <div className="lg:col-span-2 flex flex-col gap-1.5">
+              <div className="lg:col-span-2 sm:col-span-1 flex flex-col gap-1.5">
                 <Label htmlFor="status" className="text-xs font-semibold text-gray-700">Slip Status</Label>
                 <Select
                   value={statusFilter}
@@ -494,14 +722,16 @@ export default function GroceryPage() {
               </div>
 
               {/* Reset button */}
-              <div className="lg:col-span-2 flex gap-2">
+              <div className="lg:col-span-1 sm:col-span-1 flex flex-col gap-1.5">
+                <Label className="text-xs font-semibold text-transparent select-none hidden lg:block">Reset</Label>
                 <Button
                   onClick={handleResetFilters}
                   variant="outline"
-                  className="w-full h-10 border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-1.5"
+                  className="w-full h-10 border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 flex items-center justify-center p-0"
+                  title="Reset All Filters"
                 >
                   <RotateCcwIcon className="size-4" />
-                  Reset
+                  <span className="lg:hidden ml-1">Reset</span>
                 </Button>
               </div>
             </div>
@@ -528,6 +758,7 @@ export default function GroceryPage() {
                     )}
                     <TableHead className="w-12 text-center text-xs font-bold text-gray-400">Slip</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">Date</TableHead>
+                    <TableHead className="text-xs font-bold text-gray-400">Assigned Budget</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">Grocery Details</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">Amount</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">Status</TableHead>
@@ -537,10 +768,10 @@ export default function GroceryPage() {
                 <TableBody>
                   {paginatedEntries.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={isAdmin ? 7 : 6} className="h-64 text-center">
+                      <TableCell colSpan={isAdmin ? 8 : 7} className="h-64 text-center">
                         <div className="flex flex-col items-center justify-center gap-2 p-6 text-gray-400">
                           <span className="text-lg font-bold">No Matching Grocery Found</span>
-                          <span className="text-sm">Try adjusting your search query, date ranges, or filters.</span>
+                          <span className="text-sm">Try selecting a different budget month, adjusting search or filters.</span>
                           <Button
                             variant="outline"
                             size="sm"
@@ -553,104 +784,112 @@ export default function GroceryPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    paginatedEntries.map((entry) => (
-                      <TableRow key={entry.id} className="border-b border-gray-100 hover:bg-slate-50/30 text-sm">
-                        {isAdmin && (
-                          <TableCell className="text-center">
-                            <Checkbox
-                              checked={selectedIds.includes(entry.id)}
-                              onCheckedChange={(checked) => handleSelectRow(entry.id, !!checked)}
-                            />
+                    paginatedEntries.map((entry) => {
+                      const entryMY = deriveEntryMonthYear(entry);
+                      return (
+                        <TableRow key={entry.id} className="border-b border-gray-100 hover:bg-slate-50/30 text-sm">
+                          {isAdmin && (
+                            <TableCell className="text-center">
+                              <Checkbox
+                                checked={selectedIds.includes(entry.id)}
+                                onCheckedChange={(checked) => handleSelectRow(entry.id, !!checked)}
+                              />
+                            </TableCell>
+                          )}
+                          <TableCell className="text-center font-medium">
+                            {entry.status === "Slip Uploaded" && (
+                              <button
+                                type="button"
+                                onClick={() => handleAction(entry, "view")}
+                                className="inline-flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 text-emerald-800 text-[10px] font-bold transition-colors cursor-pointer"
+                                title={entry.slipUrls && entry.slipUrls.length > 1 ? `${entry.slipUrls.length} Slips Attached - Click to view` : "Slip Uploaded - Click to view"}
+                              >
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 shrink-0" />
+                                {entry.slipUrls && entry.slipUrls.length > 1 ? (
+                                  <span>{entry.slipUrls.length}</span>
+                                ) : null}
+                              </button>
+                            )}
+                            {entry.status === "Slip Missing" && (
+                              <div className="flex justify-center">
+                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-rose-50 border border-rose-100 text-rose-800" title="Slip Missing">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-rose-600 animate-pulse" />
+                                </span>
+                              </div>
+                            )}
+                            {entry.status === "Approved Without Slip" && (
+                              <div className="flex justify-center">
+                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-50 border border-blue-100 text-blue-800" title="Approved Without Slip">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                                </span>
+                              </div>
+                            )}
                           </TableCell>
-                        )}
-                        <TableCell className="text-center font-medium">
-                          {entry.status === "Slip Uploaded" && (
-                            <button
-                              type="button"
-                              onClick={() => handleAction(entry, "view")}
-                              className="inline-flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 text-emerald-800 text-[10px] font-bold transition-colors cursor-pointer"
-                              title={entry.slipUrls && entry.slipUrls.length > 1 ? `${entry.slipUrls.length} Slips Attached - Click to view` : "Slip Uploaded - Click to view"}
-                            >
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 shrink-0" />
-                              {entry.slipUrls && entry.slipUrls.length > 1 ? (
-                                <span>{entry.slipUrls.length}</span>
-                              ) : null}
-                            </button>
-                          )}
-                          {entry.status === "Slip Missing" && (
-                            <div className="flex justify-center">
-                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-rose-50 border border-rose-100 text-rose-800" title="Slip Missing">
-                                <span className="h-1.5 w-1.5 rounded-full bg-rose-600 animate-pulse" />
-                              </span>
-                            </div>
-                          )}
-                          {entry.status === "Approved Without Slip" && (
-                            <div className="flex justify-center">
-                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-50 border border-blue-100 text-blue-800" title="Approved Without Slip">
-                                <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
-                              </span>
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="font-semibold text-gray-900">
-                          {entry.date ? (
-                            (() => {
-                              const d = new Date(entry.date);
-                              return isNaN(d.getTime()) ? entry.date : format(d, "dd MMM yyyy");
-                            })()
-                          ) : (
-                            "-"
-                          )}
-                        </TableCell>
-                        <TableCell className="font-medium text-gray-700 max-w-[280px] truncate" title={entry.details}>
-                          {entry.details}
-                        </TableCell>
-                        <TableCell className="font-bold text-gray-900">
-                          Rs. {entry.amount.toLocaleString()}
-                        </TableCell>
-                        <TableCell>{getStatusBadge(entry.status)}</TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger
-                              render={
-                                <Button
-                                  variant="ghost"
-                                  size="icon-sm"
-                                  className="h-8 w-8 text-gray-500 hover:bg-gray-100 hover:text-gray-900 rounded-lg"
-                                />
-                              }
-                            >
-                              <MoreVerticalIcon className="size-4" />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-40 bg-white border border-gray-100 shadow-md rounded-lg">
-                              <DropdownMenuItem onClick={() => handleAction(entry, "view")} className="cursor-pointer">
-                                <EyeIcon className="size-4 mr-2 text-gray-400" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleAction(entry, "edit")} className="cursor-pointer">
-                                <PencilIcon className="size-4 mr-2 text-gray-400" />
-                                Edit
-                              </DropdownMenuItem>
-                              {isAdmin && entry.status === "Slip Missing" && (
-                                <DropdownMenuItem onClick={() => handleAction(entry, "approve")} className="cursor-pointer text-blue-600 focus:text-blue-600">
-                                  <FileCheckIcon className="size-4 mr-2 text-blue-500" />
-                                  Approve Slip
+                          <TableCell className="font-semibold text-gray-900">
+                            {entry.date ? (
+                              (() => {
+                                const d = new Date(entry.date);
+                                return isNaN(d.getTime()) ? entry.date : format(d, "dd MMM yyyy");
+                              })()
+                            ) : (
+                              "-"
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="bg-emerald-50/70 text-emerald-800 border-emerald-200/70 font-bold text-[10px] whitespace-nowrap">
+                              {entryMY.month} {entryMY.year}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-medium text-gray-700 max-w-[280px] truncate" title={entry.details}>
+                            {entry.details}
+                          </TableCell>
+                          <TableCell className="font-bold text-gray-900">
+                            Rs. {entry.amount.toLocaleString()}
+                          </TableCell>
+                          <TableCell>{getStatusBadge(entry.status)}</TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger
+                                render={
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    className="h-8 w-8 text-gray-500 hover:bg-gray-100 hover:text-gray-900 rounded-lg"
+                                  />
+                                }
+                              >
+                                <MoreVerticalIcon className="size-4" />
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-40 bg-white border border-gray-100 shadow-md rounded-lg">
+                                <DropdownMenuItem onClick={() => handleAction(entry, "view")} className="cursor-pointer">
+                                  <EyeIcon className="size-4 mr-2 text-gray-400" />
+                                  View Details
                                 </DropdownMenuItem>
-                              )}
-                              {isAdmin && (
-                                <>
-                                  <DropdownMenuSeparator className="bg-gray-100" />
-                                  <DropdownMenuItem onClick={() => handleAction(entry, "delete")} className="text-red-600 focus:text-red-600 cursor-pointer">
-                                    <Trash2Icon className="size-4 mr-2 text-red-500" />
-                                    Delete
+                                <DropdownMenuItem onClick={() => handleAction(entry, "edit")} className="cursor-pointer">
+                                  <PencilIcon className="size-4 mr-2 text-gray-400" />
+                                  Edit
+                                </DropdownMenuItem>
+                                {isAdmin && entry.status === "Slip Missing" && (
+                                  <DropdownMenuItem onClick={() => handleAction(entry, "approve")} className="cursor-pointer text-blue-600 focus:text-blue-600">
+                                    <FileCheckIcon className="size-4 mr-2 text-blue-500" />
+                                    Approve Slip
                                   </DropdownMenuItem>
-                                </>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                                )}
+                                {isAdmin && (
+                                  <>
+                                    <DropdownMenuSeparator className="bg-gray-100" />
+                                    <DropdownMenuItem onClick={() => handleAction(entry, "delete")} className="text-red-600 focus:text-red-600 cursor-pointer">
+                                      <Trash2Icon className="size-4 mr-2 text-red-500" />
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>

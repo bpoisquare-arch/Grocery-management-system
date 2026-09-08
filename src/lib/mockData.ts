@@ -124,6 +124,8 @@ export interface GroceryEntry {
   amount: number;
   addedBy: string;
   status: SlipStatus;
+  budgetMonth?: string; // e.g. "August"
+  budgetYear?: number; // e.g. 2026
   slipUrl?: string; // Path or base64 data URL
   slipUrls?: string[]; // Array of up to 10 slip URLs
   slipType?: 'image' | 'pdf';

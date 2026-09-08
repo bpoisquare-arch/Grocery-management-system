@@ -1,6 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+function deriveMonthYearFromDate(dateStr: string) {
+  try {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      const monthNames = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+      return {
+        month: monthNames[d.getMonth()],
+        year: d.getFullYear(),
+      };
+    }
+  } catch (e) {
+    // ignore
+  }
+  return { month: 'August', year: 2026 };
+}
+
 // Helper to format DB grocery entry into client-side GroceryEntry
 function formatGroceryEntry(entry: any) {
   let slipUrls: string[] | undefined = undefined;
@@ -17,10 +36,14 @@ function formatGroceryEntry(entry: any) {
     slipUrls = [entry.slipUrl];
   }
 
+  const derived = deriveMonthYearFromDate(entry.date);
+
   return {
     id: entry.id,
     entity: entry.entity,
     date: entry.date,
+    budgetMonth: entry.budgetMonth || derived.month,
+    budgetYear: entry.budgetYear !== undefined && entry.budgetYear !== null ? Number(entry.budgetYear) : derived.year,
     details: entry.details,
     amount: entry.amount,
     addedBy: entry.addedBy,
@@ -34,7 +57,7 @@ function formatGroceryEntry(entry: any) {
   };
 }
 
-// PUT /api/groceries/[id] - Update a grocery entry (supporting up to 10 slips)
+// PUT /api/groceries/[id] - Update a grocery entry (supporting up to 10 slips and budget assignment)
 export async function PUT(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -47,6 +70,8 @@ export async function PUT(
     if (body.date !== undefined) updateData.date = body.date;
     if (body.details !== undefined) updateData.details = body.details;
     if (body.amount !== undefined) updateData.amount = parseFloat(body.amount);
+    if (body.budgetMonth !== undefined) updateData.budgetMonth = body.budgetMonth;
+    if (body.budgetYear !== undefined) updateData.budgetYear = parseInt(body.budgetYear, 10);
     if (body.approvedByAdmin !== undefined) updateData.approvedByAdmin = body.approvedByAdmin;
 
     if (body.slipUrls !== undefined) {
@@ -89,17 +114,16 @@ export async function PUT(
 
       // Attempt auto-migration
       try {
-        await prisma.$executeRawUnsafe('ALTER TABLE `GroceryEntry` ADD COLUMN `slipUrls` LONGTEXT NULL');
+        await prisma.$executeRawUnsafe('ALTER TABLE `GroceryEntry` ADD COLUMN `slipUrls` LONGTEXT NULL, ADD COLUMN `budgetMonth` VARCHAR(50) NULL, ADD COLUMN `budgetYear` INT NULL');
         updated = await (prisma as any).groceryEntry.update({
           where: { id },
           data: updateData,
         });
       } catch (retryErr) {
-        // Fallback to raw SQL update omitting slipUrls if needed
-        const { slipUrls, ...fallbackData } = updateData;
+        // Fallback to raw SQL update
         const setClauses: string[] = [];
         const params: any[] = [];
-        for (const [key, val] of Object.entries(fallbackData)) {
+        for (const [key, val] of Object.entries(updateData)) {
           setClauses.push(`\`${key}\` = ?`);
           params.push(val);
         }

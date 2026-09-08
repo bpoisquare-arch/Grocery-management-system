@@ -178,6 +178,25 @@ export function ViewGroceryModal({ open, onOpenChange, entry }: ViewGroceryModal
               </div>
 
               <div className="border-b border-gray-100 pb-2">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Assigned Budget Month</span>
+                <span className="font-bold text-emerald-800 text-xs mt-0.5 inline-flex items-center gap-1.5 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                  {entry.budgetMonth || (entry.date ? (() => {
+                    try {
+                      return format(new Date(entry.date), "MMMM");
+                    } catch (e) {
+                      return "August";
+                    }
+                  })() : "August")} {entry.budgetYear || (entry.date ? (() => {
+                    try {
+                      return new Date(entry.date).getFullYear();
+                    } catch (e) {
+                      return 2026;
+                    }
+                  })() : 2026)}
+                </span>
+              </div>
+
+              <div className="border-b border-gray-100 pb-2">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Expense Date</span>
                 <span className="font-semibold text-gray-900 text-xs mt-0.5 block">
                   {entry.date ? (
