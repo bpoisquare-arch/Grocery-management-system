@@ -351,35 +351,40 @@ export default function BudgetPage() {
 
           {/* Budget History Table */}
           <Card className="border border-gray-200 bg-white shadow-2xs lg:col-span-8">
-            <CardHeader>
-              <CardTitle className="text-base font-bold text-gray-900 flex items-center gap-1.5">
-                <HistoryIcon className="size-4 text-emerald-600" />
-                Budget History & Tracking
-              </CardTitle>
-              <CardDescription className="text-xs text-gray-500 font-medium">
-                Live calculated summary of base budgets, carried over balances, actual expenses, and remaining balances.
-              </CardDescription>
+            <CardHeader className="pb-3 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-bold text-gray-900 flex items-center gap-1.5">
+                    <HistoryIcon className="size-4 text-emerald-600" />
+                    Budget History & Tracking
+                  </CardTitle>
+                  <CardDescription className="text-xs text-gray-500 font-medium mt-0.5">
+                    Live summary of allocated budgets, rollover adjustments, expenses, and net remaining.
+                  </CardDescription>
+                </div>
+                {sortedHistory.length > 0 && (
+                  <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 text-[10px] font-semibold">
+                    {sortedHistory.length} {sortedHistory.length === 1 ? "Period" : "Periods"}
+                  </Badge>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
+              <div className="w-full">
                 <Table>
                   <TableHeader className="bg-slate-50/75">
                     <TableRow className="border-b border-gray-200">
-                      <TableHead className="text-xs font-bold text-gray-500">Entity</TableHead>
-                      <TableHead className="text-xs font-bold text-gray-500">Month</TableHead>
-                      <TableHead className="text-xs font-bold text-gray-500">Base Budget</TableHead>
-                      <TableHead className="text-xs font-bold text-gray-500">Carried Over</TableHead>
-                      <TableHead className="text-xs font-bold text-gray-500">Effective Budget</TableHead>
-                      <TableHead className="text-xs font-bold text-gray-500">Total Spent</TableHead>
-                      <TableHead className="text-xs font-bold text-gray-500">Remaining</TableHead>
-                      <TableHead className="text-xs font-bold text-gray-500">Status</TableHead>
-                      <TableHead className="text-right text-xs font-bold text-gray-500">Actions</TableHead>
+                      <TableHead className="text-[11px] font-bold text-gray-500 py-3 px-3">Branch & Month</TableHead>
+                      <TableHead className="text-[11px] font-bold text-gray-500 py-3 px-3">Allocated Budget</TableHead>
+                      <TableHead className="text-[11px] font-bold text-gray-500 py-3 px-3">Total Spent</TableHead>
+                      <TableHead className="text-[11px] font-bold text-gray-500 py-3 px-3">Net Remaining</TableHead>
+                      <TableHead className="text-right text-[11px] font-bold text-gray-500 py-3 px-3">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {sortedHistory.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="h-32 text-center text-gray-400 text-sm">
+                        <TableCell colSpan={5} className="h-32 text-center text-gray-400 text-sm">
                           <div className="flex flex-col items-center justify-center gap-1.5">
                             <CoinsIcon className="size-6 text-gray-300" />
                             <span>No budgets assigned yet.</span>
@@ -389,78 +394,85 @@ export default function BudgetPage() {
                       </TableRow>
                     ) : (
                       sortedHistory.map((item, idx) => (
-                        <TableRow key={idx} className="border-b border-gray-100 hover:bg-slate-50/50 text-sm">
-                          <TableCell className="font-semibold text-gray-900">{item.entity}</TableCell>
-                          <TableCell className="font-medium text-gray-700 whitespace-nowrap">
-                            {item.month} {item.year}
+                        <TableRow key={idx} className="border-b border-gray-100 hover:bg-slate-50/50">
+                          {/* Branch & Month */}
+                          <TableCell className="py-3 px-3 align-top">
+                            <span className="font-bold text-gray-900 block text-xs">
+                              {item.entity}
+                            </span>
+                            <span className="text-[11px] text-gray-500 font-medium">
+                              {item.month} {item.year}
+                            </span>
                           </TableCell>
-                          <TableCell className="font-semibold text-gray-700 whitespace-nowrap">
-                            Rs. {item.baseBudget.toLocaleString()}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {item.carryoverBalance === 0 ? (
-                              <span className="text-xs text-gray-400">— (Start)</span>
-                            ) : item.carryoverBalance < 0 ? (
-                              <div>
-                                <span className="text-xs font-bold text-red-600">
-                                  -Rs. {Math.abs(item.carryoverBalance).toLocaleString()}
-                                </span>
-                                <span className="block text-[10px] text-red-500 font-medium">
-                                  Deficit ({item.previousPeriodLabel})
+
+                          {/* Allocated & Rollover Details */}
+                          <TableCell className="py-3 px-3 align-top">
+                            <span className="font-extrabold text-gray-900 text-xs block">
+                              Rs. {item.effectiveBudget.toLocaleString()}
+                            </span>
+                            {item.carryoverBalance !== 0 ? (
+                              <div className="text-[10px] mt-0.5 leading-tight">
+                                <span className="text-gray-400">Base: Rs. {item.baseBudget.toLocaleString()}</span>
+                                <span className={cn("block font-bold mt-0.5", item.carryoverBalance < 0 ? "text-red-600" : "text-emerald-600")}>
+                                  {item.carryoverBalance < 0 ? "-Rs. " : "+Rs. "}{Math.abs(item.carryoverBalance).toLocaleString()} ({item.carryoverBalance < 0 ? "Deficit" : "Surplus"})
                                 </span>
                               </div>
                             ) : (
-                              <div>
-                                <span className="text-xs font-bold text-emerald-600">
-                                  +Rs. {item.carryoverBalance.toLocaleString()}
-                                </span>
-                                <span className="block text-[10px] text-emerald-600 font-medium">
-                                  Surplus ({item.previousPeriodLabel})
-                                </span>
-                              </div>
+                              <span className="text-[10px] text-gray-400 block mt-0.5">
+                                Base: Rs. {item.baseBudget.toLocaleString()}
+                              </span>
                             )}
                           </TableCell>
-                          <TableCell className="font-bold text-gray-900 whitespace-nowrap">
-                            Rs. {item.effectiveBudget.toLocaleString()}
+
+                          {/* Total Spent */}
+                          <TableCell className="py-3 px-3 align-top">
+                            <span className="font-bold text-emerald-700 text-xs block">
+                              Rs. {item.totalSpent.toLocaleString()}
+                            </span>
+                            <span className="text-[10px] text-gray-400 font-medium block mt-0.5">
+                              {item.effectiveBudget > 0 ? `${Math.round((item.totalSpent / item.effectiveBudget) * 100)}% used` : "0% used"}
+                            </span>
                           </TableCell>
-                          <TableCell className="font-semibold text-emerald-600 whitespace-nowrap">
-                            Rs. {item.totalSpent.toLocaleString()}
+
+                          {/* Net Remaining & Status */}
+                          <TableCell className="py-3 px-3 align-top">
+                            <span className={cn("font-black text-xs block", item.isOverspent ? "text-red-600" : "text-emerald-800")}>
+                              {item.isOverspent ? "-" : ""}Rs. {Math.abs(item.remainingBalance).toLocaleString()}
+                            </span>
+                            <div className="mt-1">
+                              {item.isOverspent ? (
+                                <Badge className="bg-red-50 text-red-700 hover:bg-red-50 border border-red-100 font-bold text-[9px] px-1.5 py-0 h-4 uppercase">
+                                  Over Budget
+                                </Badge>
+                              ) : item.carryoverBalance < 0 ? (
+                                <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border border-amber-200 font-bold text-[9px] px-1.5 py-0 h-4 uppercase">
+                                  Adjusted
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-bold text-[9px] px-1.5 py-0 h-4 uppercase">
+                                  Healthy
+                                </Badge>
+                              )}
+                            </div>
                           </TableCell>
-                          <TableCell className={cn("font-bold whitespace-nowrap", item.isOverspent ? "text-red-600" : "text-gray-900")}>
-                            {item.isOverspent ? "-" : ""}Rs. {Math.abs(item.remainingBalance).toLocaleString()}
-                          </TableCell>
-                          <TableCell>
-                            {item.isOverspent ? (
-                              <Badge className="bg-red-50 text-red-700 hover:bg-red-50 border border-red-100 font-bold text-[9px] rounded-sm uppercase whitespace-nowrap">
-                                Over Budget
-                              </Badge>
-                            ) : item.carryoverBalance < 0 ? (
-                              <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border border-amber-200 font-bold text-[9px] rounded-sm uppercase whitespace-nowrap">
-                                Adjusted
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-bold text-[9px] rounded-sm uppercase whitespace-nowrap">
-                                Healthy
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1.5">
+
+                          {/* Actions */}
+                          <TableCell className="py-3 px-3 text-right align-top">
+                            <div className="flex items-center justify-end gap-1">
                               <Button
                                 variant="ghost"
-                                size="sm"
+                                size="icon-xs"
                                 onClick={() => handleQuickEdit(item.entity, item.month, item.year, item.baseBudget)}
-                                className="h-8 px-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 cursor-pointer"
-                                title="Edit / Update this base budget"
+                                className="h-7 w-7 text-emerald-700 hover:bg-emerald-50 rounded"
+                                title="Edit / Update base budget"
                               >
-                                <PencilIcon className="size-3.5 mr-1" />
-                                Edit
+                                <PencilIcon className="size-3.5" />
                               </Button>
                               <Button
                                 variant="ghost"
-                                size="sm"
+                                size="icon-xs"
                                 onClick={() => handleDeleteBudget(item.entity, item.month, item.year)}
-                                className="h-8 px-2 text-xs font-semibold text-red-600 hover:bg-red-50 cursor-pointer"
+                                className="h-7 w-7 text-red-600 hover:bg-red-50 rounded"
                                 title="Delete this budget"
                               >
                                 <Trash2Icon className="size-3.5" />
