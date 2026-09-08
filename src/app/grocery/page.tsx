@@ -565,11 +565,17 @@ export default function GroceryPage() {
                         )}
                         <TableCell className="text-center font-medium">
                           {entry.status === "Slip Uploaded" && (
-                            <div className="flex justify-center">
-                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-50 border border-emerald-100/80 text-emerald-800" title="Slip Uploaded">
-                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
-                              </span>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleAction(entry, "view")}
+                              className="inline-flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 text-emerald-800 text-[10px] font-bold transition-colors cursor-pointer"
+                              title={entry.slipUrls && entry.slipUrls.length > 1 ? `${entry.slipUrls.length} Slips Attached - Click to view` : "Slip Uploaded - Click to view"}
+                            >
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 shrink-0" />
+                              {entry.slipUrls && entry.slipUrls.length > 1 ? (
+                                <span>{entry.slipUrls.length}</span>
+                              ) : null}
+                            </button>
                           )}
                           {entry.status === "Slip Missing" && (
                             <div className="flex justify-center">

@@ -41,6 +41,8 @@ interface StoreContextType {
     amount: number;
     status: SlipStatus;
     slipFile?: File | null;
+    slipFiles?: File[];
+    slipUrls?: string[];
   }) => Promise<void>;
   updateGroceryEntry: (
     id: string,
@@ -50,6 +52,8 @@ interface StoreContextType {
       amount?: number;
       status?: SlipStatus;
       slipFile?: File | null;
+      slipFiles?: File[];
+      slipUrls?: string[];
     }
   ) => Promise<void>;
   deleteGroceryEntry: (id: string) => Promise<void>;
@@ -114,6 +118,13 @@ interface StoreContextType {
     }
   ) => Promise<void>;
   deleteCounselor: (id: string) => Promise<void>;
+  syncLocalToDatabase: () => Promise<{
+    success: boolean;
+    syncedCommissions: number;
+    syncedCounselors: number;
+    syncedGroceries: number;
+    error?: string;
+  }>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
@@ -558,18 +569,43 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     amount: number;
     status: SlipStatus;
     slipFile?: File | null;
+    slipFiles?: File[];
+    slipUrls?: string[];
   }) => {
-    let slipUrl = undefined;
-    let slipType: 'image' | 'pdf' | undefined = undefined;
+    const finalSlipUrls: string[] = [];
 
-    if (entry.slipFile) {
+    if (entry.slipUrls && Array.isArray(entry.slipUrls)) {
+      finalSlipUrls.push(...entry.slipUrls);
+    }
+
+    if (entry.slipFiles && entry.slipFiles.length > 0) {
+      for (const file of entry.slipFiles.slice(0, 10 - finalSlipUrls.length)) {
+        try {
+          const url = await fileToDataUrl(file);
+          if (url) finalSlipUrls.push(url);
+        } catch (err) {
+          console.error('Error reading slip file:', err);
+        }
+      }
+    } else if (entry.slipFile && finalSlipUrls.length < 10) {
       try {
-        slipUrl = await fileToDataUrl(entry.slipFile);
-        slipType = entry.slipFile.type.includes('pdf') ? 'pdf' : 'image';
+        const url = await fileToDataUrl(entry.slipFile);
+        if (url) finalSlipUrls.push(url);
       } catch (err) {
-        console.error('Error reading file:', err);
+        console.error('Error reading slip file:', err);
       }
     }
+
+    const primarySlipUrl = finalSlipUrls[0] || undefined;
+    const slipType: 'image' | 'pdf' | undefined = primarySlipUrl
+      ? primarySlipUrl.includes('application/pdf') || primarySlipUrl.endsWith('.pdf')
+        ? 'pdf'
+        : 'image'
+      : undefined;
+
+    const computedStatus: SlipStatus = finalSlipUrls.length > 0
+      ? 'Slip Uploaded'
+      : entry.status || 'Slip Missing';
 
     const payload = {
       entity: activeEntity,
@@ -577,8 +613,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       details: entry.details,
       amount: entry.amount,
       addedBy: currentUser ? currentUser.name : 'Unknown User',
-      status: entry.status,
-      slipUrl,
+      status: computedStatus,
+      slipUrl: primarySlipUrl,
+      slipUrls: finalSlipUrls.length > 0 ? finalSlipUrls : undefined,
       slipType,
     };
 
@@ -610,8 +647,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       details: entry.details,
       amount: entry.amount,
       addedBy: currentUser ? currentUser.name : 'Unknown User',
-      status: entry.status,
-      slipUrl,
+      status: computedStatus,
+      slipUrl: primarySlipUrl,
+      slipUrls: finalSlipUrls.length > 0 ? finalSlipUrls : undefined,
       slipType,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -630,23 +668,57 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       amount?: number;
       status?: SlipStatus;
       slipFile?: File | null;
+      slipFiles?: File[];
+      slipUrls?: string[];
     }
   ) => {
-    let slipUrl = undefined;
-    let slipType: 'image' | 'pdf' | undefined = undefined;
+    const existing = groceryEntries.find((e) => e.id === id);
+    const finalSlipUrls: string[] = [];
 
-    if (updatedData.slipFile) {
+    if (updatedData.slipUrls !== undefined) {
+      finalSlipUrls.push(...updatedData.slipUrls);
+    } else if (existing?.slipUrls) {
+      finalSlipUrls.push(...existing.slipUrls);
+    } else if (existing?.slipUrl) {
+      finalSlipUrls.push(existing.slipUrl);
+    }
+
+    if (updatedData.slipFiles && updatedData.slipFiles.length > 0) {
+      for (const file of updatedData.slipFiles.slice(0, 10 - finalSlipUrls.length)) {
+        try {
+          const url = await fileToDataUrl(file);
+          if (url) finalSlipUrls.push(url);
+        } catch (err) {
+          console.error('Error reading slip file:', err);
+        }
+      }
+    } else if (updatedData.slipFile && finalSlipUrls.length < 10) {
       try {
-        slipUrl = await fileToDataUrl(updatedData.slipFile);
-        slipType = updatedData.slipFile.type.includes('pdf') ? 'pdf' : 'image';
+        const url = await fileToDataUrl(updatedData.slipFile);
+        if (url) finalSlipUrls.push(url);
       } catch (err) {
-        console.error('Error reading file:', err);
+        console.error('Error reading slip file:', err);
       }
     }
 
+    const primarySlipUrl = finalSlipUrls[0] || undefined;
+    const slipType: 'image' | 'pdf' | undefined = primarySlipUrl
+      ? primarySlipUrl.includes('application/pdf') || primarySlipUrl.endsWith('.pdf')
+        ? 'pdf'
+        : 'image'
+      : undefined;
+
+    const hasSlips = finalSlipUrls.length > 0;
+    const newStatus: SlipStatus = hasSlips
+      ? 'Slip Uploaded'
+      : updatedData.status || (existing?.status === 'Approved Without Slip' ? 'Approved Without Slip' : 'Slip Missing');
+
     const payload = {
       ...updatedData,
-      ...(slipUrl ? { slipUrl, slipType } : {}),
+      status: newStatus,
+      slipUrl: primarySlipUrl,
+      slipUrls: hasSlips ? finalSlipUrls : [],
+      slipType,
     };
 
     try {
@@ -675,7 +747,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return {
           ...entry,
           ...updatedData,
-          ...(slipUrl ? { slipUrl, slipType } : {}),
+          status: newStatus,
+          slipUrl: primarySlipUrl,
+          slipUrls: hasSlips ? finalSlipUrls : [],
+          slipType,
           updatedAt: new Date().toISOString(),
         };
       }
@@ -1221,6 +1296,210 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     safeSetLocalStorage('gem_counselors', JSON.stringify(updated));
   };
 
+  // Explicit Cloud Sync: Upload all offline/local commissions, counselors, and groceries to live MySQL database
+  const syncLocalToDatabase = async (): Promise<{
+    success: boolean;
+    syncedCommissions: number;
+    syncedCounselors: number;
+    syncedGroceries: number;
+    error?: string;
+  }> => {
+    let syncedCommissions = 0;
+    let syncedCounselors = 0;
+    let syncedGroceries = 0;
+
+    if (typeof window === 'undefined') {
+      return { success: false, syncedCommissions: 0, syncedCounselors: 0, syncedGroceries: 0, error: 'Window undefined' };
+    }
+
+    try {
+      // 1. Fetch current live database records
+      const [commRes, counRes, grocRes] = await Promise.all([
+        fetch('/api/commissions'),
+        fetch('/api/counselors'),
+        fetch('/api/groceries'),
+      ]);
+
+      let serverCommissions: any[] = [];
+      let serverCounselors: any[] = [];
+      let serverGroceries: any[] = [];
+
+      if (commRes.ok) {
+        const json = await commRes.json();
+        if (json.success && Array.isArray(json.data)) serverCommissions = json.data;
+      }
+      if (counRes.ok) {
+        const json = await counRes.json();
+        if (json.success && Array.isArray(json.data)) serverCounselors = json.data;
+      }
+      if (grocRes.ok) {
+        const json = await grocRes.json();
+        if (json.success && Array.isArray(json.data)) serverGroceries = json.data;
+      }
+
+      // 2. Sync Missing Commissions from localStorage
+      const localCommsRaw = localStorage.getItem('gem_commissions');
+      if (localCommsRaw) {
+        try {
+          const localComms: CommissionEntry[] = JSON.parse(localCommsRaw);
+          const serverKeys = new Set(
+            serverCommissions.map(
+              (c: any) => `${c.studentName?.toLowerCase().trim()}_${c.amount}_${c.date}_${c.service}`
+            )
+          );
+
+          const missingComms = localComms.filter((c) => {
+            if (!c.studentName) return false;
+            const key = `${c.studentName?.toLowerCase().trim()}_${c.amount}_${c.date}_${c.service}`;
+            return !serverKeys.has(key);
+          });
+
+          for (const comm of missingComms) {
+            try {
+              const postRes = await fetch('/api/commissions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  entity: comm.entity,
+                  studentName: comm.studentName,
+                  service: comm.service,
+                  counselor: comm.counselor,
+                  amount: comm.amount,
+                  date: comm.date,
+                  fullReceived: comm.fullReceived,
+                  counselorCommission: comm.counselorCommission,
+                  bmCommission: comm.bmCommission,
+                  status: comm.status,
+                  slipUrl: comm.slipUrl,
+                  slipUrls: comm.slipUrls || (comm.slipUrl ? [comm.slipUrl] : undefined),
+                  slipType: comm.slipType,
+                  notes: comm.notes,
+                }),
+              });
+
+              if (postRes.ok) {
+                const postJson = await postRes.json();
+                if (postJson.success) syncedCommissions++;
+              }
+            } catch (syncErr) {
+              console.error('Error syncing commission to DB:', syncErr);
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing local commissions during sync:', e);
+        }
+      }
+
+      // 3. Sync Missing Counselors from localStorage
+      const localCounselorsRaw = localStorage.getItem('gem_counselors');
+      if (localCounselorsRaw) {
+        try {
+          const localCounselors: Counselor[] = JSON.parse(localCounselorsRaw);
+          const serverNames = new Set(
+            serverCounselors.map((c: any) => c.name?.toLowerCase().trim())
+          );
+
+          const missingCounselors = localCounselors.filter(
+            (c) => c.name && !serverNames.has(c.name.toLowerCase().trim())
+          );
+
+          for (const c of missingCounselors) {
+            try {
+              const postRes = await fetch('/api/counselors', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  name: c.name,
+                  entity: c.entity || 'All',
+                  email: c.email,
+                  phone: c.phone,
+                  serviceCommissions: c.serviceCommissions,
+                  bmServiceCommissions: c.bmServiceCommissions,
+                }),
+              });
+
+              if (postRes.ok) {
+                const postJson = await postRes.json();
+                if (postJson.success) syncedCounselors++;
+              }
+            } catch (syncErr) {
+              console.error('Error syncing counselor to DB:', syncErr);
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing local counselors during sync:', e);
+        }
+      }
+
+      // 4. Sync Missing Groceries from localStorage
+      const localGroceryRaw = localStorage.getItem('gem_grocery');
+      if (localGroceryRaw) {
+        try {
+          const localGroceries: GroceryEntry[] = JSON.parse(localGroceryRaw);
+          const serverKeys = new Set(
+            serverGroceries.map(
+              (g: any) => `${g.entity}_${g.date}_${g.details?.toLowerCase().trim()}_${g.amount}`
+            )
+          );
+
+          const missingGroceries = localGroceries.filter((g) => {
+            if (!g.details || !g.amount) return false;
+            const key = `${g.entity}_${g.date}_${g.details?.toLowerCase().trim()}_${g.amount}`;
+            return !serverKeys.has(key);
+          });
+
+          for (const groc of missingGroceries) {
+            try {
+              const postRes = await fetch('/api/groceries', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  entity: groc.entity,
+                  date: groc.date,
+                  details: groc.details,
+                  amount: groc.amount,
+                  addedBy: groc.addedBy,
+                  status: groc.status,
+                  slipUrl: groc.slipUrl,
+                  slipUrls: groc.slipUrls || (groc.slipUrl ? [groc.slipUrl] : undefined),
+                  slipType: groc.slipType,
+                }),
+              });
+
+              if (postRes.ok) {
+                const postJson = await postRes.json();
+                if (postJson.success) syncedGroceries++;
+              }
+            } catch (syncErr) {
+              console.error('Error syncing grocery to DB:', syncErr);
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing local groceries during sync:', e);
+        }
+      }
+
+      // Refresh store with freshly synced DB data
+      await refreshData();
+
+      return {
+        success: true,
+        syncedCommissions,
+        syncedCounselors,
+        syncedGroceries,
+      };
+    } catch (err: any) {
+      console.error('Manual sync error:', err);
+      return {
+        success: false,
+        syncedCommissions,
+        syncedCounselors,
+        syncedGroceries,
+        error: err.message || 'Sync failed',
+      };
+    }
+  };
+
   return (
     <StoreContext.Provider
       value={{
@@ -1255,6 +1534,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         addCounselor,
         updateCounselor,
         deleteCounselor,
+        syncLocalToDatabase,
       }}
     >
       {isLoaded && children}
