@@ -1,18 +1,34 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Building2Icon, ArrowRightIcon, CoinsIcon, ShoppingBagIcon, LogOutIcon, ArrowLeftIcon, LayoutGridIcon } from "lucide-react";
+import { Building2Icon, ArrowRightIcon, ShoppingBagIcon, LogOutIcon, ArrowLeftIcon, CalendarIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Entity } from "@/lib/mockData";
 
+const MONTHS_ORDER = [
+  'january', 'february', 'march', 'april', 'may', 'june',
+  'july', 'august', 'september', 'october', 'november', 'december'
+];
+
 export default function SelectEntityPage() {
-  const { currentUser, budgets, groceryEntries, currentMonth, currentYear, switchEntity, logout, getEntityBudget } = useStore();
+  const {
+    currentUser,
+    budgets,
+    groceryEntries,
+    currentMonth,
+    currentYear,
+    setCurrentMonth,
+    setCurrentYear,
+    switchEntity,
+    logout,
+    getEntityBudgetBreakdown,
+  } = useStore();
   const router = useRouter();
 
   // Access Control: Redirect if not Admin or not logged in
@@ -25,6 +41,63 @@ export default function SelectEntityPage() {
     }
   }, [currentUser, router]);
 
+  // Helper to dynamically calculate overview stats for the latest allocated budget month
+  const getLatestEntityBudgetInfo = (entity: Entity) => {
+    const entityBudgets = budgets.filter((b) => b.entity === entity && b.amount > 0);
+
+    let targetMonth = currentMonth;
+    let targetYear = currentYear;
+
+    if (entityBudgets.length > 0) {
+      // Sort chronologically descending (latest year and month first)
+      const sorted = [...entityBudgets].sort((a, b) => {
+        if (a.year !== b.year) return b.year - a.year;
+        return MONTHS_ORDER.indexOf(b.month.toLowerCase()) - MONTHS_ORDER.indexOf(a.month.toLowerCase());
+      });
+      targetMonth = sorted[0].month;
+      targetYear = sorted[0].year;
+    }
+
+    const breakdown = getEntityBudgetBreakdown(entity, targetMonth, targetYear);
+    const budget = breakdown.effectiveBudget;
+    const spent = breakdown.totalSpent;
+    const remaining = breakdown.remainingBalance;
+    const pct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
+
+    return {
+      month: targetMonth,
+      year: targetYear,
+      budget,
+      spent,
+      remaining,
+      pct,
+      hasAllocatedBudget: entityBudgets.length > 0,
+    };
+  };
+
+  const lahoreInfo = useMemo(
+    () => getLatestEntityBudgetInfo("Lahore"),
+    [budgets, groceryEntries, currentMonth, currentYear, getEntityBudgetBreakdown]
+  );
+
+  const multanInfo = useMemo(
+    () => getLatestEntityBudgetInfo("Multan"),
+    [budgets, groceryEntries, currentMonth, currentYear, getEntityBudgetBreakdown]
+  );
+
+  const isquareInfo = useMemo(
+    () => getLatestEntityBudgetInfo("ISquareBPO"),
+    [budgets, groceryEntries, currentMonth, currentYear, getEntityBudgetBreakdown]
+  );
+
+  const handleSelectEntity = (entity: Entity, targetMonth: string, targetYear: number) => {
+    switchEntity(entity);
+    if (targetMonth) setCurrentMonth(targetMonth);
+    if (targetYear) setCurrentYear(targetYear);
+    toast.success(`Active Entity switched to ${entity} (${targetMonth} ${targetYear}).`);
+    router.push("/dashboard");
+  };
+
   if (!currentUser || currentUser.role !== "ADMIN") {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-50 p-6">
@@ -36,36 +109,6 @@ export default function SelectEntityPage() {
     );
   }
 
-  // Calculate stats for Lahore
-  const lahoreBudget = getEntityBudget("Lahore", "all");
-  const lahoreSpent = groceryEntries
-    .filter((e) => e.entity === "Lahore")
-    .reduce((sum, e) => sum + e.amount, 0);
-  const lahoreRemaining = lahoreBudget - lahoreSpent;
-  const lahorePct = lahoreBudget > 0 ? Math.round((lahoreSpent / lahoreBudget) * 100) : 0;
-
-  // Calculate stats for Multan
-  const multanBudget = getEntityBudget("Multan", "all");
-  const multanSpent = groceryEntries
-    .filter((e) => e.entity === "Multan")
-    .reduce((sum, e) => sum + e.amount, 0);
-  const multanRemaining = multanBudget - multanSpent;
-  const multanPct = multanBudget > 0 ? Math.round((multanSpent / multanBudget) * 100) : 0;
-
-  // Calculate stats for ISquareBPO
-  const isquareBudget = getEntityBudget("ISquareBPO", "all");
-  const isquareSpent = groceryEntries
-    .filter((e) => e.entity === "ISquareBPO")
-    .reduce((sum, e) => sum + e.amount, 0);
-  const isquareRemaining = isquareBudget - isquareSpent;
-  const isquarePct = isquareBudget > 0 ? Math.round((isquareSpent / isquareBudget) * 100) : 0;
-
-  const handleSelectEntity = (entity: Entity) => {
-    switchEntity(entity);
-    toast.success(`Active Entity switched to ${entity}.`);
-    router.push("/dashboard");
-  };
-
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-between py-12 px-6 sm:px-12">
       {/* Top Bar / Logout */}
@@ -75,7 +118,7 @@ export default function SelectEntityPage() {
             variant="ghost"
             size="sm"
             onClick={() => router.push("/select-module")}
-            className="h-8 px-2 text-xs font-semibold text-gray-600 hover:text-emerald-700 hover:bg-emerald-50 gap-1"
+            className="h-8 px-2 text-xs font-semibold text-gray-600 hover:text-emerald-700 hover:bg-emerald-50 gap-1 cursor-pointer"
           >
             <ArrowLeftIcon className="size-3.5" />
             <span>Modules</span>
@@ -98,7 +141,7 @@ export default function SelectEntityPage() {
             variant="outline"
             size="sm"
             onClick={logout}
-            className="h-8 border-gray-200 text-xs font-semibold text-red-600 hover:bg-red-50 hover:text-red-700"
+            className="h-8 border-gray-200 text-xs font-semibold text-red-600 hover:bg-red-50 hover:text-red-700 cursor-pointer"
           >
             <LogOutIcon className="size-3.5 mr-1" />
             Log out
@@ -124,9 +167,15 @@ export default function SelectEntityPage() {
                 <div className="size-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-2xs">
                   <Building2Icon className="size-6" />
                 </div>
-                <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-semibold">
-                  Lahore Office
-                </Badge>
+                <div className="flex flex-col items-end gap-1">
+                  <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-semibold text-[11px]">
+                    Lahore Office
+                  </Badge>
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md flex items-center gap-1">
+                    <CalendarIcon className="size-3 text-emerald-600" />
+                    {lahoreInfo.month} {lahoreInfo.year}
+                  </span>
+                </div>
               </div>
               <CardTitle className="text-xl font-bold text-gray-900 mt-4">LAHORE</CardTitle>
             </CardHeader>
@@ -135,16 +184,16 @@ export default function SelectEntityPage() {
               <div className="grid grid-cols-3 gap-2 border-y border-gray-100 py-3 text-center">
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Budget</span>
-                  <span className="text-xs sm:text-sm font-bold text-gray-900">Rs. {lahoreBudget.toLocaleString()}</span>
+                  <span className="text-xs sm:text-sm font-bold text-gray-900">Rs. {lahoreInfo.budget.toLocaleString()}</span>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Spending</span>
-                  <span className="text-xs sm:text-sm font-bold text-emerald-600">Rs. {lahoreSpent.toLocaleString()}</span>
+                  <span className="text-xs sm:text-sm font-bold text-emerald-600">Rs. {lahoreInfo.spent.toLocaleString()}</span>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Remaining</span>
-                  <span className={`text-xs sm:text-sm font-bold ${lahoreRemaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                    Rs. {lahoreRemaining.toLocaleString()}
+                  <span className={`text-xs sm:text-sm font-bold ${lahoreInfo.remaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                    Rs. {lahoreInfo.remaining.toLocaleString()}
                   </span>
                 </div>
               </div>
@@ -153,20 +202,20 @@ export default function SelectEntityPage() {
               <div className="space-y-1">
                 <div className="flex justify-between text-xs font-semibold text-gray-500">
                   <span>Usage</span>
-                  <span>{lahorePct}%</span>
+                  <span>{lahoreInfo.pct}%</span>
                 </div>
                 <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-emerald-600 rounded-full transition-all duration-300"
-                    style={{ width: `${lahorePct}%` }}
+                    style={{ width: `${lahoreInfo.pct}%` }}
                   />
                 </div>
               </div>
             </CardContent>
             <CardFooter className="pt-2">
               <Button
-                onClick={() => handleSelectEntity("Lahore")}
-                className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 group"
+                onClick={() => handleSelectEntity("Lahore", lahoreInfo.month, lahoreInfo.year)}
+                className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 group cursor-pointer"
               >
                 Manage Lahore
                 <ArrowRightIcon className="size-4 group-hover:translate-x-1 transition-transform" />
@@ -181,9 +230,15 @@ export default function SelectEntityPage() {
                 <div className="size-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-2xs">
                   <Building2Icon className="size-6" />
                 </div>
-                <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-semibold">
-                  Multan Office
-                </Badge>
+                <div className="flex flex-col items-end gap-1">
+                  <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-semibold text-[11px]">
+                    Multan Office
+                  </Badge>
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md flex items-center gap-1">
+                    <CalendarIcon className="size-3 text-emerald-600" />
+                    {multanInfo.month} {multanInfo.year}
+                  </span>
+                </div>
               </div>
               <CardTitle className="text-xl font-bold text-gray-900 mt-4">MULTAN</CardTitle>
             </CardHeader>
@@ -192,16 +247,16 @@ export default function SelectEntityPage() {
               <div className="grid grid-cols-3 gap-2 border-y border-gray-100 py-3 text-center">
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Budget</span>
-                  <span className="text-xs sm:text-sm font-bold text-gray-900">Rs. {multanBudget.toLocaleString()}</span>
+                  <span className="text-xs sm:text-sm font-bold text-gray-900">Rs. {multanInfo.budget.toLocaleString()}</span>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Spending</span>
-                  <span className="text-xs sm:text-sm font-bold text-emerald-600">Rs. {multanSpent.toLocaleString()}</span>
+                  <span className="text-xs sm:text-sm font-bold text-emerald-600">Rs. {multanInfo.spent.toLocaleString()}</span>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Remaining</span>
-                  <span className={`text-xs sm:text-sm font-bold ${multanRemaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                    Rs. {multanRemaining.toLocaleString()}
+                  <span className={`text-xs sm:text-sm font-bold ${multanInfo.remaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                    Rs. {multanInfo.remaining.toLocaleString()}
                   </span>
                 </div>
               </div>
@@ -210,20 +265,20 @@ export default function SelectEntityPage() {
               <div className="space-y-1">
                 <div className="flex justify-between text-xs font-semibold text-gray-500">
                   <span>Usage</span>
-                  <span>{multanPct}%</span>
+                  <span>{multanInfo.pct}%</span>
                 </div>
                 <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-emerald-600 rounded-full transition-all duration-300"
-                    style={{ width: `${multanPct}%` }}
+                    style={{ width: `${multanInfo.pct}%` }}
                   />
                 </div>
               </div>
             </CardContent>
             <CardFooter className="pt-2">
               <Button
-                onClick={() => handleSelectEntity("Multan")}
-                className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 group"
+                onClick={() => handleSelectEntity("Multan", multanInfo.month, multanInfo.year)}
+                className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 group cursor-pointer"
               >
                 Manage Multan
                 <ArrowRightIcon className="size-4 group-hover:translate-x-1 transition-transform" />
@@ -238,9 +293,15 @@ export default function SelectEntityPage() {
                 <div className="size-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-2xs">
                   <Building2Icon className="size-6" />
                 </div>
-                <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-semibold">
-                  ISquareBPO Office
-                </Badge>
+                <div className="flex flex-col items-end gap-1">
+                  <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-semibold text-[11px]">
+                    ISquareBPO Office
+                  </Badge>
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md flex items-center gap-1">
+                    <CalendarIcon className="size-3 text-emerald-600" />
+                    {isquareInfo.month} {isquareInfo.year}
+                  </span>
+                </div>
               </div>
               <CardTitle className="text-xl font-bold text-gray-900 mt-4">ISQUAREBPO</CardTitle>
             </CardHeader>
@@ -249,16 +310,16 @@ export default function SelectEntityPage() {
               <div className="grid grid-cols-3 gap-2 border-y border-gray-100 py-3 text-center">
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Budget</span>
-                  <span className="text-xs sm:text-sm font-bold text-gray-900">Rs. {isquareBudget.toLocaleString()}</span>
+                  <span className="text-xs sm:text-sm font-bold text-gray-900">Rs. {isquareInfo.budget.toLocaleString()}</span>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Spending</span>
-                  <span className="text-xs sm:text-sm font-bold text-emerald-600">Rs. {isquareSpent.toLocaleString()}</span>
+                  <span className="text-xs sm:text-sm font-bold text-emerald-600">Rs. {isquareInfo.spent.toLocaleString()}</span>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Remaining</span>
-                  <span className={`text-xs sm:text-sm font-bold ${isquareRemaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                    Rs. {isquareRemaining.toLocaleString()}
+                  <span className={`text-xs sm:text-sm font-bold ${isquareInfo.remaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                    Rs. {isquareInfo.remaining.toLocaleString()}
                   </span>
                 </div>
               </div>
@@ -267,20 +328,20 @@ export default function SelectEntityPage() {
               <div className="space-y-1">
                 <div className="flex justify-between text-xs font-semibold text-gray-500">
                   <span>Usage</span>
-                  <span>{isquarePct}%</span>
+                  <span>{isquareInfo.pct}%</span>
                 </div>
                 <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-emerald-600 rounded-full transition-all duration-300"
-                    style={{ width: `${isquarePct}%` }}
+                    style={{ width: `${isquareInfo.pct}%` }}
                   />
                 </div>
               </div>
             </CardContent>
             <CardFooter className="pt-2">
               <Button
-                onClick={() => handleSelectEntity("ISquareBPO")}
-                className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 group"
+                onClick={() => handleSelectEntity("ISquareBPO", isquareInfo.month, isquareInfo.year)}
+                className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 group cursor-pointer"
               >
                 Manage ISquareBPO
                 <ArrowRightIcon className="size-4 group-hover:translate-x-1 transition-transform" />
@@ -291,7 +352,7 @@ export default function SelectEntityPage() {
       </div>
 
       <div className="max-w-5xl w-full mx-auto text-center text-xs font-semibold text-gray-400 mt-10">
-        Active Testing Month: {currentMonth} {currentYear} • Switch Active month using the Header in the main dashboard.
+        Overview displays the latest allocated budget month for each entity. You can view all previous months inside the dashboard.
       </div>
     </div>
   );
