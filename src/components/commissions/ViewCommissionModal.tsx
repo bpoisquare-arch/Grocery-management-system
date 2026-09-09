@@ -168,7 +168,7 @@ export function ViewCommissionModal({ open, onOpenChange, entry }: ViewCommissio
 
           <div className="space-y-4 pt-2">
             {/* Top Stat Highlights */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/70 p-3 rounded-xl border border-gray-100">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50/70 p-3 rounded-xl border border-gray-100">
               <div>
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Student</span>
                 <span className="text-xs font-bold text-gray-900 truncate block mt-0.5">{entry.studentName}</span>
@@ -182,20 +182,6 @@ export function ViewCommissionModal({ open, onOpenChange, entry }: ViewCommissio
               <div>
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Counselor</span>
                 <span className="text-xs font-semibold text-gray-900 block mt-0.5 truncate">{entry.counselor}</span>
-              </div>
-              <div>
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Payment Status</span>
-                <span className="mt-0.5 inline-block">
-                  {entry.fullReceived ? (
-                    <Badge className="bg-emerald-100 text-emerald-800 border-none text-[10px] font-bold py-0">
-                      Full Received
-                    </Badge>
-                  ) : (
-                    <Badge className="bg-amber-100 text-amber-800 border-none text-[10px] font-bold py-0">
-                      Partial
-                    </Badge>
-                  )}
-                </span>
               </div>
             </div>
 

@@ -97,7 +97,6 @@ export default function CommissionsDashboardPage() {
   const [toDate, setToDate] = useState("");
   const [counselorFilter, setCounselorFilter] = useState("all");
   const [serviceFilter, setServiceFilter] = useState("all");
-  const [paymentFilter, setPaymentFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
 
   // Selection state (for Admin bulk operations)
@@ -147,10 +146,6 @@ export default function CommissionsDashboardPage() {
       // Service filter
       if (serviceFilter !== "all" && entry.service !== serviceFilter) return false;
 
-      // Payment Status (Full Received) filter
-      if (paymentFilter === "full" && !entry.fullReceived) return false;
-      if (paymentFilter === "partial" && entry.fullReceived) return false;
-
       // Slip status filter
       if (statusFilter !== "all") {
         if (statusFilter === "uploaded" && entry.status !== "Slip Uploaded") return false;
@@ -160,7 +155,7 @@ export default function CommissionsDashboardPage() {
 
       return true;
     });
-  }, [commissionEntries, activeEntity, search, fromDate, toDate, counselorFilter, serviceFilter, paymentFilter, statusFilter]);
+  }, [commissionEntries, activeEntity, search, fromDate, toDate, counselorFilter, serviceFilter, statusFilter]);
 
   // Statistics
   const totalAmountCollected = useMemo(() => {
@@ -175,10 +170,6 @@ export default function CommissionsDashboardPage() {
     return filteredEntries.reduce((sum, entry) => sum + (entry.bmCommission || 0), 0);
   }, [filteredEntries]);
 
-  const totalFullReceivedCount = useMemo(() => {
-    return filteredEntries.filter((entry) => entry.fullReceived).length;
-  }, [filteredEntries]);
-
   // Pagination Logic
   const totalPages = Math.ceil(filteredEntries.length / itemsPerPage) || 1;
   const paginatedEntries = useMemo(() => {
@@ -189,7 +180,7 @@ export default function CommissionsDashboardPage() {
   // Reset selection on filter change
   useEffect(() => {
     setSelectedIds([]);
-  }, [activeEntity, search, fromDate, toDate, counselorFilter, serviceFilter, paymentFilter, statusFilter, currentPage]);
+  }, [activeEntity, search, fromDate, toDate, counselorFilter, serviceFilter, statusFilter, currentPage]);
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -222,7 +213,6 @@ export default function CommissionsDashboardPage() {
     setToDate("");
     setCounselorFilter("all");
     setServiceFilter("all");
-    setPaymentFilter("all");
     setStatusFilter("all");
     setCurrentPage(1);
     toast.success("Filters reset.");
@@ -282,7 +272,7 @@ export default function CommissionsDashboardPage() {
         [summaryCollected, "", summaryCc, ""],
         [summaryBm, "", summaryCount, ""],
         [],
-        ["Date", "Student Name", "Service", "Counselor", "Amount (Rs.)", "Full Received", "C.C (Rs.)", "B.M (Rs.)", "Slip Status"]
+        ["Date", "Student Name", "Service", "Counselor", "Amount (Rs.)", "C.C (Rs.)", "B.M (Rs.)", "Slip Status"]
       ];
 
       filteredEntries.forEach((e) => {
@@ -633,37 +623,7 @@ export default function CommissionsDashboardPage() {
             </div>
 
             {/* Quick Status Filters & Reset Row */}
-            <div className="flex flex-wrap items-center justify-between gap-3 mt-3.5 pt-3 border-t border-gray-100">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-gray-500">Payment Status:</span>
-                <div className="flex gap-1">
-                  <Button
-                    size="sm"
-                    variant={paymentFilter === "all" ? "default" : "outline"}
-                    onClick={() => { setPaymentFilter("all"); setCurrentPage(1); }}
-                    className={`h-7 px-2.5 text-[11px] font-semibold cursor-pointer rounded-md ${paymentFilter === "all" ? "bg-emerald-600 text-white hover:bg-emerald-700" : "text-gray-600 border-gray-200 hover:bg-gray-50"}`}
-                  >
-                    All
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={paymentFilter === "full" ? "default" : "outline"}
-                    onClick={() => { setPaymentFilter("full"); setCurrentPage(1); }}
-                    className={`h-7 px-2.5 text-[11px] font-semibold cursor-pointer rounded-md ${paymentFilter === "full" ? "bg-emerald-600 text-white hover:bg-emerald-700" : "text-gray-600 border-gray-200 hover:bg-gray-50"}`}
-                  >
-                    Full Received
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={paymentFilter === "partial" ? "default" : "outline"}
-                    onClick={() => { setPaymentFilter("partial"); setCurrentPage(1); }}
-                    className={`h-7 px-2.5 text-[11px] font-semibold cursor-pointer rounded-md ${paymentFilter === "partial" ? "bg-emerald-600 text-white hover:bg-emerald-700" : "text-gray-600 border-gray-200 hover:bg-gray-50"}`}
-                  >
-                    Partial
-                  </Button>
-                </div>
-              </div>
-
+            <div className="flex items-center justify-end mt-3.5 pt-3 border-t border-gray-100">
               <Button
                 onClick={handleResetFilters}
                 variant="ghost"
@@ -701,7 +661,6 @@ export default function CommissionsDashboardPage() {
                     <TableHead className="text-xs font-bold text-gray-400">Service</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">Counselor</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">Amount</TableHead>
-                    <TableHead className="text-xs font-bold text-gray-400">Full Received</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">C.C</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">B.M</TableHead>
                     <TableHead className="text-right text-xs font-bold text-gray-400">Actions</TableHead>
@@ -710,7 +669,7 @@ export default function CommissionsDashboardPage() {
                 <TableBody>
                   {paginatedEntries.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={isAdmin ? 11 : 10} className="h-64 text-center">
+                      <TableCell colSpan={isAdmin ? 10 : 9} className="h-64 text-center">
                         <div className="flex flex-col items-center justify-center gap-2 p-6 text-gray-400">
                           <GraduationCapIcon className="size-8 text-gray-300" />
                           <span className="text-base font-bold text-gray-700">No Commission Entries Found</span>
@@ -765,18 +724,7 @@ export default function CommissionsDashboardPage() {
                         <TableCell className="font-black text-slate-900 whitespace-nowrap">
                           Rs. {entry.amount.toLocaleString()}
                         </TableCell>
-                        {/* Display plain badge/text instead of direct interactive switch in table */}
-                        <TableCell className="whitespace-nowrap">
-                          {entry.fullReceived ? (
-                            <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-200/80 font-bold text-[11px] px-2.5 py-0.5 rounded-md">
-                              Full
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border border-amber-200/80 font-bold text-[11px] px-2.5 py-0.5 rounded-md">
-                              Partial
-                            </Badge>
-                          )}
-                        </TableCell>
+                        
                         <TableCell className="font-bold text-emerald-700 whitespace-nowrap">
                           Rs. {(entry.counselorCommission || 0).toLocaleString()}
                         </TableCell>

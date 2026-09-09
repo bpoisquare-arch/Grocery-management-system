@@ -14,7 +14,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -71,7 +70,6 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
   const [counselor, setCounselor] = useState("Humaira Amin");
   const [amountStr, setAmountStr] = useState("");
   const [date, setDate] = useState("");
-  const [fullReceived, setFullReceived] = useState(false);
   const [counselorCommission, setCounselorCommission] = useState("");
   const [bmCommission, setBmCommission] = useState("");
   const [ccCalcNote, setCcCalcNote] = useState("");
@@ -95,7 +93,6 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
       setCounselor(eCounselor);
       setAmountStr(eAmountStr);
       setDate(entry.date || "");
-      setFullReceived(!!entry.fullReceived);
       setCounselorCommission(entry.counselorCommission !== undefined ? entry.counselorCommission.toString() : "");
       setBmCommission(entry.bmCommission !== undefined ? entry.bmCommission.toString() : "");
       setNotes(entry.notes || "");
@@ -260,7 +257,7 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
         counselor: counselor || counselors[0]?.name || "Humaira Amin",
         amount,
         date,
-        fullReceived,
+        fullReceived: true,
         counselorCommission: parseFloat(counselorCommission) || 0,
         bmCommission: parseFloat(bmCommission) || 0,
         notes: notes.trim() || undefined,
@@ -398,33 +395,7 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
                   </div>
                 </div>
 
-                {/* 4. Full Received Switch */}
-                <div className="flex items-center justify-between p-2.5 rounded-xl border border-gray-200/80 bg-slate-50/60">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="edit-fullReceived" className="text-xs font-bold text-gray-900 cursor-pointer block">
-                      Payment Received Status
-                    </Label>
-                    <p className="text-[10px] text-gray-500 font-medium">
-                      {fullReceived ? "Full fee payment received" : "Partial / token advance payment"}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                        fullReceived ? "bg-emerald-100 text-emerald-800" : "bg-gray-200 text-gray-600"
-                      }`}
-                    >
-                      {fullReceived ? "Full" : "Partial"}
-                    </span>
-                    <Switch
-                      id="edit-fullReceived"
-                      checked={fullReceived}
-                      onCheckedChange={(checked) => setFullReceived(checked)}
-                    />
-                  </div>
-                </div>
-
-                {/* 5. Notes */}
+                {/* 4. Notes */}
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="edit-notes" className="text-xs font-semibold text-gray-700">
                     Notes / Remarks <span className="text-[10px] text-gray-400 font-normal">(Optional)</span>
