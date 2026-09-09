@@ -183,132 +183,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      let updatedCommissions = [];
       if (commissionsRes.ok) {
         const commissionsJson = await commissionsRes.json();
         if (commissionsJson.success && Array.isArray(commissionsJson.data)) {
-          updatedCommissions = commissionsJson.data;
-
-          // Auto-sync: Check if Laptop A has locally saved commissions that are not yet in database
-          if (typeof window !== 'undefined') {
-            try {
-              const localCommsRaw = localStorage.getItem('gem_commissions');
-              if (localCommsRaw) {
-                const localComms: CommissionEntry[] = JSON.parse(localCommsRaw);
-                const mockIds = new Set(mockCommissionEntries.map((m) => m.id));
-                const serverKeys = new Set(
-                  updatedCommissions.map(
-                    (c: any) => `${c.studentName?.toLowerCase().trim()}_${c.amount}_${c.date}_${c.service}`
-                  )
-                );
-
-                const missingComms = localComms.filter((c) => {
-                  if (!c.studentName || mockIds.has(c.id)) return false;
-                  const key = `${c.studentName?.toLowerCase().trim()}_${c.amount}_${c.date}_${c.service}`;
-                  return !serverKeys.has(key);
-                });
-
-                if (missingComms.length > 0) {
-                  for (const comm of missingComms) {
-                    try {
-                      const postRes = await fetch('/api/commissions', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          entity: comm.entity,
-                          studentName: comm.studentName,
-                          service: comm.service,
-                          counselor: comm.counselor,
-                          amount: comm.amount,
-                          date: comm.date,
-                          fullReceived: comm.fullReceived,
-                          counselorCommission: comm.counselorCommission,
-                          bmCommission: comm.bmCommission,
-                          status: comm.status,
-                          slipUrl: comm.slipUrl,
-                          slipUrls: comm.slipUrls || (comm.slipUrl ? [comm.slipUrl] : undefined),
-                          slipType: comm.slipType,
-                          notes: comm.notes,
-                        }),
-                      });
-
-                      if (postRes.ok) {
-                        const postJson = await postRes.json();
-                        if (postJson.success && postJson.data) {
-                          updatedCommissions.unshift(postJson.data);
-                        }
-                      }
-                    } catch (syncErr) {
-                      console.error('Auto-sync commission error:', syncErr);
-                    }
-                  }
-                }
-              }
-            } catch (e) {
-              console.error('Error in commission auto-sync check:', e);
-            }
-          }
-
-          setCommissionEntries(updatedCommissions);
-          safeSetLocalStorage('gem_commissions', JSON.stringify(updatedCommissions));
+          setCommissionEntries(commissionsJson.data);
+          safeSetLocalStorage('gem_commissions', JSON.stringify(commissionsJson.data));
         }
       }
 
-      let updatedCounselors = [];
       if (counselorsRes.ok) {
         const counselorsJson = await counselorsRes.json();
         if (counselorsJson.success && Array.isArray(counselorsJson.data)) {
-          updatedCounselors = counselorsJson.data;
-
-          // Auto-sync: Check if Laptop A has locally saved counselors not yet in database
-          if (typeof window !== 'undefined') {
-            try {
-              const localCounselorsRaw = localStorage.getItem('gem_counselors');
-              if (localCounselorsRaw) {
-                const localCounselors: Counselor[] = JSON.parse(localCounselorsRaw);
-                const serverNames = new Set(
-                  updatedCounselors.map((c: any) => c.name?.toLowerCase().trim())
-                );
-
-                const missingCounselors = localCounselors.filter(
-                  (c) => c.name && !serverNames.has(c.name.toLowerCase().trim())
-                );
-
-                if (missingCounselors.length > 0) {
-                  for (const c of missingCounselors) {
-                    try {
-                      const postRes = await fetch('/api/counselors', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          name: c.name,
-                          entity: c.entity || 'All',
-                          email: c.email,
-                          phone: c.phone,
-                          serviceCommissions: c.serviceCommissions,
-                          bmServiceCommissions: c.bmServiceCommissions,
-                        }),
-                      });
-
-                      if (postRes.ok) {
-                        const postJson = await postRes.json();
-                        if (postJson.success && postJson.data) {
-                          updatedCounselors.push(postJson.data);
-                        }
-                      }
-                    } catch (syncErr) {
-                      console.error('Auto-sync counselor error:', syncErr);
-                    }
-                  }
-                }
-              }
-            } catch (e) {
-              console.error('Error in counselor auto-sync check:', e);
-            }
-          }
-
-          setCounselors(updatedCounselors);
-          safeSetLocalStorage('gem_counselors', JSON.stringify(updatedCounselors));
+          setCounselors(counselorsJson.data);
+          safeSetLocalStorage('gem_counselors', JSON.stringify(counselorsJson.data));
         }
       }
     } catch (error) {
@@ -1464,7 +1351,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     safeSetLocalStorage('gem_counselors', JSON.stringify(updated));
   };
 
-  // Explicit Cloud Sync: Upload all offline/local commissions, counselors, and groceries to live MySQL database
+  // Clean Refresh / Sync helper (single source of truth from database)
   const syncLocalToDatabase = async (): Promise<{
     success: boolean;
     syncedCommissions: number;
@@ -1472,199 +1359,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     syncedGroceries: number;
     error?: string;
   }> => {
-    let syncedCommissions = 0;
-    let syncedCounselors = 0;
-    let syncedGroceries = 0;
-
-    if (typeof window === 'undefined') {
-      return { success: false, syncedCommissions: 0, syncedCounselors: 0, syncedGroceries: 0, error: 'Window undefined' };
-    }
-
     try {
-      // 1. Fetch current live database records
-      const [commRes, counRes, grocRes] = await Promise.all([
-        fetch('/api/commissions'),
-        fetch('/api/counselors'),
-        fetch('/api/groceries'),
-      ]);
-
-      let serverCommissions: any[] = [];
-      let serverCounselors: any[] = [];
-      let serverGroceries: any[] = [];
-
-      if (commRes.ok) {
-        const json = await commRes.json();
-        if (json.success && Array.isArray(json.data)) serverCommissions = json.data;
-      }
-      if (counRes.ok) {
-        const json = await counRes.json();
-        if (json.success && Array.isArray(json.data)) serverCounselors = json.data;
-      }
-      if (grocRes.ok) {
-        const json = await grocRes.json();
-        if (json.success && Array.isArray(json.data)) serverGroceries = json.data;
-      }
-
-      // 2. Sync Missing Commissions from localStorage
-      const localCommsRaw = localStorage.getItem('gem_commissions');
-      if (localCommsRaw) {
-        try {
-          const localComms: CommissionEntry[] = JSON.parse(localCommsRaw);
-          const serverKeys = new Set(
-            serverCommissions.map(
-              (c: any) => `${c.studentName?.toLowerCase().trim()}_${c.amount}_${c.date}_${c.service}`
-            )
-          );
-
-          const missingComms = localComms.filter((c) => {
-            if (!c.studentName) return false;
-            const key = `${c.studentName?.toLowerCase().trim()}_${c.amount}_${c.date}_${c.service}`;
-            return !serverKeys.has(key);
-          });
-
-          for (const comm of missingComms) {
-            try {
-              const postRes = await fetch('/api/commissions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  entity: comm.entity,
-                  studentName: comm.studentName,
-                  service: comm.service,
-                  counselor: comm.counselor,
-                  amount: comm.amount,
-                  date: comm.date,
-                  fullReceived: comm.fullReceived,
-                  counselorCommission: comm.counselorCommission,
-                  bmCommission: comm.bmCommission,
-                  status: comm.status,
-                  slipUrl: comm.slipUrl,
-                  slipUrls: comm.slipUrls || (comm.slipUrl ? [comm.slipUrl] : undefined),
-                  slipType: comm.slipType,
-                  notes: comm.notes,
-                }),
-              });
-
-              if (postRes.ok) {
-                const postJson = await postRes.json();
-                if (postJson.success) syncedCommissions++;
-              }
-            } catch (syncErr) {
-              console.error('Error syncing commission to DB:', syncErr);
-            }
-          }
-        } catch (e) {
-          console.error('Error parsing local commissions during sync:', e);
-        }
-      }
-
-      // 3. Sync Missing Counselors from localStorage
-      const localCounselorsRaw = localStorage.getItem('gem_counselors');
-      if (localCounselorsRaw) {
-        try {
-          const localCounselors: Counselor[] = JSON.parse(localCounselorsRaw);
-          const serverNames = new Set(
-            serverCounselors.map((c: any) => c.name?.toLowerCase().trim())
-          );
-
-          const missingCounselors = localCounselors.filter(
-            (c) => c.name && !serverNames.has(c.name.toLowerCase().trim())
-          );
-
-          for (const c of missingCounselors) {
-            try {
-              const postRes = await fetch('/api/counselors', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  name: c.name,
-                  entity: c.entity || 'All',
-                  email: c.email,
-                  phone: c.phone,
-                  serviceCommissions: c.serviceCommissions,
-                  bmServiceCommissions: c.bmServiceCommissions,
-                }),
-              });
-
-              if (postRes.ok) {
-                const postJson = await postRes.json();
-                if (postJson.success) syncedCounselors++;
-              }
-            } catch (syncErr) {
-              console.error('Error syncing counselor to DB:', syncErr);
-            }
-          }
-        } catch (e) {
-          console.error('Error parsing local counselors during sync:', e);
-        }
-      }
-
-      // 4. Sync Missing Groceries from localStorage
-      const localGroceryRaw = localStorage.getItem('gem_grocery');
-      if (localGroceryRaw) {
-        try {
-          const localGroceries: GroceryEntry[] = JSON.parse(localGroceryRaw);
-          const serverKeys = new Set(
-            serverGroceries.map(
-              (g: any) => `${g.entity}_${g.date}_${g.details?.toLowerCase().trim()}_${g.amount}`
-            )
-          );
-
-          const missingGroceries = localGroceries.filter((g) => {
-            if (!g.details || !g.amount) return false;
-            const key = `${g.entity}_${g.date}_${g.details?.toLowerCase().trim()}_${g.amount}`;
-            return !serverKeys.has(key);
-          });
-
-          for (const groc of missingGroceries) {
-            try {
-              const postRes = await fetch('/api/groceries', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  entity: groc.entity,
-                  date: groc.date,
-                  budgetMonth: groc.budgetMonth,
-                  budgetYear: groc.budgetYear,
-                  details: groc.details,
-                  amount: groc.amount,
-                  addedBy: groc.addedBy,
-                  status: groc.status,
-                  slipUrl: groc.slipUrl,
-                  slipUrls: groc.slipUrls || (groc.slipUrl ? [groc.slipUrl] : undefined),
-                  slipType: groc.slipType,
-                }),
-              });
-
-              if (postRes.ok) {
-                const postJson = await postRes.json();
-                if (postJson.success) syncedGroceries++;
-              }
-            } catch (syncErr) {
-              console.error('Error syncing grocery to DB:', syncErr);
-            }
-          }
-        } catch (e) {
-          console.error('Error parsing local groceries during sync:', e);
-        }
-      }
-
-      // Refresh store with freshly synced DB data
       await refreshData();
-
       return {
         success: true,
-        syncedCommissions,
-        syncedCounselors,
-        syncedGroceries,
+        syncedCommissions: 0,
+        syncedCounselors: 0,
+        syncedGroceries: 0,
       };
     } catch (err: any) {
-      console.error('Manual sync error:', err);
+      console.error('Sync error:', err);
       return {
         success: false,
-        syncedCommissions,
-        syncedCounselors,
-        syncedGroceries,
+        syncedCommissions: 0,
+        syncedCounselors: 0,
+        syncedGroceries: 0,
         error: err.message || 'Sync failed',
       };
     }

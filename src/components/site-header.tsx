@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -31,7 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { ShieldCheckIcon, UserIcon, ArrowLeftRightIcon, CloudUploadIcon, Loader2Icon } from "lucide-react";
+import { ShieldCheckIcon, UserIcon, ArrowLeftRightIcon } from "lucide-react";
 import { toast } from "sonner";
 
 export function SiteHeader() {
@@ -45,36 +45,7 @@ export function SiteHeader() {
     setCurrentMonth,
     currentYear,
     login,
-    syncLocalToDatabase,
   } = useStore();
-  const [isSyncing, setIsSyncing] = useState(false);
-
-  const handleCloudSync = async () => {
-    setIsSyncing(true);
-    toast.loading("Connecting & syncing offline records to Cloud Database...", { id: "site-cloud-sync" });
-
-    try {
-      const res = await syncLocalToDatabase();
-      if (res.success) {
-        const total = res.syncedCommissions + res.syncedCounselors + res.syncedGroceries;
-        if (total > 0) {
-          toast.success(
-            `Cloud Sync Complete! Uploaded ${res.syncedGroceries} grocery entries, ${res.syncedCommissions} commissions, and ${res.syncedCounselors} counselors to Live Database.`,
-            { id: "site-cloud-sync" }
-          );
-        } else {
-          toast.success("Cloud Sync Verified! All local records are already in sync with Live Database.", { id: "site-cloud-sync" });
-        }
-      } else {
-        toast.error(res.error || "Unable to reach database server. Please check connection.", { id: "site-cloud-sync" });
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error("Sync failed. Unable to reach live database.", { id: "site-cloud-sync" });
-    } finally {
-      setIsSyncing(false);
-    }
-  };
 
   const getPageTitle = () => {
     switch (pathname) {
@@ -140,23 +111,6 @@ export function SiteHeader() {
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Sync Cloud Button */}
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={isSyncing}
-          onClick={handleCloudSync}
-          className="h-8 px-2.5 sm:px-3 text-xs font-bold text-emerald-700 bg-emerald-50/80 hover:bg-emerald-100 hover:text-emerald-800 border-emerald-200 gap-1.5 shadow-3xs transition-all cursor-pointer"
-          title="Upload all offline/local records from this browser to the Live Cloud Database"
-        >
-          {isSyncing ? (
-            <Loader2Icon className="size-3.5 animate-spin text-emerald-600" />
-          ) : (
-            <CloudUploadIcon className="size-3.5 text-emerald-600" />
-          )}
-          <span>{isSyncing ? "Syncing..." : "Sync Cloud"}</span>
-        </Button>
-
         {/* Role Quick Switcher for testing/demo */}
         {currentUser && currentUser.role === "ADMIN" && (
           <DropdownMenu>
