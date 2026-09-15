@@ -122,6 +122,7 @@ export default function GroceryPage() {
   }, [activeEntity, entityBudgets, currentRealMonth, currentRealYear]);
 
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -203,13 +204,23 @@ export default function GroceryPage() {
         }
       }
 
+      // Category filter
+      if (categoryFilter !== "all") {
+        if (categoryFilter === "uncategorized") {
+          if (entry.category && entry.category.trim() !== "") return false;
+        } else {
+          if (!entry.category || entry.category.toLowerCase() !== categoryFilter.toLowerCase()) return false;
+        }
+      }
+
       // Search keyword filter
       if (search.trim()) {
         const query = search.toLowerCase();
         const matchesDetails = entry.details.toLowerCase().includes(query);
         const matchesAddedBy = entry.addedBy.toLowerCase().includes(query);
+        const matchesCategory = (entry.category || "").toLowerCase().includes(query);
         const matchesAmount = entry.amount.toString().includes(query);
-        if (!matchesDetails && !matchesAddedBy && !matchesAmount) return false;
+        if (!matchesDetails && !matchesAddedBy && !matchesCategory && !matchesAmount) return false;
       }
 
       // Date filters
@@ -229,7 +240,7 @@ export default function GroceryPage() {
 
       return true;
     });
-  }, [groceryEntries, activeEntity, selectedBudgetPeriod, search, fromDate, toDate, statusFilter, currentMonth, currentYear]);
+  }, [groceryEntries, activeEntity, selectedBudgetPeriod, categoryFilter, search, fromDate, toDate, statusFilter, currentMonth, currentYear]);
 
   // Calculate allocated budget, total spent, and remaining for selected period
   const totalBudget = useMemo(() => {
@@ -259,8 +270,6 @@ export default function GroceryPage() {
   const totalEntriesCount = filteredEntries.length;
   const isOverBudget = remainingBalance < 0;
 
-
-
   // Pagination Logic
   const totalPages = Math.ceil(filteredEntries.length / itemsPerPage) || 1;
   const indexOfFirstItem = (currentPage - 1) * itemsPerPage;
@@ -272,7 +281,7 @@ export default function GroceryPage() {
   // Reset selection when entity, page or filters change
   useEffect(() => {
     setSelectedIds([]);
-  }, [activeEntity, search, fromDate, toDate, statusFilter, currentPage]);
+  }, [activeEntity, search, categoryFilter, fromDate, toDate, statusFilter, currentPage]);
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -301,6 +310,7 @@ export default function GroceryPage() {
 
   const handleResetFilters = () => {
     setSearch("");
+    setCategoryFilter("all");
     setFromDate("");
     setToDate("");
     setStatusFilter("all");
@@ -344,13 +354,14 @@ export default function GroceryPage() {
     }
   };
 
-  // Export functions (fully functional)
+  // Export functions (respecting all active filters and including Category)
   const handleExportExcel = () => {
     toast.loading("Generating Excel spreadsheet...", { id: "export-excel" });
     try {
       const periodLabel = selectedBudgetPeriod === "all" ? "All Time" : selectedBudgetPeriod.replace("_", " ");
+      const categoryLabel = categoryFilter === "all" ? "All Categories" : categoryFilter === "uncategorized" ? "Uncategorized" : categoryFilter;
       const titleText = `${activeEntity.toUpperCase()} GROCERY EXPENSES REPORT`;
-      const subtitleText = `Period: ${periodLabel} | Exported: ${format(new Date(), "dd MMM yyyy, hh:mm a")}`;
+      const subtitleText = `Period: ${periodLabel} | Category: ${categoryLabel} | Exported: ${format(new Date(), "dd MMM yyyy, hh:mm a")}`;
       
       const summaryBudget = `Allocated Budget: Rs. ${totalBudget.toLocaleString()}`;
       const summarySpent = `Total Spent: Rs. ${totalSpent.toLocaleString()}`;
@@ -361,10 +372,10 @@ export default function GroceryPage() {
         [titleText],
         [subtitleText],
         [], // Spacing row
-        [summaryBudget, "", summarySpent, ""],
-        [summaryRemaining, "", summaryCount, ""],
+        [summaryBudget, "", "", summarySpent, "", ""],
+        [summaryRemaining, "", "", summaryCount, "", ""],
         [], // Spacing row
-        ["Slip", "Date", "Assigned Budget Month", "Details", "Amount (Rs.)", "Status"] // Headers
+        ["Slip", "Date", "Assigned Budget Month", "Grocery Details", "Category", "Amount (Rs.)", "Status"] // Headers
       ];
 
       filteredEntries.forEach((e) => {
@@ -374,6 +385,7 @@ export default function GroceryPage() {
           e.date ? format(new Date(e.date), "dd MMM yyyy") : "-",
           `${my.month} ${my.year}`,
           e.details,
+          e.category || "Uncategorized",
           e.amount,
           e.status
         ]);
@@ -384,20 +396,21 @@ export default function GroceryPage() {
 
       // Merge first two rows across the columns and summary cards
       worksheet["!merges"] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }, // Merge Title
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } }, // Merge Subtitle
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }, // Merge Title
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 6 } }, // Merge Subtitle
         { s: { r: 3, c: 0 }, e: { r: 3, c: 2 } }, // Merge Budget
-        { s: { r: 3, c: 3 }, e: { r: 3, c: 5 } }, // Merge Spent
+        { s: { r: 3, c: 3 }, e: { r: 3, c: 6 } }, // Merge Spent
         { s: { r: 4, c: 0 }, e: { r: 4, c: 2 } }, // Merge Remaining
-        { s: { r: 4, c: 3 }, e: { r: 4, c: 5 } }  // Merge Count
+        { s: { r: 4, c: 3 }, e: { r: 4, c: 6 } }  // Merge Count
       ];
 
       worksheet["!cols"] = [
         { wch: 10 }, // Slip
         { wch: 15 }, // Date
         { wch: 22 }, // Assigned Budget Month
-        { wch: 45 }, // Details
-        { wch: 15 }, // Amount
+        { wch: 42 }, // Grocery Details
+        { wch: 24 }, // Category
+        { wch: 16 }, // Amount
         { wch: 20 }  // Status
       ];
 
@@ -421,6 +434,7 @@ export default function GroceryPage() {
     try {
       const doc = new jsPDF();
       const periodLabel = selectedBudgetPeriod === "all" ? "All Time" : selectedBudgetPeriod.replace("_", " ");
+      const categoryLabel = categoryFilter === "all" ? "All Categories" : categoryFilter === "uncategorized" ? "Uncategorized" : categoryFilter;
       
       // Title Section
       doc.setFont("helvetica", "bold");
@@ -430,10 +444,10 @@ export default function GroceryPage() {
 
       // Subtitle Meta Information
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
+      doc.setFontSize(9.5);
       doc.setTextColor(100, 116, 139); // Slate-500
       doc.text(`Entity: ${activeEntity} Branch`, 14, 28);
-      doc.text(`Assigned Budget Period: ${periodLabel}`, 14, 34);
+      doc.text(`Assigned Budget: ${periodLabel}  |  Category Filter: ${categoryLabel}`, 14, 34);
       doc.text(`Report Generated: ${format(new Date(), "dd MMMM yyyy, hh:mm a")}`, 14, 40);
 
       // Divider line
@@ -463,14 +477,15 @@ export default function GroceryPage() {
       doc.setTextColor(30, 41, 59);
       doc.text(`${totalEntriesCount}`, 158, 62);
 
-      // Table Header and Rows
-      const headers = [["Date", "Assigned Month", "Details", "Amount", "Status"]];
+      // Table Header and Rows (including Category)
+      const headers = [["Date", "Assigned Month", "Grocery Details", "Category", "Amount", "Status"]];
       const rows = filteredEntries.map((e) => {
         const my = deriveEntryMonthYear(e);
         return [
           e.date ? format(new Date(e.date), "dd MMM yyyy") : "-",
           `${my.month} ${my.year}`,
           e.details,
+          e.category || "Uncategorized",
           `Rs. ${e.amount.toLocaleString()}`,
           e.status
         ];
@@ -484,15 +499,23 @@ export default function GroceryPage() {
         headStyles: {
           fillColor: [5, 150, 105], // Emerald green
           textColor: [255, 255, 255],
-          fontSize: 9,
+          fontSize: 8.5,
           fontStyle: "bold"
         },
         bodyStyles: {
-          fontSize: 8.5,
+          fontSize: 8,
           textColor: [30, 41, 59] // Dark slate
         },
         alternateRowStyles: {
           fillColor: [248, 250, 252] // Slate-50
+        },
+        columnStyles: {
+          0: { cellWidth: 22 }, // Date
+          1: { cellWidth: 24 }, // Assigned Month
+          2: { cellWidth: "auto" }, // Details
+          3: { cellWidth: 32 }, // Category
+          4: { cellWidth: 22 }, // Amount
+          5: { cellWidth: 26 }, // Status
         },
         margin: { left: 14, right: 14 }
       });
@@ -645,15 +668,15 @@ export default function GroceryPage() {
         {/* Toolbar: Search and Filter fields */}
         <Card className="border border-gray-200 bg-white shadow-2xs">
           <CardContent className="p-4 md:p-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3.5 items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-12 gap-3.5 items-end">
               {/* Search Bar */}
-              <div className="lg:col-span-3 sm:col-span-2 flex flex-col gap-1.5">
+              <div className="xl:col-span-2 lg:col-span-2 sm:col-span-2 md:col-span-3 flex flex-col gap-1.5">
                 <Label htmlFor="search" className="text-xs font-semibold text-gray-700">Search details</Label>
                 <div className="relative">
                   <SearchIcon className="absolute left-3 top-3 size-4 text-gray-400" />
                   <Input
                     id="search"
-                    placeholder="Search grocery details..."
+                    placeholder="Search details / category..."
                     value={search}
                     onChange={(e) => {
                       setSearch(e.target.value);
@@ -664,8 +687,37 @@ export default function GroceryPage() {
                 </div>
               </div>
 
+              {/* Category Filter */}
+              <div className="xl:col-span-2 lg:col-span-2 sm:col-span-1 md:col-span-1 flex flex-col gap-1.5">
+                <Label htmlFor="categoryFilter" className="text-xs font-semibold text-gray-700">Category</Label>
+                <Select
+                  value={categoryFilter}
+                  onValueChange={(val) => {
+                    setCategoryFilter(val || "all");
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger id="categoryFilter" className="w-full h-10 border-gray-200 text-xs font-semibold bg-white truncate">
+                    <SelectValue placeholder="All Categories" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-gray-200 max-h-60">
+                    <SelectItem value="all" className="text-xs font-semibold cursor-pointer">
+                      All Categories
+                    </SelectItem>
+                    <SelectItem value="uncategorized" className="text-xs font-medium cursor-pointer text-amber-700">
+                      Uncategorized
+                    </SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.name} className="text-xs font-medium cursor-pointer">
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Budget Month Selector */}
-              <div className="lg:col-span-2 sm:col-span-2 flex flex-col gap-1.5">
+              <div className="xl:col-span-2 lg:col-span-2 sm:col-span-1 md:col-span-1 flex flex-col gap-1.5">
                 <Label htmlFor="budgetMonthFilter" className="text-xs font-semibold text-gray-700">Budget Month</Label>
                 <Select
                   value={selectedBudgetPeriod}
@@ -674,7 +726,7 @@ export default function GroceryPage() {
                     setCurrentPage(1);
                   }}
                 >
-                  <SelectTrigger id="budgetMonthFilter" className="w-full h-10 border-gray-200 text-xs font-semibold bg-white">
+                  <SelectTrigger id="budgetMonthFilter" className="w-full h-10 border-gray-200 text-xs font-semibold bg-white truncate">
                     <SelectValue placeholder="Select Month" />
                   </SelectTrigger>
                   <SelectContent className="bg-white border-gray-200">
@@ -697,7 +749,7 @@ export default function GroceryPage() {
               </div>
 
               {/* From Date */}
-              <div className="lg:col-span-2 sm:col-span-1 flex flex-col gap-1.5">
+              <div className="xl:col-span-2 lg:col-span-2 sm:col-span-1 md:col-span-1 flex flex-col gap-1.5">
                 <Label htmlFor="fromDate" className="text-xs font-semibold text-gray-700">From Date</Label>
                 <Input
                   id="fromDate"
@@ -712,7 +764,7 @@ export default function GroceryPage() {
               </div>
 
               {/* To Date */}
-              <div className="lg:col-span-2 sm:col-span-1 flex flex-col gap-1.5">
+              <div className="xl:col-span-2 lg:col-span-2 sm:col-span-1 md:col-span-1 flex flex-col gap-1.5">
                 <Label htmlFor="toDate" className="text-xs font-semibold text-gray-700">To Date</Label>
                 <Input
                   id="toDate"
@@ -727,7 +779,7 @@ export default function GroceryPage() {
               </div>
 
               {/* Slip Status Filter */}
-              <div className="lg:col-span-2 sm:col-span-1 flex flex-col gap-1.5">
+              <div className="xl:col-span-1 lg:col-span-1 sm:col-span-1 md:col-span-1 flex flex-col gap-1.5">
                 <Label htmlFor="status" className="text-xs font-semibold text-gray-700">Slip Status</Label>
                 <Select
                   value={statusFilter}
@@ -736,21 +788,21 @@ export default function GroceryPage() {
                     setCurrentPage(1);
                   }}
                 >
-                  <SelectTrigger id="status" className="w-full h-10 border-gray-200 text-sm font-semibold">
-                    <SelectValue placeholder="Select Status" />
+                  <SelectTrigger id="status" className="w-full h-10 border-gray-200 text-xs font-semibold truncate">
+                    <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All</SelectItem>
                     <SelectItem value="uploaded">Slip Uploaded</SelectItem>
                     <SelectItem value="missing">Slip Missing</SelectItem>
-                    <SelectItem value="approved">Approved Without Slip</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               {/* Reset button */}
-              <div className="lg:col-span-1 sm:col-span-1 flex flex-col gap-1.5">
-                <Label className="text-xs font-semibold text-transparent select-none hidden lg:block">Reset</Label>
+              <div className="xl:col-span-1 lg:col-span-1 sm:col-span-1 md:col-span-1 flex flex-col gap-1.5">
+                <Label className="text-xs font-semibold text-transparent select-none hidden sm:block">Reset</Label>
                 <Button
                   onClick={handleResetFilters}
                   variant="outline"
@@ -758,7 +810,7 @@ export default function GroceryPage() {
                   title="Reset All Filters"
                 >
                   <RotateCcwIcon className="size-4" />
-                  <span className="lg:hidden ml-1">Reset</span>
+                  <span className="sm:hidden ml-1">Reset</span>
                 </Button>
               </div>
             </div>

@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { format, startOfMonth, endOfMonth } from "date-fns";
+import { format } from "date-fns";
 import { useStore } from "@/lib/store";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,25 +29,24 @@ import {
   SearchIcon,
   RotateCcwIcon,
   FileTextIcon,
-  CoinsIcon,
-  TrendingUpIcon,
-  CreditCardIcon,
-  ShoppingBagIcon,
   CalendarIcon,
-  ShieldCheckIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Entity, SlipStatus } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
+import * as XLSX from "xlsx";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export default function ReportsPage() {
-  const { currentUser, activeEntity, budgets, groceryEntries, currentMonth, currentYear, getEntityBudget } = useStore();
+  const { currentUser, activeEntity, groceryEntries, categories, currentMonth, currentYear, getEntityBudget } = useStore();
   const isAdmin = currentUser?.role === "ADMIN";
 
-  // Filter States (defaults to empty so all expenses for entity are shown initially)
+  // Filter States
   const [reportEntity, setReportEntity] = useState<Entity>(
     currentUser?.assignedEntity || activeEntity
   );
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -63,6 +62,7 @@ export default function ReportsPage() {
   // Handle Reset
   const handleReset = () => {
     setReportEntity(currentUser?.assignedEntity || activeEntity);
+    setCategoryFilter("all");
     setFromDate("");
     setToDate("");
     setStatusFilter("all");
@@ -76,13 +76,23 @@ export default function ReportsPage() {
       // Entity match
       if (entry.entity !== reportEntity) return false;
 
+      // Category filter
+      if (categoryFilter !== "all") {
+        if (categoryFilter === "uncategorized") {
+          if (entry.category && entry.category.trim() !== "") return false;
+        } else {
+          if (!entry.category || entry.category.toLowerCase() !== categoryFilter.toLowerCase()) return false;
+        }
+      }
+
       // Search query
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const matchesDetails = entry.details.toLowerCase().includes(query);
         const matchesAddedBy = entry.addedBy.toLowerCase().includes(query);
+        const matchesCategory = (entry.category || "").toLowerCase().includes(query);
         const matchesAmount = entry.amount.toString().includes(query);
-        if (!matchesDetails && !matchesAddedBy && !matchesAmount) return false;
+        if (!matchesDetails && !matchesAddedBy && !matchesCategory && !matchesAmount) return false;
       }
 
       // Date ranges
@@ -98,7 +108,7 @@ export default function ReportsPage() {
 
       return true;
     });
-  }, [groceryEntries, reportEntity, fromDate, toDate, statusFilter, searchQuery]);
+  }, [groceryEntries, reportEntity, categoryFilter, fromDate, toDate, statusFilter, searchQuery]);
 
   // Budget for selected entity in the active period
   const totalBudget = getEntityBudget(reportEntity, currentMonth, currentYear);
@@ -116,20 +126,161 @@ export default function ReportsPage() {
     return `${fromStr} — ${toStr}`;
   };
 
-  // Export spreadsheet triggered
+  // Export Excel
   const triggerExcelExport = () => {
-    toast.loading("Exporting Excel report...", { id: "excel-loader" });
-    setTimeout(() => {
+    toast.loading("Generating Excel report...", { id: "excel-loader" });
+    try {
+      const categoryLabel = categoryFilter === "all" ? "All Categories" : categoryFilter === "uncategorized" ? "Uncategorized" : categoryFilter;
+      const titleText = `${reportEntity.toUpperCase()} GROCERY EXPENSES AUDIT REPORT`;
+      const subtitleText = `Period: ${formatDateRange()} | Category: ${categoryLabel} | Exported: ${format(new Date(), "dd MMM yyyy, hh:mm a")}`;
+      
+      const summaryBudget = `Allocated Budget: Rs. ${totalBudget.toLocaleString()}`;
+      const summarySpent = `Total Spent: Rs. ${totalSpent.toLocaleString()}`;
+      const summaryRemaining = `Remaining Balance: Rs. ${remainingBalance.toLocaleString()}`;
+      const summaryCount = `Total Entries: ${totalEntriesCount}`;
+
+      const aoaData: any[][] = [
+        [titleText],
+        [subtitleText],
+        [],
+        [summaryBudget, "", "", summarySpent, "", ""],
+        [summaryRemaining, "", "", summaryCount, "", ""],
+        [],
+        ["Slip", "Date", "Grocery Details", "Category", "Amount (Rs.)", "Status"]
+      ];
+
+      filteredEntries.forEach((e) => {
+        aoaData.push([
+          e.status === "Slip Uploaded" ? "Yes" : "No",
+          e.date ? format(new Date(e.date), "dd MMM yyyy") : "-",
+          e.details,
+          e.category || "Uncategorized",
+          e.amount,
+          e.status
+        ]);
+      });
+
+      const worksheet = XLSX.utils.aoa_to_sheet(aoaData);
+
+      worksheet["!merges"] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
+        { s: { r: 3, c: 0 }, e: { r: 3, c: 2 } },
+        { s: { r: 3, c: 3 }, e: { r: 3, c: 5 } },
+        { s: { r: 4, c: 0 }, e: { r: 4, c: 2 } },
+        { s: { r: 4, c: 3 }, e: { r: 4, c: 5 } }
+      ];
+
+      worksheet["!cols"] = [
+        { wch: 10 },
+        { wch: 15 },
+        { wch: 42 },
+        { wch: 24 },
+        { wch: 16 },
+        { wch: 20 }
+      ];
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Report");
+
+      const filename = `grocery_report_${reportEntity.toLowerCase()}_${format(new Date(), "yyyyMMdd")}.xlsx`;
+      XLSX.writeFile(workbook, filename);
+
       toast.success("Excel report exported successfully.", { id: "excel-loader" });
-    }, 1000);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to generate Excel report.", { id: "excel-loader" });
+    }
   };
 
-  // Export PDF triggered
+  // Export PDF
   const triggerPDFExport = () => {
-    toast.loading("Exporting PDF document...", { id: "pdf-loader" });
-    setTimeout(() => {
+    toast.loading("Generating PDF report...", { id: "pdf-loader" });
+    try {
+      const doc = new jsPDF();
+      const categoryLabel = categoryFilter === "all" ? "All Categories" : categoryFilter === "uncategorized" ? "Uncategorized" : categoryFilter;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.setTextColor(5, 150, 105);
+      doc.text("Grocery Expense Audit Report", 14, 20);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Entity: ${reportEntity} Branch`, 14, 28);
+      doc.text(`Period: ${formatDateRange()}  |  Category Filter: ${categoryLabel}`, 14, 34);
+      doc.text(`Report Generated: ${format(new Date(), "dd MMMM yyyy, hh:mm a")}`, 14, 40);
+
+      doc.setDrawColor(226, 232, 240);
+      doc.line(14, 45, 196, 45);
+
+      doc.setFillColor(248, 250, 252);
+      doc.rect(14, 48, 182, 22, "F");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text("CURRENT BUDGET", 18, 54);
+      doc.text("TOTAL SPENT", 64, 54);
+      doc.text("REMAINING BALANCE", 110, 54);
+      doc.text("TOTAL ENTRIES", 158, 54);
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(30, 41, 59);
+      doc.text(`Rs. ${totalBudget.toLocaleString()}`, 18, 62);
+      doc.setTextColor(5, 150, 105);
+      doc.text(`Rs. ${totalSpent.toLocaleString()}`, 64, 62);
+      doc.setTextColor(remainingBalance < 0 ? 220 : 30, remainingBalance < 0 ? 38 : 41, remainingBalance < 0 ? 38 : 59);
+      doc.text(`${remainingBalance < 0 ? "-" : ""}Rs. ${Math.abs(remainingBalance).toLocaleString()}`, 110, 62);
+      doc.setTextColor(30, 41, 59);
+      doc.text(`${totalEntriesCount}`, 158, 62);
+
+      const headers = [["Date", "Grocery Details", "Category", "Amount", "Status"]];
+      const rows = filteredEntries.map((e) => [
+        e.date ? format(new Date(e.date), "dd MMM yyyy") : "-",
+        e.details,
+        e.category || "Uncategorized",
+        `Rs. ${e.amount.toLocaleString()}`,
+        e.status
+      ]);
+
+      autoTable(doc, {
+        startY: 76,
+        head: headers,
+        body: rows,
+        headStyles: {
+          fillColor: [5, 150, 105],
+          textColor: [255, 255, 255],
+          fontSize: 8.5,
+          fontStyle: "bold"
+        },
+        bodyStyles: {
+          fontSize: 8,
+          textColor: [30, 41, 59]
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252]
+        },
+        columnStyles: {
+          0: { cellWidth: 26 },
+          1: { cellWidth: "auto" },
+          2: { cellWidth: 34 },
+          3: { cellWidth: 26 },
+          4: { cellWidth: 28 },
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      const filename = `grocery_report_${reportEntity.toLowerCase()}_${format(new Date(), "yyyyMMdd")}.pdf`;
+      doc.save(filename);
+
       toast.success("PDF report exported successfully.", { id: "pdf-loader" });
-    }, 1000);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to generate PDF report.", { id: "pdf-loader" });
+    }
   };
 
   const getApprovalLabel = (entry: any) => {
@@ -168,7 +319,7 @@ export default function ReportsPage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">Grocery Reports</h1>
             <p className="text-sm text-gray-500 font-medium mt-0.5">
-              Generate and download grocery expense reports.
+              Generate and download grocery expense reports with category breakdowns.
             </p>
           </div>
 
@@ -194,16 +345,16 @@ export default function ReportsPage() {
         {/* Filter Panel */}
         <Card className="border border-gray-200 bg-white shadow-2xs">
           <CardContent className="p-4 md:p-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-12 gap-3.5 items-end">
               {/* Entity Selector (Locked for users) */}
-              <div className="lg:col-span-3 flex flex-col gap-1.5">
+              <div className="lg:col-span-2 sm:col-span-1 flex flex-col gap-1.5">
                 <Label htmlFor="reportEntity" className="text-xs font-semibold text-gray-700">Entity</Label>
                 <Select
                   value={reportEntity}
                   onValueChange={(val) => setReportEntity((val as Entity) || "Lahore")}
                   disabled={!isAdmin}
                 >
-                  <SelectTrigger id="reportEntity" className="h-10 border-gray-200 text-sm font-semibold disabled:bg-gray-50 disabled:text-gray-400">
+                  <SelectTrigger id="reportEntity" className="h-10 border-gray-200 text-xs font-semibold disabled:bg-gray-50 disabled:text-gray-400">
                     <SelectValue placeholder="Select Entity" />
                   </SelectTrigger>
                   <SelectContent>
@@ -214,8 +365,34 @@ export default function ReportsPage() {
                 </Select>
               </div>
 
+              {/* Category Filter */}
+              <div className="lg:col-span-2 sm:col-span-1 flex flex-col gap-1.5">
+                <Label htmlFor="categoryFilter" className="text-xs font-semibold text-gray-700">Category</Label>
+                <Select
+                  value={categoryFilter}
+                  onValueChange={(val) => setCategoryFilter(val || "all")}
+                >
+                  <SelectTrigger id="categoryFilter" className="h-10 border-gray-200 text-xs font-semibold bg-white truncate">
+                    <SelectValue placeholder="All Categories" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-gray-200 max-h-60">
+                    <SelectItem value="all" className="text-xs font-semibold cursor-pointer">
+                      All Categories
+                    </SelectItem>
+                    <SelectItem value="uncategorized" className="text-xs font-medium cursor-pointer text-amber-700">
+                      Uncategorized
+                    </SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.name} className="text-xs font-medium cursor-pointer">
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* From Date */}
-              <div className="lg:col-span-2 flex flex-col gap-1.5">
+              <div className="lg:col-span-2 sm:col-span-1 flex flex-col gap-1.5">
                 <Label htmlFor="fromDate" className="text-xs font-semibold text-gray-700">From Date</Label>
                 <Input
                   id="fromDate"
@@ -227,7 +404,7 @@ export default function ReportsPage() {
               </div>
 
               {/* To Date */}
-              <div className="lg:col-span-2 flex flex-col gap-1.5">
+              <div className="lg:col-span-2 sm:col-span-1 flex flex-col gap-1.5">
                 <Label htmlFor="toDate" className="text-xs font-semibold text-gray-700">To Date</Label>
                 <Input
                   id="toDate"
@@ -239,42 +416,47 @@ export default function ReportsPage() {
               </div>
 
               {/* Slip Status Filter */}
-              <div className="lg:col-span-2 flex flex-col gap-1.5">
-                <Label htmlFor="status" className="text-xs font-semibold text-gray-700">Slip Status</Label>
+              <div className="lg:col-span-1 sm:col-span-1 flex flex-col gap-1.5">
+                <Label htmlFor="status" className="text-xs font-semibold text-gray-700">Status</Label>
                 <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val || "all")}>
-                  <SelectTrigger id="status" className="h-10 border-gray-200 text-sm font-semibold">
+                  <SelectTrigger id="status" className="h-10 border-gray-200 text-xs font-semibold truncate">
                     <SelectValue placeholder="Select Status" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="uploaded">Slip Uploaded</SelectItem>
-                    <SelectItem value="missing">Slip Missing</SelectItem>
-                    <SelectItem value="approved">Approved Without Slip</SelectItem>
+                    <SelectItem value="uploaded">Uploaded</SelectItem>
+                    <SelectItem value="missing">Missing</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               {/* Keyword search */}
-              <div className="lg:col-span-2 flex flex-col gap-1.5">
+              <div className="lg:col-span-2 sm:col-span-2 flex flex-col gap-1.5">
                 <Label htmlFor="keyword" className="text-xs font-semibold text-gray-700">Keyword</Label>
-                <Input
-                  id="keyword"
-                  placeholder="e.g. Rice"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-10 border-gray-200 text-sm"
-                />
+                <div className="relative">
+                  <SearchIcon className="absolute left-3 top-3 size-4 text-gray-400" />
+                  <Input
+                    id="keyword"
+                    placeholder="Search details / category..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9 h-10 border-gray-200 text-sm"
+                  />
+                </div>
               </div>
 
               {/* Reset button */}
-              <div className="lg:col-span-1">
+              <div className="lg:col-span-1 sm:col-span-1 flex flex-col gap-1.5">
+                <Label className="text-xs font-semibold text-transparent select-none hidden sm:block">Reset</Label>
                 <Button
                   onClick={handleReset}
                   variant="outline"
-                  className="w-full h-10 border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-1"
+                  className="w-full h-10 border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-1 p-0"
+                  title="Reset All Filters"
                 >
                   <RotateCcwIcon className="size-4" />
-                  Reset
+                  <span className="sm:hidden ml-1">Reset</span>
                 </Button>
               </div>
             </div>
@@ -337,6 +519,7 @@ export default function ReportsPage() {
                     <TableHead className="w-12 text-center text-xs font-bold text-gray-400">Slip</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">Date</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">Grocery Details</TableHead>
+                    <TableHead className="text-xs font-bold text-gray-400">Category</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">Amount</TableHead>
                     <TableHead className="text-right text-xs font-bold text-gray-400">Approval Status</TableHead>
                   </TableRow>
@@ -344,7 +527,7 @@ export default function ReportsPage() {
                 <TableBody>
                   {filteredEntries.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="h-48 text-center text-gray-400 text-sm">
+                      <TableCell colSpan={6} className="h-48 text-center text-gray-400 text-sm">
                         No transactions found in this date range matching the search parameters.
                       </TableCell>
                     </TableRow>
@@ -360,6 +543,11 @@ export default function ReportsPage() {
                         <TableCell className="font-medium text-gray-700 max-w-[280px] truncate" title={entry.details}>
                           {entry.details}
                         </TableCell>
+                        <TableCell className="font-medium text-gray-600">
+                          <Badge variant="outline" className="bg-slate-50 border-gray-200 text-[10px] font-medium">
+                            {entry.category || "Uncategorized"}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="font-bold text-gray-900">
                           Rs. {entry.amount.toLocaleString()}
                         </TableCell>
@@ -374,7 +562,7 @@ export default function ReportsPage() {
             {/* Generated On Footer */}
             <div className="pt-4 border-t border-gray-100 flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase tracking-wider">
               <span>Security level: internal business only</span>
-              <span>Generated On: {format(new Date(), "dd August yyyy")}</span>
+              <span>Generated On: {format(new Date(), "dd MMMM yyyy")}</span>
             </div>
           </CardContent>
         </Card>
