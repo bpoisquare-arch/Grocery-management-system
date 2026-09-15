@@ -44,6 +44,7 @@ function formatGroceryEntry(entry: any) {
     entity: entry.entity,
     date: entry.date,
     details: entry.details,
+    category: entry.category || undefined,
     amount: typeof entry.amount === 'number' ? entry.amount : parseFloat(entry.amount) || 0,
     addedBy: entry.addedBy || 'Unknown User',
     status: entry.status || (entry.slipUrl ? 'Slip Uploaded' : 'Slip Missing'),
@@ -93,6 +94,9 @@ export async function GET(request: NextRequest) {
 
       // Attempt auto-migration of columns if DB user has ALTER privilege
       try {
+        await prisma.$executeRawUnsafe('ALTER TABLE `GroceryEntry` ADD COLUMN `category` VARCHAR(255) NULL');
+      } catch (e) {}
+      try {
         await prisma.$executeRawUnsafe('ALTER TABLE `GroceryEntry` ADD COLUMN `slipUrls` LONGTEXT NULL');
       } catch (e) {}
       try {
@@ -116,12 +120,12 @@ export async function GET(request: NextRequest) {
         // Attempt 3: Query explicit original columns
         if (entity) {
           entries = await prisma.$queryRawUnsafe<any[]>(
-            'SELECT id, entity, date, details, amount, addedBy, status, slipUrl, slipType, approvedByAdmin, createdAt, updatedAt FROM `GroceryEntry` WHERE `entity` = ? ORDER BY `date` DESC, `createdAt` DESC',
+            'SELECT id, entity, date, details, category, amount, addedBy, status, slipUrl, slipType, approvedByAdmin, createdAt, updatedAt FROM `GroceryEntry` WHERE `entity` = ? ORDER BY `date` DESC, `createdAt` DESC',
             entity
           );
         } else {
           entries = await prisma.$queryRawUnsafe<any[]>(
-            'SELECT id, entity, date, details, amount, addedBy, status, slipUrl, slipType, approvedByAdmin, createdAt, updatedAt FROM `GroceryEntry` ORDER BY `date` DESC, `createdAt` DESC'
+            'SELECT id, entity, date, details, category, amount, addedBy, status, slipUrl, slipType, approvedByAdmin, createdAt, updatedAt FROM `GroceryEntry` ORDER BY `date` DESC, `createdAt` DESC'
           );
         }
       }
@@ -144,6 +148,7 @@ export async function POST(request: NextRequest) {
       entity,
       date,
       details,
+      category,
       amount,
       addedBy,
       status,
@@ -187,6 +192,7 @@ export async function POST(request: NextRequest) {
           entity,
           date,
           details,
+          category: category ? String(category).trim() : null,
           amount: parseFloat(amount),
           addedBy: addedBy || 'Unknown User',
           status: computedStatus,
@@ -203,6 +209,9 @@ export async function POST(request: NextRequest) {
 
       // Attempt auto-migration
       try {
+        await prisma.$executeRawUnsafe('ALTER TABLE `GroceryEntry` ADD COLUMN `category` VARCHAR(255) NULL');
+      } catch (e) {}
+      try {
         await prisma.$executeRawUnsafe('ALTER TABLE `GroceryEntry` ADD COLUMN `slipUrls` LONGTEXT NULL');
       } catch (e) {}
       try {
@@ -215,6 +224,7 @@ export async function POST(request: NextRequest) {
             entity,
             date,
             details,
+            category: category ? String(category).trim() : null,
             amount: parseFloat(amount),
             addedBy: addedBy || 'Unknown User',
             status: computedStatus,
@@ -233,13 +243,14 @@ export async function POST(request: NextRequest) {
         const id = `cm_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
         const now = new Date();
         try {
-          // Try inserting with budgetMonth and slipUrls
+          // Try inserting with category, budgetMonth and slipUrls
           await prisma.$executeRawUnsafe(
-            'INSERT INTO `GroceryEntry` (`id`, `entity`, `date`, `details`, `amount`, `addedBy`, `status`, `budgetMonth`, `budgetYear`, `slipUrl`, `slipUrls`, `slipType`, `approvedByAdmin`, `createdAt`, `updatedAt`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO `GroceryEntry` (`id`, `entity`, `date`, `details`, `category`, `amount`, `addedBy`, `status`, `budgetMonth`, `budgetYear`, `slipUrl`, `slipUrls`, `slipType`, `approvedByAdmin`, `createdAt`, `updatedAt`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             id,
             entity,
             date,
             details,
+            category ? String(category).trim() : null,
             parseFloat(amount),
             addedBy || 'Unknown User',
             computedStatus,
@@ -253,7 +264,7 @@ export async function POST(request: NextRequest) {
             now
           );
         } catch (insertErr) {
-          // Fallback inserting without budgetMonth
+          // Fallback inserting without category
           await prisma.$executeRawUnsafe(
             'INSERT INTO `GroceryEntry` (`id`, `entity`, `date`, `details`, `amount`, `addedBy`, `status`, `slipUrl`, `slipType`, `approvedByAdmin`, `createdAt`, `updatedAt`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             id,
@@ -276,6 +287,7 @@ export async function POST(request: NextRequest) {
           entity,
           date,
           details,
+          category: category ? String(category).trim() : undefined,
           amount: parseFloat(amount),
           addedBy: addedBy || 'Unknown User',
           status: computedStatus,

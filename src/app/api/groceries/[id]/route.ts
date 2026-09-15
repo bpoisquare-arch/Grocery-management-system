@@ -45,6 +45,7 @@ function formatGroceryEntry(entry: any) {
     budgetMonth: entry.budgetMonth || derived.month,
     budgetYear: entry.budgetYear !== undefined && entry.budgetYear !== null ? Number(entry.budgetYear) : derived.year,
     details: entry.details,
+    category: entry.category || undefined,
     amount: entry.amount,
     addedBy: entry.addedBy,
     status: entry.status || (entry.slipUrl ? 'Slip Uploaded' : 'Slip Missing'),
@@ -69,6 +70,7 @@ export async function PUT(
     const updateData: any = {};
     if (body.date !== undefined) updateData.date = body.date;
     if (body.details !== undefined) updateData.details = body.details;
+    if (body.category !== undefined) updateData.category = body.category ? String(body.category).trim() : null;
     if (body.amount !== undefined) updateData.amount = parseFloat(body.amount);
     if (body.budgetMonth !== undefined) updateData.budgetMonth = body.budgetMonth;
     if (body.budgetYear !== undefined) updateData.budgetYear = parseInt(body.budgetYear, 10);
@@ -114,7 +116,7 @@ export async function PUT(
 
       // Attempt auto-migration
       try {
-        await prisma.$executeRawUnsafe('ALTER TABLE `GroceryEntry` ADD COLUMN `slipUrls` LONGTEXT NULL, ADD COLUMN `budgetMonth` VARCHAR(50) NULL, ADD COLUMN `budgetYear` INT NULL');
+        await prisma.$executeRawUnsafe('ALTER TABLE `GroceryEntry` ADD COLUMN `category` VARCHAR(255) NULL, ADD COLUMN `slipUrls` LONGTEXT NULL, ADD COLUMN `budgetMonth` VARCHAR(50) NULL, ADD COLUMN `budgetYear` INT NULL');
         updated = await (prisma as any).groceryEntry.update({
           where: { id },
           data: updateData,

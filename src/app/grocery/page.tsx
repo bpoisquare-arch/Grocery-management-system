@@ -31,6 +31,8 @@ import { EditGroceryModal } from "@/components/EditGroceryModal";
 import { ViewGroceryModal } from "@/components/ViewGroceryModal";
 import { ApproveWithoutSlipModal } from "@/components/ApproveWithoutSlipModal";
 import { DeleteGroceryModal } from "@/components/DeleteGroceryModal";
+import { CategoryCombobox } from "@/components/CategoryCombobox";
+import { AddCategorySheet } from "@/components/AddCategorySheet";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -66,6 +68,8 @@ export default function GroceryPage() {
     currentUser,
     activeEntity,
     groceryEntries,
+    categories,
+    assignCategoryToGrocery,
     deleteGroceryEntries,
     currentMonth,
     currentYear,
@@ -132,6 +136,28 @@ export default function GroceryPage() {
   const [approveModalOpen, setApproveModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<any>(null);
+
+  // Category Sheet State
+  const [addCategorySheetOpen, setAddCategorySheetOpen] = useState(false);
+  const [sheetInitialCategoryName, setSheetInitialCategoryName] = useState("");
+  const [targetGroceryIdForCategory, setTargetGroceryIdForCategory] = useState<string | null>(null);
+
+  const handleCategorySelect = (entryId: string, categoryName: string) => {
+    assignCategoryToGrocery(entryId, categoryName);
+    toast.success(`Category updated to "${categoryName}"`);
+  };
+
+  const handleOpenAddCategorySheet = (entryId?: string, initialName?: string) => {
+    setTargetGroceryIdForCategory(entryId || null);
+    setSheetInitialCategoryName(initialName || "");
+    setAddCategorySheetOpen(true);
+  };
+
+  const handleCategoryCreated = (categoryName: string) => {
+    if (targetGroceryIdForCategory) {
+      assignCategoryToGrocery(targetGroceryIdForCategory, categoryName);
+    }
+  };
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -237,10 +263,11 @@ export default function GroceryPage() {
 
   // Pagination Logic
   const totalPages = Math.ceil(filteredEntries.length / itemsPerPage) || 1;
+  const indexOfFirstItem = (currentPage - 1) * itemsPerPage;
+  const indexOfLastItem = indexOfFirstItem + itemsPerPage;
   const paginatedEntries = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredEntries.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredEntries, currentPage, itemsPerPage]);
+    return filteredEntries.slice(indexOfFirstItem, indexOfLastItem);
+  }, [filteredEntries, indexOfFirstItem, indexOfLastItem]);
 
   // Reset selection when entity, page or filters change
   useEffect(() => {
@@ -742,11 +769,11 @@ export default function GroceryPage() {
         <Card className="border border-gray-200 bg-white shadow-2xs">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <Table>
+              <Table className="min-w-[1050px]">
                 <TableHeader className="bg-slate-50/75">
                   <TableRow className="border-b border-gray-200/80">
                     {isAdmin && (
-                      <TableHead className="w-12 text-center">
+                      <TableHead className="w-10 text-center">
                         <Checkbox
                           checked={
                             paginatedEntries.length > 0 &&
@@ -757,18 +784,19 @@ export default function GroceryPage() {
                       </TableHead>
                     )}
                     <TableHead className="w-12 text-center text-xs font-bold text-gray-400">Slip</TableHead>
-                    <TableHead className="text-xs font-bold text-gray-400">Date</TableHead>
-                    <TableHead className="text-xs font-bold text-gray-400">Assigned Budget</TableHead>
-                    <TableHead className="text-xs font-bold text-gray-400">Grocery Details</TableHead>
-                    <TableHead className="text-xs font-bold text-gray-400">Amount</TableHead>
-                    <TableHead className="text-xs font-bold text-gray-400">Status</TableHead>
-                    <TableHead className="text-right text-xs font-bold text-gray-400">Actions</TableHead>
+                    <TableHead className="w-28 text-xs font-bold text-gray-400">Date</TableHead>
+                    <TableHead className="w-32 text-xs font-bold text-gray-400">Assigned Budget</TableHead>
+                    <TableHead className="text-xs font-bold text-gray-400 min-w-[180px]">Grocery Details</TableHead>
+                    <TableHead className="text-xs font-bold text-gray-400 min-w-[180px]">Match/Categorise</TableHead>
+                    <TableHead className="w-28 text-xs font-bold text-gray-400">Amount</TableHead>
+                    <TableHead className="w-36 text-xs font-bold text-gray-400">Status</TableHead>
+                    <TableHead className="w-12 text-right text-xs font-bold text-gray-400">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedEntries.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={isAdmin ? 8 : 7} className="h-64 text-center">
+                      <TableCell colSpan={isAdmin ? 9 : 8} className="h-64 text-center">
                         <div className="flex flex-col items-center justify-center gap-2 p-6 text-gray-400">
                           <span className="text-lg font-bold">No Matching Grocery Found</span>
                           <span className="text-sm">Try selecting a different budget month, adjusting search or filters.</span>
@@ -825,7 +853,7 @@ export default function GroceryPage() {
                               </div>
                             )}
                           </TableCell>
-                          <TableCell className="font-semibold text-gray-900">
+                          <TableCell className="font-semibold text-gray-900 whitespace-nowrap">
                             {entry.date ? (
                               (() => {
                                 const d = new Date(entry.date);
@@ -840,10 +868,18 @@ export default function GroceryPage() {
                               {entryMY.month} {entryMY.year}
                             </Badge>
                           </TableCell>
-                          <TableCell className="font-medium text-gray-700 max-w-[280px] truncate" title={entry.details}>
+                          <TableCell className="font-medium text-gray-700 max-w-[240px] truncate" title={entry.details}>
                             {entry.details}
                           </TableCell>
-                          <TableCell className="font-bold text-gray-900">
+                          <TableCell className="py-2">
+                            <CategoryCombobox
+                              value={entry.category}
+                              categories={categories}
+                              onSelect={(catName) => handleCategorySelect(entry.id, catName)}
+                              onAddNewCategory={(initialName) => handleOpenAddCategorySheet(entry.id, initialName)}
+                            />
+                          </TableCell>
+                          <TableCell className="font-bold text-gray-900 whitespace-nowrap">
                             Rs. {entry.amount.toLocaleString()}
                           </TableCell>
                           <TableCell>{getStatusBadge(entry.status)}</TableCell>
@@ -898,65 +934,44 @@ export default function GroceryPage() {
             {/* Pagination Controls */}
             {filteredEntries.length > 0 && (
               <div className="flex flex-col sm:flex-row justify-between items-center px-6 py-4 border-t border-gray-100 gap-4">
-                {/* Left: Row Selection / Stats */}
-                <div className="text-xs font-semibold text-gray-500">
-                  {isAdmin && selectedIds.length > 0 ? (
-                    <div className="flex items-center gap-3">
-                      <span className="text-gray-700">
-                        {selectedIds.length} of {filteredEntries.length} row(s) selected
-                      </span>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={handleBulkDelete}
-                        className="bg-red-600 hover:bg-red-700 text-white font-semibold h-8 px-2.5 text-[10px] flex items-center gap-1.5 rounded-md"
-                      >
-                        <Trash2Icon className="size-3.5" />
-                        Delete Selected
-                      </Button>
-                    </div>
-                  ) : (
-                    <div>
-                      Showing <span className="text-gray-800">{(currentPage - 1) * itemsPerPage + 1}</span> to{" "}
-                      <span className="text-gray-800">
-                        {Math.min(currentPage * itemsPerPage, filteredEntries.length)}
-                      </span>{" "}
-                      of <span className="text-gray-800">{filteredEntries.length}</span> entries
-                    </div>
-                  )}
+                <div className="text-xs text-gray-500 font-medium">
+                  Showing <span className="font-bold text-gray-800">{indexOfFirstItem + 1}</span> to{" "}
+                  <span className="font-bold text-gray-800">
+                    {Math.min(indexOfLastItem, filteredEntries.length)}
+                  </span>{" "}
+                  of <span className="font-bold text-gray-800">{filteredEntries.length}</span> entries
                 </div>
 
-                {/* Right: Rows per page + Page controls */}
-                <div className="flex flex-wrap items-center gap-6">
-                  {/* Rows per page select */}
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  {/* Rows per page selector */}
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-gray-500">Rows per page</span>
+                    <span className="text-xs text-gray-500 font-medium whitespace-nowrap">
+                      Rows per page
+                    </span>
                     <Select
-                      value={itemsPerPage.toString()}
+                      value={String(itemsPerPage)}
                       onValueChange={(val) => {
-                        if (val) {
-                          setItemsPerPage(parseInt(val));
-                          setCurrentPage(1);
-                        }
+                        setItemsPerPage(Number(val));
+                        setCurrentPage(1);
                       }}
                     >
-                      <SelectTrigger className="h-8 w-16 text-xs font-semibold border-gray-200 bg-white">
-                        <SelectValue placeholder="10" />
+                      <SelectTrigger className="w-16 h-8 text-xs font-semibold bg-white border-gray-200">
+                        <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5">5</SelectItem>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="20">20</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                        <SelectItem value="100">100</SelectItem>
+                      <SelectContent className="bg-white border-gray-200">
+                        <SelectItem value="10" className="text-xs font-semibold">10</SelectItem>
+                        <SelectItem value="25" className="text-xs font-semibold">25</SelectItem>
+                        <SelectItem value="50" className="text-xs font-semibold">50</SelectItem>
+                        <SelectItem value="100" className="text-xs font-semibold">100</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
-                  {/* Page index & controls */}
-                  <div className="flex items-center gap-4">
-                    <span className="text-xs font-bold text-gray-700">
-                      Page {currentPage} of {totalPages}
+                  {/* Page Navigation */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 font-medium">
+                      Page <span className="font-bold text-gray-800">{currentPage}</span> of{" "}
+                      <span className="font-bold text-gray-800">{totalPages}</span>
                     </span>
 
                     <div className="flex items-center gap-1">
@@ -1022,6 +1037,12 @@ export default function GroceryPage() {
       <EditGroceryModal open={editModalOpen} onOpenChange={setEditModalOpen} entry={selectedEntry} />
       <ApproveWithoutSlipModal open={approveModalOpen} onOpenChange={setApproveModalOpen} entry={selectedEntry} />
       <DeleteGroceryModal open={deleteModalOpen} onOpenChange={setDeleteModalOpen} entry={selectedEntry} />
+      <AddCategorySheet
+        open={addCategorySheetOpen}
+        onOpenChange={setAddCategorySheetOpen}
+        initialName={sheetInitialCategoryName}
+        onCategoryCreated={handleCategoryCreated}
+      />
     </DashboardLayout>
   );
 }

@@ -116,11 +116,33 @@ export interface User {
   assignedEntity?: Entity;
 }
 
+export interface Category {
+  id: string;
+  name: string;
+  type?: string;
+  entity?: Entity | 'All';
+  createdAt?: string;
+}
+
+export const initialCategories: Category[] = [
+  { id: 'cat-1', name: 'Food & Entertainment', type: 'Expense', entity: 'All' },
+  { id: 'cat-2', name: 'Vehicle Expense', type: 'Expense', entity: 'All' },
+  { id: 'cat-3', name: 'Food & Meals', type: 'Expense', entity: 'All' },
+  { id: 'cat-4', name: 'Repair & Maintenance', type: 'Expense', entity: 'All' },
+  { id: 'cat-5', name: 'Bank Charges', type: 'Expense', entity: 'All' },
+  { id: 'cat-6', name: 'Purchases', type: 'Expense', entity: 'All' },
+  { id: 'cat-7', name: 'Utilities Expense', type: 'Expense', entity: 'All' },
+  { id: 'cat-8', name: 'Misc Grocery', type: 'Expense', entity: 'All' },
+  { id: 'cat-9', name: 'Office Supplies', type: 'Expense', entity: 'All' },
+  { id: 'cat-10', name: 'Transportation', type: 'Expense', entity: 'All' },
+];
+
 export interface GroceryEntry {
   id: string;
   entity: Entity;
   date: string; // YYYY-MM-DD
   details: string;
+  category?: string; // e.g. "Food's & Entertainment"
   amount: number;
   addedBy: string;
   status: SlipStatus;
@@ -179,3 +201,4 @@ export const mockUsers: User[] = [
 export const mockBudgets: Budget[] = [];
 export const mockCommissionEntries: CommissionEntry[] = [];
 export const mockGroceryEntries: GroceryEntry[] = [];
+

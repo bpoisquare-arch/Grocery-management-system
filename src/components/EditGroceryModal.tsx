@@ -42,6 +42,8 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { GroceryEntry, SlipStatus } from "@/lib/mockData";
+import { CategoryCombobox } from "@/components/CategoryCombobox";
+import { AddCategorySheet } from "@/components/AddCategorySheet";
 
 interface EditGroceryModalProps {
   open: boolean;
@@ -71,6 +73,7 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
     currentMonth,
     currentYear,
     groceryEntries,
+    categories,
     budgets,
     updateGroceryEntry,
     getEntityBudget,
@@ -79,6 +82,9 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
   const [date, setDate] = useState<Date | undefined>(undefined);
   const [assignedBudgetMonth, setAssignedBudgetMonth] = useState<string>(currentMonth);
   const [assignedBudgetYear, setAssignedBudgetYear] = useState<number>(currentYear);
+  const [category, setCategory] = useState<string>("");
+  const [addCatSheetOpen, setAddCatSheetOpen] = useState(false);
+  const [initialCatName, setInitialCatName] = useState("");
   const [details, setDetails] = useState("");
   const [amountStr, setAmountStr] = useState("");
   const [slipItems, setSlipItems] = useState<SlipItem[]>([]);
@@ -191,6 +197,7 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
         }
       }
 
+      setCategory(entry.category || "");
       setDetails(entry.details || "");
       setAmountStr(entry.amount ? entry.amount.toString() : "");
 
@@ -223,79 +230,74 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, entry]);
 
-  // Live Budget calculations for selected assigned budget month
+  // Live Budget calculations for the chosen assignedBudgetMonth & assignedBudgetYear
   const totalBudget = getEntityBudget(targetEntity, assignedBudgetMonth, assignedBudgetYear);
-
-  const totalSpentInAssignedMonth = groceryEntries
-    .filter((item) => {
-      if (item.entity !== targetEntity) return false;
-      let eMonth = item.budgetMonth;
-      let eYear = item.budgetYear;
-      if (!eMonth && item.date) {
-        try {
-          const d = new Date(item.date);
-          if (!isNaN(d.getTime())) {
-            eMonth = ALL_MONTHS[d.getMonth()];
-            eYear = d.getFullYear();
-          }
-        } catch (e) {}
-      }
-      return (
-        (eMonth || '').toLowerCase() === assignedBudgetMonth.toLowerCase() &&
-        (eYear || currentYear) === assignedBudgetYear
-      );
+  const totalSpent = groceryEntries
+    .filter((e) => {
+      if (e.id === entry?.id) return false;
+      if (e.entity !== targetEntity) return false;
+      const my = e.budgetMonth && e.budgetYear
+        ? { month: e.budgetMonth, year: e.budgetYear }
+        : e.date ? { month: ALL_MONTHS[new Date(e.date).getMonth()], year: new Date(e.date).getFullYear() } : { month: currentMonth, year: currentYear };
+      return my.month.toLowerCase() === assignedBudgetMonth.toLowerCase() && my.year === assignedBudgetYear;
     })
-    .reduce((sum, item) => sum + item.amount, 0);
+    .reduce((sum, e) => sum + e.amount, 0);
 
-  const originalAmount = entry?.amount || 0;
-  const isSameBudgetMonthAsOriginal =
-    entry &&
-    (entry.budgetMonth || (entry.date ? ALL_MONTHS[new Date(entry.date).getMonth()] : '')) === assignedBudgetMonth;
-
-  const currentAdjustedSpent = isSameBudgetMonthAsOriginal
-    ? totalSpentInAssignedMonth - originalAmount
-    : totalSpentInAssignedMonth;
-
-  const remainingBalance = totalBudget - totalSpentInAssignedMonth;
   const newAmount = parseFloat(amountStr) || 0;
-  const remainingAfterSave = totalBudget - (currentAdjustedSpent + newAmount);
-  const isOverBudget = remainingAfterSave < 0;
+  const projectedTotalSpent = totalSpent + newAmount;
+  const projectedRemainingBalance = totalBudget - projectedTotalSpent;
+  const isOverBudget = projectedRemainingBalance < 0;
 
   // File Upload Handlers (Up to 10 slips, 30MB for PDF)
-  const handleFiles = (incomingFiles: File[]) => {
-    if (!incomingFiles || incomingFiles.length === 0) return;
+  const handleFiles = (files: File[]) => {
+    const validTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/gif",
+      "image/bmp",
+      "image/svg+xml",
+      "application/pdf",
+    ];
 
-    const availableSlots = 10 - slipItems.length;
-    if (availableSlots <= 0) {
-      toast.error("Maximum 10 slips limit reached for this grocery entry.");
+    const currentCount = slipItems.length;
+    const remainingSlots = 10 - currentCount;
+
+    if (remainingSlots <= 0) {
+      toast.error("Maximum 10 slips allowed per grocery entry.");
       return;
     }
 
-    if (incomingFiles.length > availableSlots) {
-      toast.warning(`Only first ${availableSlots} files added (Maximum 10 slips limit).`);
+    const filesToAdd = files.slice(0, remainingSlots);
+    if (files.length > remainingSlots) {
+      toast.warning(`Only adding first ${remainingSlots} file(s) to stay within 10 slips limit.`);
     }
 
-    const filesToProcess = incomingFiles.slice(0, availableSlots);
     const newItems: SlipItem[] = [];
 
-    for (const file of filesToProcess) {
+    for (const file of filesToAdd) {
       const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
       const isImage = file.type.startsWith("image/");
 
       if (!isPdf && !isImage) {
-        toast.error(`"${file.name}" is unsupported. Please upload JPG, PNG, WEBP, or PDF.`);
+        toast.error(`"${file.name}" is not a supported file type. Only JPG, PNG, and PDF files are accepted.`);
         continue;
       }
 
-      // Max size: 30MB for PDF, 10MB for images
-      const maxSize = isPdf ? 30 * 1024 * 1024 : 10 * 1024 * 1024;
-      if (file.size > maxSize) {
-        toast.error(`"${file.name}" exceeds the ${isPdf ? "30MB" : "10MB"} limit.`);
+      if (isPdf && file.size > 30 * 1024 * 1024) {
+        toast.error(`"${file.name}" exceeds the 30MB limit for PDF files.`);
+        continue;
+      }
+
+      if (isImage && file.size > 10 * 1024 * 1024) {
+        toast.error(`"${file.name}" exceeds the 10MB limit for images.`);
         continue;
       }
 
       const previewUrl = URL.createObjectURL(file);
-      const sizeStr = (file.size / (1024 * 1024)).toFixed(2) + " MB";
+      const sizeStr = file.size > 1024 * 1024
+        ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+        : `${Math.round(file.size / 1024)} KB`;
 
       newItems.push({
         id: `new-slip-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -389,6 +391,7 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
         budgetMonth: assignedBudgetMonth,
         budgetYear: assignedBudgetYear,
         details: details.trim(),
+        category: category || undefined,
         amount: newAmount,
         status: newStatus,
         slipUrls: retainedUrls,
@@ -463,7 +466,7 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
                 </p>
               </div>
 
-              {/* Date & Amount Row */}
+              {/* Date & Category Row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Date */}
                 <div className="flex flex-col gap-1.5">
@@ -493,22 +496,37 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
                   </Popover>
                 </div>
 
-                {/* Amount */}
+                {/* Category Combobox */}
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="edit-amount" className="text-xs font-semibold text-gray-700">AMOUNT (RS.) *</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-xs text-gray-400 font-semibold">Rs.</span>
-                    <Input
-                      id="edit-amount"
-                      type="number"
-                      step="any"
-                      value={amountStr}
-                      onChange={(e) => setAmountStr(e.target.value)}
-                      placeholder="0.00"
-                      className="pl-9 h-10 text-xs font-semibold border-gray-200 focus:border-emerald-500 focus:ring-emerald-500"
-                      required
-                    />
-                  </div>
+                  <Label className="text-xs font-semibold text-gray-700">CATEGORY / MATCH</Label>
+                  <CategoryCombobox
+                    value={category}
+                    categories={categories}
+                    onSelect={(catName) => setCategory(catName)}
+                    onAddNewCategory={(initialName) => {
+                      setInitialCatName(initialName || "");
+                      setAddCatSheetOpen(true);
+                    }}
+                    className="w-full max-w-full h-10"
+                  />
+                </div>
+              </div>
+
+              {/* Amount */}
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="edit-amount" className="text-xs font-semibold text-gray-700">AMOUNT (RS.) *</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-xs text-gray-400 font-semibold">Rs.</span>
+                  <Input
+                    id="edit-amount"
+                    type="number"
+                    step="any"
+                    value={amountStr}
+                    onChange={(e) => setAmountStr(e.target.value)}
+                    placeholder="0.00"
+                    className="pl-9 h-10 text-xs font-semibold border-gray-200 focus:border-emerald-500 focus:ring-emerald-500"
+                    required
+                  />
                 </div>
               </div>
 
@@ -826,6 +844,15 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
           </DialogContent>
         </Dialog>
       )}
+
+      <AddCategorySheet
+        open={addCatSheetOpen}
+        onOpenChange={setAddCatSheetOpen}
+        initialName={initialCatName}
+        onCategoryCreated={(catName) => {
+          setCategory(catName);
+        }}
+      />
     </>
   );
 }

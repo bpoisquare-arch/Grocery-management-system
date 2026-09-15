@@ -5,6 +5,8 @@ import {
   User,
   GroceryEntry,
   Budget,
+  Category,
+  initialCategories,
   mockBudgets,
   mockGroceryEntries,
   Entity,
@@ -33,6 +35,7 @@ interface StoreContextType {
   currentUser: User | null;
   activeEntity: Entity;
   groceryEntries: GroceryEntry[];
+  categories: Category[];
   budgets: Budget[];
   commissionEntries: CommissionEntry[];
   counselors: Counselor[];
@@ -45,11 +48,14 @@ interface StoreContextType {
   setCurrentMonth: (month: string) => void;
   setCurrentYear: (year: number) => void;
   refreshData: () => Promise<void>;
+  addCategory: (name: string, entity?: Entity | 'All') => Promise<Category>;
+  assignCategoryToGrocery: (groceryId: string, categoryName: string) => Promise<void>;
   addGroceryEntry: (entry: {
     date: string;
     budgetMonth?: string;
     budgetYear?: number;
     details: string;
+    category?: string;
     amount: number;
     status: SlipStatus;
     slipFile?: File | null;
@@ -63,6 +69,7 @@ interface StoreContextType {
       budgetMonth?: string;
       budgetYear?: number;
       details?: string;
+      category?: string;
       amount?: number;
       status?: SlipStatus;
       slipFile?: File | null;
@@ -149,6 +156,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeEntity, setActiveEntity] = useState<Entity>('Lahore');
   const [groceryEntries, setGroceryEntries] = useState<GroceryEntry[]>([]);
+  const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [commissionEntries, setCommissionEntries] = useState<CommissionEntry[]>([]);
   const [counselors, setCounselors] = useState<Counselor[]>([]);
@@ -160,8 +168,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // Function to load live data from database API routes
   const refreshData = useCallback(async () => {
     try {
-      const [groceriesRes, budgetsRes, commissionsRes, counselorsRes] = await Promise.all([
+      const [groceriesRes, categoriesRes, budgetsRes, commissionsRes, counselorsRes] = await Promise.all([
         fetch('/api/groceries'),
+        fetch('/api/categories'),
         fetch('/api/budgets'),
         fetch('/api/commissions'),
         fetch('/api/counselors'),
@@ -172,6 +181,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (groceriesJson.success && Array.isArray(groceriesJson.data)) {
           setGroceryEntries(groceriesJson.data);
           safeSetLocalStorage('gem_grocery', JSON.stringify(groceriesJson.data));
+        }
+      }
+
+      if (categoriesRes.ok) {
+        const categoriesJson = await categoriesRes.json();
+        if (categoriesJson.success && Array.isArray(categoriesJson.data) && categoriesJson.data.length > 0) {
+          setCategories(categoriesJson.data);
+          safeSetLocalStorage('gem_categories', JSON.stringify(categoriesJson.data));
         }
       }
 
@@ -210,6 +227,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       const storedEntity = localStorage.getItem('gem_entity');
       const storedGrocery = localStorage.getItem('gem_grocery');
+      const storedCategories = localStorage.getItem('gem_categories');
       const storedBudgets = localStorage.getItem('gem_budgets');
       const storedCommissions = localStorage.getItem('gem_commissions');
       const storedCounselors = localStorage.getItem('gem_counselors');
@@ -219,6 +237,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (storedEntity) setActiveEntity(storedEntity as Entity);
       if (storedMonth) setCurrentMonthState(storedMonth);
       if (storedYear) setCurrentYearState(parseInt(storedYear, 10));
+
+      if (storedCategories) {
+        try {
+          const parsed: Category[] = JSON.parse(storedCategories);
+          // If stored categories contains legacy sample data like 'AAMI Fee', reset to the clean 10 categories
+          const hasLegacy = parsed.some((c) => c.name === 'AAMI Fee' || c.name === 'ASIC Fee' || c.name === 'BAS Expense');
+          if (Array.isArray(parsed) && parsed.length > 0 && !hasLegacy) {
+            setCategories(parsed);
+          } else {
+            setCategories(initialCategories);
+            safeSetLocalStorage('gem_categories', JSON.stringify(initialCategories));
+          }
+        } catch (e) {
+          setCategories(initialCategories);
+          safeSetLocalStorage('gem_categories', JSON.stringify(initialCategories));
+        }
+      } else {
+        setCategories(initialCategories);
+        safeSetLocalStorage('gem_categories', JSON.stringify(initialCategories));
+      }
 
       if (storedGrocery) {
         try {
@@ -466,11 +504,76 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const addCategory = async (name: string, entity?: Entity | 'All'): Promise<Category> => {
+    const trimmed = name.trim();
+    const existing = categories.find((c) => c.name.toLowerCase() === trimmed.toLowerCase());
+    if (existing) return existing;
+
+    const newCat: Category = {
+      id: `cat-${Date.now()}`,
+      name: trimmed,
+      type: 'Expense',
+      entity: entity || 'All',
+      createdAt: new Date().toISOString(),
+    };
+
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed, type: 'Expense', entity: entity || 'All' }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          const updated = [...categories.filter((c) => c.id !== json.data.id && c.name.toLowerCase() !== trimmed.toLowerCase()), json.data];
+          setCategories(updated);
+          safeSetLocalStorage('gem_categories', JSON.stringify(updated));
+          return json.data;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to post category to API:', e);
+    }
+
+    const updated = [...categories, newCat];
+    setCategories(updated);
+    safeSetLocalStorage('gem_categories', JSON.stringify(updated));
+    return newCat;
+  };
+
+  const assignCategoryToGrocery = async (groceryId: string, categoryName: string) => {
+    // Optimistic state update
+    const updated = groceryEntries.map((entry) => {
+      if (entry.id === groceryId) {
+        return {
+          ...entry,
+          category: categoryName,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return entry;
+    });
+    setGroceryEntries(updated);
+    safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
+
+    try {
+      await fetch(`/api/groceries/${groceryId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: categoryName }),
+      });
+    } catch (e) {
+      console.error('Failed to assign category via API:', e);
+    }
+  };
+
   const addGroceryEntry = async (entry: {
     date: string;
     budgetMonth?: string;
     budgetYear?: number;
     details: string;
+    category?: string;
     amount: number;
     status: SlipStatus;
     slipFile?: File | null;
@@ -536,6 +639,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       budgetMonth: assignedBudgetMonth,
       budgetYear: assignedBudgetYear,
       details: entry.details,
+      category: entry.category,
       amount: entry.amount,
       addedBy: currentUser ? currentUser.name : 'Unknown User',
       status: computedStatus,
@@ -572,6 +676,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       budgetMonth: assignedBudgetMonth,
       budgetYear: assignedBudgetYear,
       details: entry.details,
+      category: entry.category,
       amount: entry.amount,
       addedBy: currentUser ? currentUser.name : 'Unknown User',
       status: computedStatus,
@@ -594,6 +699,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       budgetMonth?: string;
       budgetYear?: number;
       details?: string;
+      category?: string;
       amount?: number;
       status?: SlipStatus;
       slipFile?: File | null;
@@ -1385,6 +1491,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         currentUser,
         activeEntity,
         groceryEntries,
+        categories,
         budgets,
         commissionEntries,
         counselors,
@@ -1397,6 +1504,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setCurrentMonth,
         setCurrentYear,
         refreshData,
+        addCategory,
+        assignCategoryToGrocery,
         addGroceryEntry,
         updateGroceryEntry,
         deleteGroceryEntry,

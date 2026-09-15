@@ -222,6 +222,13 @@ export function ViewGroceryModal({ open, onOpenChange, entry }: ViewGroceryModal
               </div>
 
               <div className="border-b border-gray-100 pb-2">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Category / Match</span>
+                <span className="font-semibold text-gray-900 text-xs mt-0.5 inline-flex items-center gap-1.5 bg-slate-100 px-2 py-0.5 rounded-md text-gray-800">
+                  {entry.category || "Uncategorized"}
+                </span>
+              </div>
+
+              <div className="border-b border-gray-100 pb-2">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Grocery Details</span>
                 <p className="font-medium text-gray-900 leading-relaxed mt-1 bg-slate-50 p-2.5 rounded-lg border border-gray-100">
                   {entry.details}

@@ -36,6 +36,7 @@ model GroceryEntry {
   entity          String   // Lahore, Multan, ISquareBPO
   date            String   // YYYY-MM-DD format
   details         String   @db.Text
+  category        String?  // e.g. "Food's & Entertainment"
   amount          Float
   addedBy         String
   status          String   // "Slip Uploaded", "Slip Missing", "Approved Without Slip"
@@ -47,6 +48,15 @@ model GroceryEntry {
   approvedByAdmin Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+model GroceryCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  type      String   @default("Expense")
+  entity    String   @default("All") // "Lahore", "Multan", "ISquareBPO", "All"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Counselor {

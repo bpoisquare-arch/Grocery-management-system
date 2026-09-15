@@ -43,6 +43,8 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { SlipStatus } from "@/lib/mockData";
+import { CategoryCombobox } from "@/components/CategoryCombobox";
+import { AddCategorySheet } from "@/components/AddCategorySheet";
 
 interface AddGroceryModalProps {
   open: boolean;
@@ -69,6 +71,7 @@ export function AddGroceryModal({ open, onOpenChange }: AddGroceryModalProps) {
     currentMonth,
     currentYear,
     groceryEntries,
+    categories,
     budgets,
     addGroceryEntry,
     getEntityBudget,
@@ -77,6 +80,9 @@ export function AddGroceryModal({ open, onOpenChange }: AddGroceryModalProps) {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [assignedBudgetMonth, setAssignedBudgetMonth] = useState<string>(currentMonth);
   const [assignedBudgetYear, setAssignedBudgetYear] = useState<number>(currentYear);
+  const [category, setCategory] = useState<string>("");
+  const [addCatSheetOpen, setAddCatSheetOpen] = useState(false);
+  const [initialCatName, setInitialCatName] = useState("");
   const [details, setDetails] = useState("");
   const [amountStr, setAmountStr] = useState("");
   const [slipItems, setSlipItems] = useState<SlipItem[]>([]);
@@ -131,6 +137,7 @@ export function AddGroceryModal({ open, onOpenChange }: AddGroceryModalProps) {
       setAssignedBudgetMonth(currentRealMonth);
       setAssignedBudgetYear(currentRealYear);
     }
+    setCategory("");
     setDetails("");
     setAmountStr("");
     cleanUpBlobs(slipItems);
@@ -288,6 +295,7 @@ export function AddGroceryModal({ open, onOpenChange }: AddGroceryModalProps) {
         budgetMonth: assignedBudgetMonth,
         budgetYear: assignedBudgetYear,
         details: details.trim(),
+        category: category || undefined,
         amount: newAmount,
         status,
         slipFiles: slipItems.map((item) => item.file),
@@ -366,7 +374,7 @@ export function AddGroceryModal({ open, onOpenChange }: AddGroceryModalProps) {
                 </p>
               </div>
 
-              {/* Date & Amount Row */}
+              {/* Date & Category Row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Date */}
                 <div className="flex flex-col gap-1.5">
@@ -396,22 +404,37 @@ export function AddGroceryModal({ open, onOpenChange }: AddGroceryModalProps) {
                   </Popover>
                 </div>
 
-                {/* Amount */}
+                {/* Category Combobox */}
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="amount" className="text-xs font-semibold text-gray-700">AMOUNT (RS.) *</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-xs text-gray-400 font-semibold">Rs.</span>
-                    <Input
-                      id="amount"
-                      type="number"
-                      step="any"
-                      value={amountStr}
-                      onChange={(e) => setAmountStr(e.target.value)}
-                      placeholder="0.00"
-                      className="pl-9 h-10 text-xs font-semibold border-gray-200 focus:border-emerald-500 focus:ring-emerald-500"
-                      required
-                    />
-                  </div>
+                  <Label className="text-xs font-semibold text-gray-700">CATEGORY / MATCH</Label>
+                  <CategoryCombobox
+                    value={category}
+                    categories={categories}
+                    onSelect={(catName) => setCategory(catName)}
+                    onAddNewCategory={(initialName) => {
+                      setInitialCatName(initialName || "");
+                      setAddCatSheetOpen(true);
+                    }}
+                    className="w-full max-w-full h-10"
+                  />
+                </div>
+              </div>
+
+              {/* Amount */}
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="amount" className="text-xs font-semibold text-gray-700">AMOUNT (RS.) *</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-xs text-gray-400 font-semibold">Rs.</span>
+                  <Input
+                    id="amount"
+                    type="number"
+                    step="any"
+                    value={amountStr}
+                    onChange={(e) => setAmountStr(e.target.value)}
+                    placeholder="0.00"
+                    className="pl-9 h-10 text-xs font-semibold border-gray-200 focus:border-emerald-500 focus:ring-emerald-500"
+                    required
+                  />
                 </div>
               </div>
 
@@ -705,6 +728,15 @@ export function AddGroceryModal({ open, onOpenChange }: AddGroceryModalProps) {
           </DialogContent>
         </Dialog>
       )}
+
+      <AddCategorySheet
+        open={addCatSheetOpen}
+        onOpenChange={setAddCatSheetOpen}
+        initialName={initialCatName}
+        onCategoryCreated={(catName) => {
+          setCategory(catName);
+        }}
+      />
     </>
   );
 }
