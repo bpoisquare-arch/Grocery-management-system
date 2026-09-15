@@ -309,8 +309,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             setCurrentUser(data.user);
             localStorage.setItem('gem_user', JSON.stringify(data.user));
             if (data.user.role === 'LAHORE_USER') {
-              setActiveEntity('Lahore');
-              safeSetLocalStorage('gem_entity', 'Lahore');
+              const savedEntity = localStorage.getItem('gem_entity') as Entity | null;
+              if (savedEntity === 'Miscellaneous' || savedEntity === 'Lahore') {
+                setActiveEntity(savedEntity);
+              } else {
+                setActiveEntity('Lahore');
+                safeSetLocalStorage('gem_entity', 'Lahore');
+              }
             } else if (data.user.role === 'MULTAN_USER') {
               setActiveEntity('Multan');
               safeSetLocalStorage('gem_entity', 'Multan');
@@ -355,7 +360,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const switchEntity = (entity: Entity) => {
-    if (currentUser?.role === 'ADMIN' || currentUser?.assignedEntity === entity) {
+    if (
+      currentUser?.role === 'ADMIN' ||
+      currentUser?.assignedEntity === entity ||
+      (currentUser?.role === 'LAHORE_USER' && (entity === 'Lahore' || entity === 'Miscellaneous'))
+    ) {
       setActiveEntity(entity);
       localStorage.setItem('gem_entity', entity);
     }
@@ -388,8 +397,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (res.ok && data.success && data.user) {
         saveUser(data.user);
         if (data.user.role === 'LAHORE_USER') {
-          setActiveEntity('Lahore');
-          safeSetLocalStorage('gem_entity', 'Lahore');
+          const savedEntity = localStorage.getItem('gem_entity') as Entity | null;
+          if (savedEntity === 'Miscellaneous' || savedEntity === 'Lahore') {
+            setActiveEntity(savedEntity);
+          } else {
+            setActiveEntity('Lahore');
+            safeSetLocalStorage('gem_entity', 'Lahore');
+          }
         } else if (data.user.role === 'MULTAN_USER') {
           setActiveEntity('Multan');
           safeSetLocalStorage('gem_entity', 'Multan');

@@ -136,7 +136,7 @@ export default function BudgetPage() {
   };
 
   // Compile history items across all entities with full sequential rollover calculations
-  const allEntities: Entity[] = ["Lahore", "Multan", "ISquareBPO"];
+  const allEntities: Entity[] = ["Lahore", "Multan", "ISquareBPO", "Miscellaneous"];
   const allChains = allEntities.flatMap((ent) => calculateEntityBudgetChain(ent));
 
   // Sort history items: year desc, month desc, entity
@@ -219,9 +219,10 @@ export default function BudgetPage() {
                       <SelectValue placeholder="Select Entity" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Lahore">Lahore Entity</SelectItem>
+                      <SelectItem value="Lahore">Lahore Entity (Main)</SelectItem>
                       <SelectItem value="Multan">Multan Entity</SelectItem>
                       <SelectItem value="ISquareBPO">ISquareBPO Entity</SelectItem>
+                      <SelectItem value="Miscellaneous">Miscellaneous Entity</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

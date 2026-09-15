@@ -42,9 +42,11 @@ export default function ReportsPage() {
   const { currentUser, activeEntity, groceryEntries, categories, currentMonth, currentYear, getEntityBudget } = useStore();
   const isAdmin = currentUser?.role === "ADMIN";
 
+  const isLahoreUser = currentUser?.role === "LAHORE_USER";
+
   // Filter States
   const [reportEntity, setReportEntity] = useState<Entity>(
-    currentUser?.assignedEntity || activeEntity
+    activeEntity || currentUser?.assignedEntity || "Lahore"
   );
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [fromDate, setFromDate] = useState("");
@@ -52,16 +54,18 @@ export default function ReportsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Lock user to their assigned entity if not Admin
+  // Lock user to their assigned entity if not Admin or Lahore user
   React.useEffect(() => {
-    if (currentUser && currentUser.role !== "ADMIN" && currentUser.assignedEntity) {
+    if (currentUser && !isAdmin && !isLahoreUser && currentUser.assignedEntity) {
       setReportEntity(currentUser.assignedEntity);
+    } else if (activeEntity) {
+      setReportEntity(activeEntity);
     }
-  }, [currentUser]);
+  }, [currentUser, isAdmin, isLahoreUser, activeEntity]);
 
   // Handle Reset
   const handleReset = () => {
-    setReportEntity(currentUser?.assignedEntity || activeEntity);
+    setReportEntity(activeEntity || currentUser?.assignedEntity || "Lahore");
     setCategoryFilter("all");
     setFromDate("");
     setToDate("");
@@ -346,21 +350,26 @@ export default function ReportsPage() {
         <Card className="border border-gray-200 bg-white shadow-2xs">
           <CardContent className="p-4 md:p-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-12 gap-3.5 items-end">
-              {/* Entity Selector (Locked for users) */}
+              {/* Entity Selector (Enabled for Admin and Lahore User) */}
               <div className="lg:col-span-2 sm:col-span-1 flex flex-col gap-1.5">
                 <Label htmlFor="reportEntity" className="text-xs font-semibold text-gray-700">Entity</Label>
                 <Select
                   value={reportEntity}
                   onValueChange={(val) => setReportEntity((val as Entity) || "Lahore")}
-                  disabled={!isAdmin}
+                  disabled={!isAdmin && !isLahoreUser}
                 >
                   <SelectTrigger id="reportEntity" className="h-10 border-gray-200 text-xs font-semibold disabled:bg-gray-50 disabled:text-gray-400">
                     <SelectValue placeholder="Select Entity" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Lahore">Lahore Entity</SelectItem>
-                    <SelectItem value="Multan">Multan Entity</SelectItem>
-                    <SelectItem value="ISquareBPO">ISquareBPO Entity</SelectItem>
+                    <SelectItem value="Lahore">Main Lahore</SelectItem>
+                    <SelectItem value="Miscellaneous">Miscellaneous Entity</SelectItem>
+                    {isAdmin && (
+                      <>
+                        <SelectItem value="Multan">Multan Entity</SelectItem>
+                        <SelectItem value="ISquareBPO">ISquareBPO Entity</SelectItem>
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
               </div>

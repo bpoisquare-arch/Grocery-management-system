@@ -27,6 +27,7 @@ import {
   CoinsIcon,
   BadgePercentIcon,
   LayoutGridIcon,
+  LayersIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,74 +48,63 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { isMobile } = useSidebar();
 
   const isAdmin = currentUser?.role === "ADMIN";
+  const isLahoreUser = currentUser?.role === "LAHORE_USER";
 
   // Build main navigation items
-  const navItems = [
+  const navigationItems = [
     {
       title: "Dashboard",
       url: "/dashboard",
       icon: LayoutDashboardIcon,
-      visible: true,
+      adminOnly: false,
     },
     {
       title: "Grocery Management",
       url: "/grocery",
       icon: ShoppingBagIcon,
-      visible: true,
+      adminOnly: false,
     },
     {
       title: "Monthly Budget",
       url: "/budget",
       icon: CoinsIcon,
-      visible: isAdmin, // Admin only
+      adminOnly: true,
     },
   ];
 
   return (
-    <Sidebar collapsible="offcanvas" {...props} className="border-r border-border bg-white">
-      <SidebarHeader className="border-b border-border py-4 px-4 bg-white">
-        <div className="flex flex-col gap-2">
-          {/* Logo */}
-          <div className="flex items-center gap-2">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-600 text-white">
-              <ShoppingBagIcon className="size-5" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold leading-none text-gray-900">Grocery Expense</span>
-              <span className="text-xs text-gray-500 font-medium">Manager</span>
-            </div>
+    <Sidebar collapsible="icon" className="border-r border-gray-200 bg-white" {...props}>
+      <SidebarHeader className="border-b border-gray-100 p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-2xs">
+            <ShoppingBagIcon className="size-5" />
           </div>
-
-          {/* Active Entity Badge */}
-          <div className="mt-2">
-            <Badge
-              variant="outline"
-              className={cn(
-                "w-full py-1.5 justify-start gap-2 border-emerald-100/80 font-medium text-xs rounded-md shadow-xs bg-emerald-50/50 text-emerald-800"
-              )}
-            >
-              <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
-              {isAdmin ? "ADMIN" : `${activeEntity.toUpperCase()} USER`}
-            </Badge>
+          <div className="flex flex-col overflow-hidden">
+            <span className="text-sm font-bold tracking-tight text-gray-900 truncate">Grocery Manager</span>
+            <span className="text-[11px] font-medium text-emerald-700 truncate">
+              {activeEntity === "Lahore" ? "Main Lahore" : `${activeEntity} Entity`}
+            </span>
           </div>
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="py-4 px-3 bg-white">
-        <SidebarMenu className="gap-1">
-          {navItems
-            .filter((item) => item.visible)
+      <SidebarContent className="px-2 py-4 space-y-6">
+        {/* Main Navigation Menu */}
+        <SidebarMenu>
+          {navigationItems
+            .filter((item) => !item.adminOnly || isAdmin)
             .map((item) => {
               const isActive = pathname === item.url;
               return (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     render={<Link href={item.url} />}
+                    isActive={isActive}
                     tooltip={item.title}
                     className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150",
+                      "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
                       isActive
-                        ? "bg-emerald-50 text-emerald-700 font-medium"
+                        ? "bg-emerald-50 text-emerald-800 font-bold"
                         : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                     )}
                   >
@@ -130,8 +120,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               );
             })}
 
-          {/* Admin Entity Switcher Link */}
-          {isAdmin && (
+          {/* Entity Switcher for Admin & Lahore User */}
+          {(isAdmin || isLahoreUser) && (
             <SidebarMenuItem>
               <DropdownMenu>
                 <DropdownMenuTrigger
@@ -144,32 +134,63 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 >
                   <GitCompareIcon className="size-5 text-gray-400" />
                   <span className="flex-1 text-left">Switch Entity</span>
-                  <span className="text-[10px] text-gray-400 font-mono bg-gray-100 px-1 rounded">Admin</span>
+                  <span className="text-[10px] text-gray-500 font-mono bg-gray-100 px-1.5 py-0.5 rounded">
+                    {activeEntity === "Lahore" ? "Lahore" : activeEntity === "Miscellaneous" ? "Misc" : activeEntity}
+                  </span>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-52">
-                  <DropdownMenuLabel>Select Active Entity</DropdownMenuLabel>
+                <DropdownMenuContent align="start" className="w-56 bg-white border-gray-200">
+                  <DropdownMenuLabel className="text-xs font-bold text-gray-700">Select Active Entity</DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  
+                  {/* Lahore (Main) */}
                   <DropdownMenuItem
                     onClick={() => switchEntity("Lahore")}
-                    className={cn(activeEntity === "Lahore" && "bg-emerald-50 text-emerald-700 font-semibold")}
+                    className={cn(
+                      "cursor-pointer text-xs font-semibold",
+                      activeEntity === "Lahore" && "bg-emerald-50 text-emerald-700 font-bold"
+                    )}
                   >
-                    <Building2Icon className="size-4 mr-2" />
-                    Lahore Entity
+                    <Building2Icon className="size-4 mr-2 text-emerald-600" />
+                    Main Lahore
                   </DropdownMenuItem>
+
+                  {/* Miscellaneous */}
                   <DropdownMenuItem
-                    onClick={() => switchEntity("Multan")}
-                    className={cn(activeEntity === "Multan" && "bg-emerald-50 text-emerald-700 font-semibold")}
+                    onClick={() => switchEntity("Miscellaneous")}
+                    className={cn(
+                      "cursor-pointer text-xs font-semibold",
+                      activeEntity === "Miscellaneous" && "bg-purple-50 text-purple-700 font-bold"
+                    )}
                   >
-                    <Building2Icon className="size-4 mr-2" />
-                    Multan Entity
+                    <LayersIcon className="size-4 mr-2 text-purple-600" />
+                    Miscellaneous Entity
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => switchEntity("ISquareBPO")}
-                    className={cn(activeEntity === "ISquareBPO" && "bg-emerald-50 text-emerald-700 font-semibold")}
-                  >
-                    <Building2Icon className="size-4 mr-2" />
-                    ISquareBPO Entity
-                  </DropdownMenuItem>
+
+                  {/* Multan & ISquareBPO (Admin Only) */}
+                  {isAdmin && (
+                    <>
+                      <DropdownMenuItem
+                        onClick={() => switchEntity("Multan")}
+                        className={cn(
+                          "cursor-pointer text-xs font-semibold",
+                          activeEntity === "Multan" && "bg-emerald-50 text-emerald-700 font-bold"
+                        )}
+                      >
+                        <Building2Icon className="size-4 mr-2 text-emerald-600" />
+                        Multan Entity
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => switchEntity("ISquareBPO")}
+                        className={cn(
+                          "cursor-pointer text-xs font-semibold",
+                          activeEntity === "ISquareBPO" && "bg-emerald-50 text-emerald-700 font-bold"
+                        )}
+                      >
+                        <Building2Icon className="size-4 mr-2 text-emerald-600" />
+                        ISquareBPO Entity
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </SidebarMenuItem>

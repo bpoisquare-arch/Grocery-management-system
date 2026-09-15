@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -31,7 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { ShieldCheckIcon, UserIcon, ArrowLeftRightIcon } from "lucide-react";
+import { ShieldCheckIcon, UserIcon, ArrowLeftRightIcon, Building2Icon, LayersIcon } from "lucide-react";
 import { toast } from "sonner";
 
 export function SiteHeader() {
@@ -49,14 +49,19 @@ export function SiteHeader() {
 
   const getPageTitle = () => {
     switch (pathname) {
+      case "/":
       case "/dashboard":
-        return "Entity Dashboard";
+        return "Dashboard Overview";
       case "/grocery":
         return "Grocery Management";
       case "/budget":
-        return "Monthly Budget Management";
+        return "Monthly Budget Allocation";
+      case "/reports":
+        return "Expense Reports";
+      case "/settings":
+        return "Account Settings";
       default:
-        return "Grocery Expense Manager";
+        return "Expense Management";
     }
   };
 
@@ -99,7 +104,7 @@ export function SiteHeader() {
           <BreadcrumbList>
             <BreadcrumbItem>
               <BreadcrumbLink href="/dashboard" className="text-gray-500 hover:text-gray-900 font-medium">
-                {activeEntity} User
+                {activeEntity === "Lahore" ? "Main Lahore" : activeEntity === "Miscellaneous" ? "Miscellaneous" : `${activeEntity}`} Entity
               </BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
@@ -111,6 +116,76 @@ export function SiteHeader() {
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Quick Entity Switcher for Lahore User & Admin */}
+        {(currentUser?.role === "LAHORE_USER" || currentUser?.role === "ADMIN") && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2.5 gap-1.5 text-xs font-semibold bg-emerald-50/60 border-emerald-200 text-emerald-800 hover:bg-emerald-100/70"
+                />
+              }
+            >
+              {activeEntity === "Miscellaneous" ? (
+                <LayersIcon className="size-3.5 text-purple-600" />
+              ) : (
+                <Building2Icon className="size-3.5 text-emerald-600" />
+              )}
+              <span>{activeEntity === "Lahore" ? "Main Lahore" : activeEntity === "Miscellaneous" ? "Miscellaneous" : `${activeEntity}`}</span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52 bg-white border-gray-200">
+              <DropdownMenuLabel className="text-xs font-bold text-gray-700">Switch Active Entity</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  switchEntity("Lahore");
+                  toast.success("Switched to Main Lahore");
+                }}
+                className={activeEntity === "Lahore" ? "bg-emerald-50 text-emerald-800 font-bold" : "cursor-pointer text-xs"}
+              >
+                <Building2Icon className="size-4 mr-2 text-emerald-600" />
+                Main Lahore
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  switchEntity("Miscellaneous");
+                  toast.success("Switched to Miscellaneous Entity");
+                }}
+                className={activeEntity === "Miscellaneous" ? "bg-purple-50 text-purple-800 font-bold" : "cursor-pointer text-xs"}
+              >
+                <LayersIcon className="size-4 mr-2 text-purple-600" />
+                Miscellaneous Entity
+              </DropdownMenuItem>
+              {currentUser?.role === "ADMIN" && (
+                <>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      switchEntity("Multan");
+                      toast.success("Switched to Multan");
+                    }}
+                    className={activeEntity === "Multan" ? "bg-emerald-50 text-emerald-800 font-bold" : "cursor-pointer text-xs"}
+                  >
+                    <Building2Icon className="size-4 mr-2 text-emerald-600" />
+                    Multan Entity
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      switchEntity("ISquareBPO");
+                      toast.success("Switched to ISquareBPO");
+                    }}
+                    className={activeEntity === "ISquareBPO" ? "bg-emerald-50 text-emerald-800 font-bold" : "cursor-pointer text-xs"}
+                  >
+                    <Building2Icon className="size-4 mr-2 text-emerald-600" />
+                    ISquareBPO Entity
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+
         {/* Role Quick Switcher for testing/demo */}
         {currentUser && currentUser.role === "ADMIN" && (
           <DropdownMenu>
@@ -119,7 +194,7 @@ export function SiteHeader() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-9 px-3 gap-1.5 text-xs font-semibold bg-gray-50 border border-gray-200 hover:bg-gray-100 hover:text-gray-900"
+                  className="h-8 px-2.5 gap-1.5 text-xs font-semibold bg-gray-50 border border-gray-200 hover:bg-gray-100 hover:text-gray-900"
                 />
               }
             >

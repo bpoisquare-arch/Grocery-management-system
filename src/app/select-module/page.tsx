@@ -45,12 +45,8 @@ export default function SelectModulePage() {
   const isAdmin = currentUser.role === "ADMIN";
 
   const handleSelectGrocery = () => {
-    if (isAdmin) {
+    if (isAdmin || currentUser.role === "LAHORE_USER") {
       router.push("/select-entity");
-    } else if (currentUser.role === "LAHORE_USER") {
-      switchEntity("Lahore");
-      toast.success("Opening Lahore Grocery Management");
-      router.push("/dashboard");
     } else if (currentUser.role === "MULTAN_USER") {
       switchEntity("Multan");
       toast.success("Opening Multan Grocery Management");
@@ -166,7 +162,13 @@ export default function SelectModulePage() {
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Building2Icon className="size-4 text-emerald-600 shrink-0" />
-                  <span>{isAdmin ? "Lahore, Multan & ISquareBPO" : `${activeEntity} Entity`}</span>
+                  <span>
+                    {isAdmin
+                      ? "Lahore, Multan, ISquareBPO & Misc"
+                      : currentUser.role === "LAHORE_USER"
+                      ? "Main Lahore & Miscellaneous"
+                      : `${activeEntity} Entity`}
+                  </span>
                 </div>
               </div>
             </CardContent>
@@ -178,7 +180,11 @@ export default function SelectModulePage() {
                 }}
                 className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 group-hover:shadow-md cursor-pointer"
               >
-                <span>{isAdmin ? "Open Grocery Entity Selector" : `Open ${activeEntity} Grocery Module`}</span>
+                <span>
+                  {isAdmin || currentUser.role === "LAHORE_USER"
+                    ? "Open Grocery Entity Selector"
+                    : `Open ${activeEntity} Grocery Module`}
+                </span>
                 <ArrowRightIcon className="size-4 group-hover:translate-x-1 transition-transform" />
               </Button>
             </CardFooter>

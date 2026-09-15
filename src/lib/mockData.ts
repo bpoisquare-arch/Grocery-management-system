@@ -1,5 +1,5 @@
 export type Role = 'ADMIN' | 'LAHORE_USER' | 'MULTAN_USER' | 'ISQUAREBPO_USER';
-export type Entity = 'Lahore' | 'Multan' | 'ISquareBPO';
+export type Entity = 'Lahore' | 'Multan' | 'ISquareBPO' | 'Miscellaneous';
 export type SlipStatus = 'Slip Uploaded' | 'Slip Missing' | 'Approved Without Slip';
 
 export type CommissionService =
