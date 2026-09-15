@@ -232,7 +232,7 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
 
   // Live Budget calculations for the chosen assignedBudgetMonth & assignedBudgetYear
   const totalBudget = getEntityBudget(targetEntity, assignedBudgetMonth, assignedBudgetYear);
-  const totalSpent = groceryEntries
+  const totalSpentInAssignedMonth = groceryEntries
     .filter((e) => {
       if (e.id === entry?.id) return false;
       if (e.entity !== targetEntity) return false;
@@ -243,10 +243,11 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
     })
     .reduce((sum, e) => sum + e.amount, 0);
 
+  const originalAmount = entry?.amount || 0;
   const newAmount = parseFloat(amountStr) || 0;
-  const projectedTotalSpent = totalSpent + newAmount;
-  const projectedRemainingBalance = totalBudget - projectedTotalSpent;
-  const isOverBudget = projectedRemainingBalance < 0;
+  const projectedTotalSpent = totalSpentInAssignedMonth + newAmount;
+  const remainingAfterSave = totalBudget - projectedTotalSpent;
+  const isOverBudget = remainingAfterSave < 0;
 
   // File Upload Handlers (Up to 10 slips, 30MB for PDF)
   const handleFiles = (files: File[]) => {
