@@ -96,6 +96,9 @@ interface StoreContextType {
     fullReceived: boolean;
     counselorCommission?: number;
     bmCommission?: number;
+    claimedMonth?: string;
+    claimedYear?: number;
+    isClaimed?: boolean;
     notes?: string;
     slipFile?: File | null;
     slipFiles?: File[];
@@ -112,6 +115,9 @@ interface StoreContextType {
       fullReceived?: boolean;
       counselorCommission?: number;
       bmCommission?: number;
+      claimedMonth?: string;
+      claimedYear?: number;
+      isClaimed?: boolean;
       status?: SlipStatus;
       notes?: string;
       slipFile?: File | null;
@@ -1129,6 +1135,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     fullReceived: boolean;
     counselorCommission?: number;
     bmCommission?: number;
+    claimedMonth?: string;
+    claimedYear?: number;
+    isClaimed?: boolean;
     notes?: string;
     slipFile?: File | null;
     slipFiles?: File[];
@@ -1165,6 +1174,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         : 'image'
       : undefined;
 
+    const finalClaimedMonth = entry.claimedMonth || undefined;
+    const finalClaimedYear = entry.claimedYear || undefined;
+    const finalIsClaimed = typeof entry.isClaimed === 'boolean' ? entry.isClaimed : !!finalClaimedMonth;
+
     const payload = {
       entity: activeEntity,
       studentName: entry.studentName,
@@ -1175,6 +1188,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       fullReceived: entry.fullReceived,
       counselorCommission: entry.counselorCommission || 0,
       bmCommission: entry.bmCommission || 0,
+      claimedMonth: finalClaimedMonth,
+      claimedYear: finalClaimedYear,
+      isClaimed: finalIsClaimed,
       notes: entry.notes,
       status: finalSlipUrls.length > 0 ? 'Slip Uploaded' : 'Slip Missing',
       slipUrl: primarySlipUrl,
@@ -1214,6 +1230,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       fullReceived: entry.fullReceived,
       counselorCommission: entry.counselorCommission || 0,
       bmCommission: entry.bmCommission || 0,
+      claimedMonth: finalClaimedMonth,
+      claimedYear: finalClaimedYear,
+      isClaimed: finalIsClaimed,
+      claimedAt: finalIsClaimed ? new Date().toISOString() : undefined,
       notes: entry.notes,
       status: finalSlipUrls.length > 0 ? 'Slip Uploaded' : 'Slip Missing',
       slipUrl: primarySlipUrl,
@@ -1239,6 +1259,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       fullReceived?: boolean;
       counselorCommission?: number;
       bmCommission?: number;
+      claimedMonth?: string;
+      claimedYear?: number;
+      isClaimed?: boolean;
       status?: SlipStatus;
       notes?: string;
       slipFile?: File | null;

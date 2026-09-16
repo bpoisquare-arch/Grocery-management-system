@@ -57,9 +57,10 @@ import {
   Building2Icon,
   TrendingUpIcon,
   GraduationCapIcon,
+  CalendarCheckIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import { CommissionEntry, COMMISSION_SERVICES, SlipStatus } from "@/lib/mockData";
+import { CommissionEntry, COMMISSION_SERVICES, SlipStatus, ALL_MONTHS, ALL_YEARS } from "@/lib/mockData";
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -98,6 +99,8 @@ export default function CommissionsDashboardPage() {
   const [counselorFilter, setCounselorFilter] = useState("all");
   const [serviceFilter, setServiceFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [claimMonthFilter, setClaimMonthFilter] = useState("all");
+  const [claimYearFilter, setClaimYearFilter] = useState("all");
 
   // Selection state (for Admin bulk operations)
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -153,9 +156,19 @@ export default function CommissionsDashboardPage() {
         if (statusFilter === "approved" && entry.status !== "Approved Without Slip") return false;
       }
 
+      // Claimed Month filter
+      if (claimMonthFilter !== "all" && entry.claimedMonth?.toLowerCase() !== claimMonthFilter.toLowerCase()) {
+        return false;
+      }
+
+      // Claimed Year filter
+      if (claimYearFilter !== "all" && entry.claimedYear !== parseInt(claimYearFilter, 10)) {
+        return false;
+      }
+
       return true;
     });
-  }, [commissionEntries, activeEntity, search, fromDate, toDate, counselorFilter, serviceFilter, statusFilter]);
+  }, [commissionEntries, activeEntity, search, fromDate, toDate, counselorFilter, serviceFilter, statusFilter, claimMonthFilter, claimYearFilter]);
 
   // Statistics
   const totalAmountCollected = useMemo(() => {
@@ -180,7 +193,7 @@ export default function CommissionsDashboardPage() {
   // Reset selection on filter change
   useEffect(() => {
     setSelectedIds([]);
-  }, [activeEntity, search, fromDate, toDate, counselorFilter, serviceFilter, statusFilter, currentPage]);
+  }, [activeEntity, search, fromDate, toDate, counselorFilter, serviceFilter, statusFilter, claimMonthFilter, claimYearFilter, currentPage]);
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -214,6 +227,8 @@ export default function CommissionsDashboardPage() {
     setCounselorFilter("all");
     setServiceFilter("all");
     setStatusFilter("all");
+    setClaimMonthFilter("all");
+    setClaimYearFilter("all");
     setCurrentPage(1);
     toast.success("Filters reset.");
   };
@@ -272,7 +287,7 @@ export default function CommissionsDashboardPage() {
         [summaryCollected, "", summaryCc, ""],
         [summaryBm, "", summaryCount, ""],
         [],
-        ["Date", "Student Name", "Service", "Counselor", "Amount (Rs.)", "C.C (Rs.)", "B.M (Rs.)", "Slip Status"]
+        ["Date", "Student Name", "Service", "Counselor", "Amount (Rs.)", "C.C (Rs.)", "B.M (Rs.)", "Claimed Period", "Slip Status"]
       ];
 
       filteredEntries.forEach((e) => {
@@ -282,9 +297,9 @@ export default function CommissionsDashboardPage() {
           e.service,
           e.counselor,
           e.amount,
-          e.fullReceived ? "Full" : "Partial",
           e.counselorCommission || 0,
           e.bmCommission || 0,
+          e.isClaimed || e.claimedMonth ? `${e.claimedMonth || "Claimed"} ${e.claimedYear || ""}`.trim() : "Unclaimed",
           e.status
         ]);
       });
@@ -318,7 +333,7 @@ export default function CommissionsDashboardPage() {
         { wch: 15 },
         { wch: 15 },
         { wch: 15 },
-        { wch: 15 },
+        { wch: 18 },
         { wch: 18 },
       ];
 
@@ -355,16 +370,16 @@ export default function CommissionsDashboardPage() {
       doc.setDrawColor(226, 232, 240);
       doc.line(14, 35, 282, 35);
 
-      const headers = [["Date", "Student", "Service", "Counselor", "Amount", "Full Rec.", "C.C", "B.M", "Status"]];
+      const headers = [["Date", "Student", "Service", "Counselor", "Amount", "C.C", "B.M", "Claimed Period", "Status"]];
       const rows = filteredEntries.map((e) => [
         e.date ? format(new Date(e.date), "dd MMM yyyy") : "-",
         e.studentName,
         e.service,
         e.counselor,
         `Rs. ${e.amount.toLocaleString()}`,
-        e.fullReceived ? "Full" : "Partial",
         `Rs. ${(e.counselorCommission || 0).toLocaleString()}`,
         `Rs. ${(e.bmCommission || 0).toLocaleString()}`,
+        e.isClaimed || e.claimedMonth ? `${e.claimedMonth || "Claimed"} ${e.claimedYear || ""}`.trim() : "Unclaimed",
         e.status
       ]);
 
@@ -524,9 +539,9 @@ export default function CommissionsDashboardPage() {
         {/* Toolbar: Search and Filter fields with robust widths */}
         <Card className="border border-gray-200 bg-white shadow-2xs">
           <CardContent className="p-4 md:p-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-12 gap-3.5 items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-12 gap-3 items-end">
               {/* Search by Student Name */}
-              <div className="lg:col-span-4 flex flex-col gap-1.5">
+              <div className="lg:col-span-3 flex flex-col gap-1.5">
                 <Label htmlFor="searchStudent" className="text-xs font-semibold text-gray-700">
                   Search Student Name
                 </Label>
@@ -558,7 +573,7 @@ export default function CommissionsDashboardPage() {
                   <SelectTrigger className="h-10 border-gray-200 text-xs font-semibold bg-white w-full">
                     <SelectValue placeholder="All Counselors" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-56 bg-white">
                     <SelectItem value="all">All Counselors</SelectItem>
                     {branchCounselors.map((c) => (
                       <SelectItem key={c.id} value={c.name} className="text-xs font-medium cursor-pointer">
@@ -582,7 +597,7 @@ export default function CommissionsDashboardPage() {
                   <SelectTrigger className="h-10 border-gray-200 text-xs font-semibold bg-white w-full">
                     <SelectValue placeholder="All Services" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-56 bg-white">
                     <SelectItem value="all">All Services</SelectItem>
                     {COMMISSION_SERVICES.map((s) => (
                       <SelectItem key={s} value={s} className="text-xs font-medium cursor-pointer">
@@ -593,9 +608,60 @@ export default function CommissionsDashboardPage() {
                 </Select>
               </div>
 
-              {/* From Date */}
+              {/* Claimed Month Filter */}
               <div className="lg:col-span-2 flex flex-col gap-1.5">
-                <Label className="text-xs font-semibold text-gray-700">From Date</Label>
+                <Label className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                  <CalendarCheckIcon className="size-3 text-emerald-600" />
+                  Claim Month
+                </Label>
+                <Select
+                  value={claimMonthFilter}
+                  onValueChange={(val) => {
+                    setClaimMonthFilter(val || "all");
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-10 border-gray-200 text-xs font-semibold bg-white w-full">
+                    <SelectValue placeholder="All Months" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-56 bg-white">
+                    <SelectItem value="all">All Claim Months</SelectItem>
+                    {ALL_MONTHS.map((m) => (
+                      <SelectItem key={m} value={m} className="text-xs font-medium cursor-pointer">
+                        {m}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Claimed Year Filter */}
+              <div className="lg:col-span-1 flex flex-col gap-1.5">
+                <Label className="text-xs font-semibold text-gray-700">Claim Year</Label>
+                <Select
+                  value={claimYearFilter}
+                  onValueChange={(val) => {
+                    setClaimYearFilter(val || "all");
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-10 border-gray-200 text-xs font-semibold bg-white w-full">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-56 bg-white">
+                    <SelectItem value="all">All</SelectItem>
+                    {ALL_YEARS.map((y) => (
+                      <SelectItem key={y} value={y.toString()} className="text-xs font-medium cursor-pointer">
+                        {y}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* From Date */}
+              <div className="lg:col-span-1 flex flex-col gap-1.5">
+                <Label className="text-xs font-semibold text-gray-700">From</Label>
                 <Input
                   type="date"
                   value={fromDate}
@@ -603,13 +669,13 @@ export default function CommissionsDashboardPage() {
                     setFromDate(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="h-10 border-gray-200 focus:border-emerald-500 focus:ring-emerald-500 text-xs font-semibold w-full bg-white"
+                  className="h-10 border-gray-200 focus:border-emerald-500 focus:ring-emerald-500 text-xs font-semibold w-full bg-white px-2"
                 />
               </div>
 
               {/* To Date */}
-              <div className="lg:col-span-2 flex flex-col gap-1.5">
-                <Label className="text-xs font-semibold text-gray-700">To Date</Label>
+              <div className="lg:col-span-1 flex flex-col gap-1.5">
+                <Label className="text-xs font-semibold text-gray-700">To</Label>
                 <Input
                   type="date"
                   value={toDate}
@@ -617,7 +683,7 @@ export default function CommissionsDashboardPage() {
                     setToDate(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="h-10 border-gray-200 focus:border-emerald-500 focus:ring-emerald-500 text-xs font-semibold w-full bg-white"
+                  className="h-10 border-gray-200 focus:border-emerald-500 focus:ring-emerald-500 text-xs font-semibold w-full bg-white px-2"
                 />
               </div>
             </div>
@@ -663,13 +729,14 @@ export default function CommissionsDashboardPage() {
                     <TableHead className="text-xs font-bold text-gray-400">Amount</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">C.C</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">B.M</TableHead>
+                    <TableHead className="text-xs font-bold text-gray-400">Claimed Period</TableHead>
                     <TableHead className="text-right text-xs font-bold text-gray-400">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedEntries.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={isAdmin ? 10 : 9} className="h-64 text-center">
+                      <TableCell colSpan={isAdmin ? 11 : 10} className="h-64 text-center">
                         <div className="flex flex-col items-center justify-center gap-2 p-6 text-gray-400">
                           <GraduationCapIcon className="size-8 text-gray-300" />
                           <span className="text-base font-bold text-gray-700">No Commission Entries Found</span>
@@ -730,6 +797,18 @@ export default function CommissionsDashboardPage() {
                         </TableCell>
                         <TableCell className="font-bold text-blue-700 whitespace-nowrap">
                           Rs. {(entry.bmCommission || 0).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {entry.isClaimed || entry.claimedMonth ? (
+                            <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-200/80 font-semibold text-[10px] gap-1 rounded-sm">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                              {entry.claimedMonth || "Claimed"} {entry.claimedYear || ""}
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-gray-100 text-gray-500 hover:bg-gray-100 border border-gray-200 font-normal text-[10px] rounded-sm">
+                              Unclaimed
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>

@@ -29,6 +29,10 @@ function formatCommissionEntry(comm: any) {
     counselorCommission: comm.counselorCommission || 0,
     bmCommission: comm.bmCommission || 0,
     status: comm.status || (comm.slipUrl ? 'Slip Uploaded' : 'Slip Missing'),
+    claimedMonth: comm.claimedMonth || undefined,
+    claimedYear: comm.claimedYear ? Number(comm.claimedYear) : undefined,
+    isClaimed: typeof comm.isClaimed === 'boolean' ? comm.isClaimed : !!(comm.claimedMonth || comm.isClaimed),
+    claimedAt: comm.claimedAt ? new Date(comm.claimedAt).toISOString() : undefined,
     slipUrl: comm.slipUrl || (slipUrls && slipUrls.length > 0 ? slipUrls[0] : undefined),
     slipUrls: slipUrls && slipUrls.length > 0 ? slipUrls : undefined,
     slipType: comm.slipType || undefined,
@@ -58,6 +62,21 @@ export async function PUT(
     if (body.bmCommission !== undefined) updateData.bmCommission = parseFloat(body.bmCommission) || 0;
     if (body.status !== undefined) updateData.status = body.status;
     if (body.notes !== undefined) updateData.notes = body.notes ? body.notes.trim() : null;
+
+    if (body.claimedMonth !== undefined) {
+      updateData.claimedMonth = body.claimedMonth || null;
+    }
+    if (body.claimedYear !== undefined) {
+      updateData.claimedYear = body.claimedYear ? parseInt(body.claimedYear, 10) : null;
+    }
+    if (body.isClaimed !== undefined) {
+      updateData.isClaimed = !!body.isClaimed;
+      if (body.isClaimed && !updateData.claimedAt) {
+        updateData.claimedAt = new Date();
+      } else if (!body.isClaimed) {
+        updateData.claimedAt = null;
+      }
+    }
 
     if (body.slipUrls !== undefined) {
       const finalSlips = Array.isArray(body.slipUrls) ? body.slipUrls : [];
@@ -90,6 +109,21 @@ export async function PUT(
 
       try {
         await prisma.$executeRawUnsafe('ALTER TABLE `CommissionEntry` ADD COLUMN `slipUrls` LONGTEXT NULL');
+      } catch (e) {}
+      try {
+        await prisma.$executeRawUnsafe('ALTER TABLE `CommissionEntry` ADD COLUMN `claimedMonth` VARCHAR(50) NULL');
+      } catch (e) {}
+      try {
+        await prisma.$executeRawUnsafe('ALTER TABLE `CommissionEntry` ADD COLUMN `claimedYear` INT NULL');
+      } catch (e) {}
+      try {
+        await prisma.$executeRawUnsafe('ALTER TABLE `CommissionEntry` ADD COLUMN `isClaimed` TINYINT(1) DEFAULT 0');
+      } catch (e) {}
+      try {
+        await prisma.$executeRawUnsafe('ALTER TABLE `CommissionEntry` ADD COLUMN `claimedAt` DATETIME(3) NULL');
+      } catch (e) {}
+
+      try {
         updated = await (prisma as any).commissionEntry.update({
           where: { id },
           data: updateData,

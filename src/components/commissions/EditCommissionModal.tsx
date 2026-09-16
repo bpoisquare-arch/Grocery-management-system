@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useStore } from "@/lib/store";
-import { CommissionEntry, CommissionService, COMMISSION_SERVICES } from "@/lib/mockData";
+import { CommissionEntry, CommissionService, COMMISSION_SERVICES, ALL_MONTHS, ALL_YEARS } from "@/lib/mockData";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,7 @@ import {
   GraduationCapIcon,
   PencilIcon,
   CalendarIcon,
+  CalendarCheckIcon,
   FileTextIcon,
   EyeIcon,
   LockIcon,
@@ -76,6 +77,11 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
   const [bmCalcNote, setBmCalcNote] = useState("");
   const [notes, setNotes] = useState("");
 
+  // Commission Claimed State
+  const [isClaimed, setIsClaimed] = useState(true);
+  const [claimedMonth, setClaimedMonth] = useState<string>("September");
+  const [claimedYear, setClaimedYear] = useState<number>(2026);
+
   const [existingSlips, setExistingSlips] = useState<ExistingSlip[]>([]);
   const [newSlips, setNewSlips] = useState<NewSlip[]>([]);
   const [previewModalUrl, setPreviewModalUrl] = useState<string | null>(null);
@@ -96,6 +102,16 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
       setCounselorCommission(entry.counselorCommission !== undefined ? entry.counselorCommission.toString() : "");
       setBmCommission(entry.bmCommission !== undefined ? entry.bmCommission.toString() : "");
       setNotes(entry.notes || "");
+
+      // Claimed fields
+      setIsClaimed(typeof entry.isClaimed === "boolean" ? entry.isClaimed : !!entry.claimedMonth);
+      if (entry.claimedMonth) {
+        setClaimedMonth(entry.claimedMonth);
+      } else {
+        const curM = new Date().getMonth();
+        setClaimedMonth(ALL_MONTHS[curM] || "September");
+      }
+      setClaimedYear(entry.claimedYear || new Date().getFullYear() || 2026);
 
       // Load existing slips
       const loadedSlips: ExistingSlip[] = [];
@@ -260,6 +276,9 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
         fullReceived: true,
         counselorCommission: parseFloat(counselorCommission) || 0,
         bmCommission: parseFloat(bmCommission) || 0,
+        claimedMonth,
+        claimedYear,
+        isClaimed: true,
         notes: notes.trim() || undefined,
         slipUrls: existingSlips.map((s) => s.url),
         slipFiles: newSlips.map((s) => s.file),
@@ -315,7 +334,7 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
                   />
                 </div>
 
-                {/* 2. Service & Counselor Grid */}
+                {/* 2. Service & Amount Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Service Dropdown */}
                   <div className="flex flex-col gap-1">
@@ -336,29 +355,6 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
                     </Select>
                   </div>
 
-                  {/* Counselor Dropdown */}
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor="edit-counselor" className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
-                      <UserIcon className="size-3.5 text-emerald-600" />
-                      Counselor <span className="text-red-500">*</span>
-                    </Label>
-                    <Select value={counselor} onValueChange={(val) => handleCounselorChange(val || "Humaira Amin")}>
-                      <SelectTrigger id="edit-counselor" className="h-9 border-gray-200 text-xs font-semibold bg-white">
-                        <SelectValue placeholder="Select Counselor" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {branchCounselors.map((c) => (
-                          <SelectItem key={c.id} value={c.name} className="text-xs font-medium cursor-pointer">
-                            {c.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* 3. Amount & Date Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Amount */}
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="edit-amount" className="text-xs font-semibold text-gray-700">
@@ -377,8 +373,86 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
                       />
                     </div>
                   </div>
+                </div>
 
-                  {/* Date */}
+                {/* 3. Counselor & Claimed Month/Year Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Counselor Dropdown */}
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="edit-counselor" className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                      <UserIcon className="size-3.5 text-emerald-600" />
+                      Counselor <span className="text-red-500">*</span>
+                    </Label>
+                    <Select value={counselor} onValueChange={(val) => handleCounselorChange(val || "Humaira Amin")}>
+                      <SelectTrigger id="edit-counselor" className="h-9 border-gray-200 text-xs font-semibold bg-white">
+                        <SelectValue placeholder="Select Counselor" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-56 bg-white">
+                        {branchCounselors.map((c) => (
+                          <SelectItem key={c.id} value={c.name} className="text-xs font-medium cursor-pointer">
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Claimed Month & Year (Side by Side) */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Claimed Month */}
+                    <div className="flex flex-col gap-1">
+                      <Label htmlFor="edit-claimedMonth" className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                        <CalendarCheckIcon className="size-3.5 text-emerald-600" />
+                        Claim Month
+                      </Label>
+                      <Select
+                        value={claimedMonth}
+                        onValueChange={(val) => {
+                          if (val) setClaimedMonth(val);
+                        }}
+                      >
+                        <SelectTrigger id="edit-claimedMonth" className="h-9 border-gray-200 text-xs font-semibold bg-white">
+                          <SelectValue placeholder="Month" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-56 bg-white">
+                          {ALL_MONTHS.map((m) => (
+                            <SelectItem key={m} value={m} className="text-xs font-medium cursor-pointer">
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Claimed Year */}
+                    <div className="flex flex-col gap-1">
+                      <Label htmlFor="edit-claimedYear" className="text-xs font-semibold text-gray-700">
+                        Claim Year
+                      </Label>
+                      <Select
+                        value={claimedYear.toString()}
+                        onValueChange={(val) => {
+                          if (val) setClaimedYear(parseInt(val, 10));
+                        }}
+                      >
+                        <SelectTrigger id="edit-claimedYear" className="h-9 border-gray-200 text-xs font-semibold bg-white">
+                          <SelectValue placeholder="Year" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-56 bg-white">
+                          {ALL_YEARS.map((y) => (
+                            <SelectItem key={y} value={y.toString()} className="text-xs font-medium cursor-pointer">
+                              {y}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Payment Date & Notes Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Payment Date */}
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="edit-date" className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
                       <CalendarIcon className="size-3.5 text-emerald-600" />
@@ -393,20 +467,20 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
                       required
                     />
                   </div>
-                </div>
 
-                {/* 4. Notes */}
-                <div className="flex flex-col gap-1">
-                  <Label htmlFor="edit-notes" className="text-xs font-semibold text-gray-700">
-                    Notes / Remarks <span className="text-[10px] text-gray-400 font-normal">(Optional)</span>
-                  </Label>
-                  <Input
-                    id="edit-notes"
-                    placeholder="e.g. Received via cheque"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="h-8 border-gray-200 text-xs bg-white"
-                  />
+                  {/* Notes / Remarks */}
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="edit-notes" className="text-xs font-semibold text-gray-700">
+                      Notes / Remarks <span className="text-[10px] text-gray-400 font-normal">(Optional)</span>
+                    </Label>
+                    <Input
+                      id="edit-notes"
+                      placeholder="e.g. 1st installment paid"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      className="h-9 border-gray-200 text-xs bg-white"
+                    />
+                  </div>
                 </div>
               </div>
 

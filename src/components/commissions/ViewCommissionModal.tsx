@@ -8,6 +8,7 @@ import {
   GraduationCapIcon,
   UserIcon,
   CalendarIcon,
+  CalendarCheckIcon,
   BadgePercentIcon,
   EyeIcon,
   ImageIcon,
@@ -208,6 +209,22 @@ export function ViewCommissionModal({ open, onOpenChange, entry }: ViewCommissio
                 <div className="flex justify-between py-1.5 border-b border-gray-100">
                   <span className="text-gray-500 font-medium">B.M Commission:</span>
                   <span className="font-bold text-blue-700">Rs. {entry.bmCommission.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between py-1.5 border-b border-gray-100">
+                  <span className="text-gray-500 font-medium flex items-center gap-1">
+                    <CalendarCheckIcon className="size-3.5 text-emerald-600" />
+                    Claimed Period:
+                  </span>
+                  {entry.isClaimed || entry.claimedMonth ? (
+                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold text-[11px] gap-1">
+                      <span className="size-1.5 rounded-full bg-emerald-600" />
+                      {entry.claimedMonth || "Claimed"} {entry.claimedYear || ""}
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-gray-100 text-gray-600 border-gray-200 font-medium text-[11px]">
+                      Unclaimed (Pending)
+                    </Badge>
+                  )}
                 </div>
                 {entry.notes && (
                   <div className="py-1.5 border-b border-gray-100">

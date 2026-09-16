@@ -72,22 +72,42 @@ model Counselor {
 }
 
 model CommissionEntry {
-  id                  String   @id @default(cuid())
-  entity              String   // Lahore, Multan, ISquareBPO
+  id                  String    @id @default(cuid())
+  entity              String    // Lahore, Multan, ISquareBPO
   studentName         String
-  service             String   // Visa Processing, PTE, Visa Granted, IELTS, FBR Document, Proof of Deposit
+  service             String    // Visa Processing, PTE, Visa Granted, IELTS, FBR Document, Proof of Deposit
   counselor           String
   amount              Float
-  date                String   // YYYY-MM-DD format
-  fullReceived        Boolean  @default(false)
-  counselorCommission Float    @default(0)
-  bmCommission        Float    @default(0)
-  status              String   @default("Slip Missing") // "Slip Uploaded", "Slip Missing", "Approved Without Slip"
-  slipUrl             String?  @db.LongText
-  slipUrls            String?  @db.LongText // JSON string array of URLs
-  slipType            String?  // "image", "pdf"
-  notes               String?  @db.Text
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  date                String    // YYYY-MM-DD format
+  fullReceived        Boolean   @default(false)
+  counselorCommission Float     @default(0)
+  bmCommission        Float     @default(0)
+  status              String    @default("Slip Missing") // "Slip Uploaded", "Slip Missing", "Approved Without Slip"
+  claimedMonth        String?   // e.g. "January" - "December"
+  claimedYear         Int?      // e.g. 2026
+  isClaimed           Boolean   @default(false)
+  claimedAt           DateTime?
+  slipUrl             String?   @db.LongText
+  slipUrls            String?   @db.LongText // JSON string array of URLs
+  slipType            String?   // "image", "pdf"
+  notes               String?   @db.Text
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model CommissionClaim {
+  id          String   @id @default(cuid())
+  entity      String   // Lahore, Multan, ISquareBPO
+  counselor   String
+  month       String   // e.g. "September"
+  year        Int      // e.g. 2026
+  totalAmount Float    @default(0)
+  totalCc     Float    @default(0)
+  totalBm     Float    @default(0)
+  status      String   @default("Claimed") // "Claimed", "Pending", "Paid"
+  notes       String?  @db.Text
+  claimedAt   DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 

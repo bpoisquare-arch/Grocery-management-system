@@ -87,6 +87,25 @@ export const initialCounselors: Counselor[] = [
   },
 ];
 
+export const ALL_MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
+export const ALL_YEARS = [
+  2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032
+];
+
 export interface CommissionEntry {
   id: string;
   entity: Entity;
@@ -99,6 +118,10 @@ export interface CommissionEntry {
   counselorCommission: number; // C.C
   bmCommission: number; // B.M
   status: SlipStatus;
+  claimedMonth?: string; // e.g. "January" - "December"
+  claimedYear?: number; // e.g. 2026
+  isClaimed?: boolean;
+  claimedAt?: string;
   slipUrl?: string; // Path or base64 data URL
   slipUrls?: string[]; // Array of up to 10 slip URLs
   slipType?: 'image' | 'pdf';

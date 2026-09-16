@@ -30,6 +30,10 @@ function formatCommissionEntry(comm: any) {
     counselorCommission: comm.counselorCommission || 0,
     bmCommission: comm.bmCommission || 0,
     status: comm.status || (comm.slipUrl ? 'Slip Uploaded' : 'Slip Missing'),
+    claimedMonth: comm.claimedMonth || undefined,
+    claimedYear: comm.claimedYear ? Number(comm.claimedYear) : undefined,
+    isClaimed: typeof comm.isClaimed === 'boolean' ? comm.isClaimed : !!(comm.claimedMonth || comm.isClaimed),
+    claimedAt: comm.claimedAt ? new Date(comm.claimedAt).toISOString() : undefined,
     slipUrl: comm.slipUrl || (slipUrls && slipUrls.length > 0 ? slipUrls[0] : undefined),
     slipUrls: slipUrls && slipUrls.length > 0 ? slipUrls : undefined,
     slipType: comm.slipType || undefined,
@@ -43,6 +47,8 @@ function formatCommissionEntry(comm: any) {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const entity = searchParams.get('entity');
+  const claimedMonth = searchParams.get('claimedMonth');
+  const claimedYear = searchParams.get('claimedYear');
 
   try {
     let entries: any[] = [];
@@ -51,6 +57,12 @@ export async function GET(request: NextRequest) {
       const whereClause: any = {};
       if (entity && entity !== 'All') {
         whereClause.entity = entity;
+      }
+      if (claimedMonth && claimedMonth !== 'all') {
+        whereClause.claimedMonth = claimedMonth;
+      }
+      if (claimedYear && claimedYear !== 'all') {
+        whereClause.claimedYear = parseInt(claimedYear, 10);
       }
 
       entries = await (prisma as any).commissionEntry.findMany({
@@ -63,9 +75,21 @@ export async function GET(request: NextRequest) {
     } catch (prismaError: any) {
       console.warn('Prisma findMany query on commissions failed, trying auto-migration / raw SQL query:', prismaError.message);
 
-      // Attempt auto-migration of slipUrls column
+      // Attempt auto-migration of columns
       try {
         await prisma.$executeRawUnsafe('ALTER TABLE `CommissionEntry` ADD COLUMN `slipUrls` LONGTEXT NULL');
+      } catch (alterErr) {}
+      try {
+        await prisma.$executeRawUnsafe('ALTER TABLE `CommissionEntry` ADD COLUMN `claimedMonth` VARCHAR(50) NULL');
+      } catch (alterErr) {}
+      try {
+        await prisma.$executeRawUnsafe('ALTER TABLE `CommissionEntry` ADD COLUMN `claimedYear` INT NULL');
+      } catch (alterErr) {}
+      try {
+        await prisma.$executeRawUnsafe('ALTER TABLE `CommissionEntry` ADD COLUMN `isClaimed` TINYINT(1) DEFAULT 0');
+      } catch (alterErr) {}
+      try {
+        await prisma.$executeRawUnsafe('ALTER TABLE `CommissionEntry` ADD COLUMN `claimedAt` DATETIME(3) NULL');
       } catch (alterErr) {}
 
       try {
@@ -85,9 +109,15 @@ export async function GET(request: NextRequest) {
     }
 
     if (!entries || entries.length === 0) {
-      const data = entity && entity !== 'All'
+      let data = entity && entity !== 'All'
         ? mockCommissionEntries.filter(e => e.entity === entity)
         : mockCommissionEntries;
+      if (claimedMonth && claimedMonth !== 'all') {
+        data = data.filter(e => e.claimedMonth?.toLowerCase() === claimedMonth.toLowerCase());
+      }
+      if (claimedYear && claimedYear !== 'all') {
+        data = data.filter(e => e.claimedYear === parseInt(claimedYear, 10));
+      }
       return NextResponse.json({ success: true, data });
     }
 
@@ -117,6 +147,9 @@ export async function POST(request: NextRequest) {
       counselorCommission,
       bmCommission,
       status,
+      claimedMonth,
+      claimedYear,
+      isClaimed,
       slipUrl,
       slipUrls,
       slipType,
@@ -136,6 +169,10 @@ export async function POST(request: NextRequest) {
 
     const primarySlipUrl = finalSlipUrls[0] || slipUrl || null;
     const computedStatus = status || (finalSlipUrls.length > 0 ? 'Slip Uploaded' : 'Slip Missing');
+    const finalClaimedMonth = claimedMonth || null;
+    const finalClaimedYear = claimedYear ? parseInt(claimedYear, 10) : null;
+    const finalIsClaimed = typeof isClaimed === 'boolean' ? isClaimed : !!finalClaimedMonth;
+    const claimedAt = finalIsClaimed ? new Date() : null;
 
     let newEntry: any = null;
 
@@ -152,6 +189,10 @@ export async function POST(request: NextRequest) {
           counselorCommission: parseFloat(counselorCommission) || 0,
           bmCommission: parseFloat(bmCommission) || 0,
           status: computedStatus,
+          claimedMonth: finalClaimedMonth,
+          claimedYear: finalClaimedYear,
+          isClaimed: finalIsClaimed,
+          claimedAt,
           slipUrl: primarySlipUrl,
           slipUrls: finalSlipUrls.length > 0 ? JSON.stringify(finalSlipUrls) : null,
           slipType: slipType || (primarySlipUrl ? (primarySlipUrl.includes('application/pdf') ? 'pdf' : 'image') : null),
@@ -161,41 +202,53 @@ export async function POST(request: NextRequest) {
     } catch (createErr: any) {
       console.warn('Prisma commissionEntry.create failed, trying auto-migration / raw SQL insert:', createErr.message);
 
-      let alterSuccess = false;
       try {
         await prisma.$executeRawUnsafe('ALTER TABLE `CommissionEntry` ADD COLUMN `slipUrls` LONGTEXT NULL');
-        alterSuccess = true;
+      } catch (e) {}
+      try {
+        await prisma.$executeRawUnsafe('ALTER TABLE `CommissionEntry` ADD COLUMN `claimedMonth` VARCHAR(50) NULL');
+      } catch (e) {}
+      try {
+        await prisma.$executeRawUnsafe('ALTER TABLE `CommissionEntry` ADD COLUMN `claimedYear` INT NULL');
+      } catch (e) {}
+      try {
+        await prisma.$executeRawUnsafe('ALTER TABLE `CommissionEntry` ADD COLUMN `isClaimed` TINYINT(1) DEFAULT 0');
+      } catch (e) {}
+      try {
+        await prisma.$executeRawUnsafe('ALTER TABLE `CommissionEntry` ADD COLUMN `claimedAt` DATETIME(3) NULL');
       } catch (e) {}
 
-      if (alterSuccess) {
-        try {
-          newEntry = await (prisma as any).commissionEntry.create({
-            data: {
-              entity,
-              studentName: studentName.trim(),
-              service,
-              counselor,
-              amount: parseFloat(amount),
-              date,
-              fullReceived: !!fullReceived,
-              counselorCommission: parseFloat(counselorCommission) || 0,
-              bmCommission: parseFloat(bmCommission) || 0,
-              status: computedStatus,
-              slipUrl: primarySlipUrl,
-              slipUrls: finalSlipUrls.length > 0 ? JSON.stringify(finalSlipUrls) : null,
-              slipType: slipType || (primarySlipUrl ? (primarySlipUrl.includes('application/pdf') ? 'pdf' : 'image') : null),
-              notes: notes ? notes.trim() : null,
-            },
-          });
-        } catch (e) {}
-      }
+      try {
+        newEntry = await (prisma as any).commissionEntry.create({
+          data: {
+            entity,
+            studentName: studentName.trim(),
+            service,
+            counselor,
+            amount: parseFloat(amount),
+            date,
+            fullReceived: !!fullReceived,
+            counselorCommission: parseFloat(counselorCommission) || 0,
+            bmCommission: parseFloat(bmCommission) || 0,
+            status: computedStatus,
+            claimedMonth: finalClaimedMonth,
+            claimedYear: finalClaimedYear,
+            isClaimed: finalIsClaimed,
+            claimedAt,
+            slipUrl: primarySlipUrl,
+            slipUrls: finalSlipUrls.length > 0 ? JSON.stringify(finalSlipUrls) : null,
+            slipType: slipType || (primarySlipUrl ? (primarySlipUrl.includes('application/pdf') ? 'pdf' : 'image') : null),
+            notes: notes ? notes.trim() : null,
+          },
+        });
+      } catch (e) {}
 
       if (!newEntry) {
         const id = `comm_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
         const now = new Date();
         try {
           await prisma.$executeRawUnsafe(
-            'INSERT INTO `CommissionEntry` (`id`, `entity`, `studentName`, `service`, `counselor`, `amount`, `date`, `fullReceived`, `counselorCommission`, `bmCommission`, `status`, `slipUrl`, `slipUrls`, `slipType`, `notes`, `createdAt`, `updatedAt`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO `CommissionEntry` (`id`, `entity`, `studentName`, `service`, `counselor`, `amount`, `date`, `fullReceived`, `counselorCommission`, `bmCommission`, `status`, `claimedMonth`, `claimedYear`, `isClaimed`, `claimedAt`, `slipUrl`, `slipUrls`, `slipType`, `notes`, `createdAt`, `updatedAt`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             id,
             entity,
             studentName.trim(),
@@ -207,6 +260,10 @@ export async function POST(request: NextRequest) {
             parseFloat(counselorCommission) || 0,
             parseFloat(bmCommission) || 0,
             computedStatus,
+            finalClaimedMonth,
+            finalClaimedYear,
+            finalIsClaimed ? 1 : 0,
+            claimedAt,
             primarySlipUrl,
             finalSlipUrls.length > 0 ? JSON.stringify(finalSlipUrls) : null,
             slipType || (primarySlipUrl ? (primarySlipUrl.includes('application/pdf') ? 'pdf' : 'image') : null),
@@ -215,25 +272,48 @@ export async function POST(request: NextRequest) {
             now
           );
         } catch (insertErr) {
-          await prisma.$executeRawUnsafe(
-            'INSERT INTO `CommissionEntry` (`id`, `entity`, `studentName`, `service`, `counselor`, `amount`, `date`, `fullReceived`, `counselorCommission`, `bmCommission`, `status`, `slipUrl`, `slipType`, `notes`, `createdAt`, `updatedAt`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            id,
-            entity,
-            studentName.trim(),
-            service,
-            counselor,
-            parseFloat(amount),
-            date,
-            fullReceived ? 1 : 0,
-            parseFloat(counselorCommission) || 0,
-            parseFloat(bmCommission) || 0,
-            computedStatus,
-            primarySlipUrl,
-            slipType || (primarySlipUrl ? (primarySlipUrl.includes('application/pdf') ? 'pdf' : 'image') : null),
-            notes ? notes.trim() : null,
-            now,
-            now
-          );
+          try {
+            await prisma.$executeRawUnsafe(
+              'INSERT INTO `CommissionEntry` (`id`, `entity`, `studentName`, `service`, `counselor`, `amount`, `date`, `fullReceived`, `counselorCommission`, `bmCommission`, `status`, `slipUrl`, `slipUrls`, `slipType`, `notes`, `createdAt`, `updatedAt`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+              id,
+              entity,
+              studentName.trim(),
+              service,
+              counselor,
+              parseFloat(amount),
+              date,
+              fullReceived ? 1 : 0,
+              parseFloat(counselorCommission) || 0,
+              parseFloat(bmCommission) || 0,
+              computedStatus,
+              primarySlipUrl,
+              finalSlipUrls.length > 0 ? JSON.stringify(finalSlipUrls) : null,
+              slipType || (primarySlipUrl ? (primarySlipUrl.includes('application/pdf') ? 'pdf' : 'image') : null),
+              notes ? notes.trim() : null,
+              now,
+              now
+            );
+          } catch (legacyInsertErr) {
+            await prisma.$executeRawUnsafe(
+              'INSERT INTO `CommissionEntry` (`id`, `entity`, `studentName`, `service`, `counselor`, `amount`, `date`, `fullReceived`, `counselorCommission`, `bmCommission`, `status`, `slipUrl`, `slipType`, `notes`, `createdAt`, `updatedAt`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+              id,
+              entity,
+              studentName.trim(),
+              service,
+              counselor,
+              parseFloat(amount),
+              date,
+              fullReceived ? 1 : 0,
+              parseFloat(counselorCommission) || 0,
+              parseFloat(bmCommission) || 0,
+              computedStatus,
+              primarySlipUrl,
+              slipType || (primarySlipUrl ? (primarySlipUrl.includes('application/pdf') ? 'pdf' : 'image') : null),
+              notes ? notes.trim() : null,
+              now,
+              now
+            );
+          }
         }
 
         newEntry = {
@@ -248,6 +328,10 @@ export async function POST(request: NextRequest) {
           counselorCommission: parseFloat(counselorCommission) || 0,
           bmCommission: parseFloat(bmCommission) || 0,
           status: computedStatus,
+          claimedMonth: finalClaimedMonth,
+          claimedYear: finalClaimedYear,
+          isClaimed: finalIsClaimed,
+          claimedAt,
           slipUrl: primarySlipUrl,
           slipUrls: finalSlipUrls.length > 0 ? JSON.stringify(finalSlipUrls) : null,
           slipType: slipType || (primarySlipUrl ? (primarySlipUrl.includes('application/pdf') ? 'pdf' : 'image') : null),
