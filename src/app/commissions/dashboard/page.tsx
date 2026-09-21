@@ -37,6 +37,7 @@ import { AddCommissionModal } from "@/components/commissions/AddCommissionModal"
 import { EditCommissionModal } from "@/components/commissions/EditCommissionModal";
 import { ViewCommissionModal } from "@/components/commissions/ViewCommissionModal";
 import { DeleteCommissionModal } from "@/components/commissions/DeleteCommissionModal";
+import { cn } from "@/lib/utils";
 import {
   PlusIcon,
   SearchIcon,
@@ -58,6 +59,7 @@ import {
   TrendingUpIcon,
   GraduationCapIcon,
   CalendarCheckIcon,
+  CalendarIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CommissionEntry, COMMISSION_SERVICES, SlipStatus, ALL_MONTHS, ALL_YEARS } from "@/lib/mockData";
@@ -139,9 +141,17 @@ export default function CommissionsDashboardPage() {
         if (!matchesStudent && !matchesCounselor && !matchesService && !matchesAmount) return false;
       }
 
-      // Date range filters
-      if (fromDate && entry.date < fromDate) return false;
-      if (toDate && entry.date > toDate) return false;
+      // Date range filters (Applied strictly to Entry's Payment Date)
+      if (fromDate || toDate) {
+        if (!entry.date) return false;
+        // Normalize entry payment date to YYYY-MM-DD
+        const entryPaymentDate = entry.date.includes("T")
+          ? entry.date.split("T")[0]
+          : entry.date.slice(0, 10);
+
+        if (fromDate && entryPaymentDate < fromDate) return false;
+        if (toDate && entryPaymentDate > toDate) return false;
+      }
 
       // Counselor filter
       if (counselorFilter !== "all" && entry.counselor !== counselorFilter) return false;
@@ -220,6 +230,17 @@ export default function CommissionsDashboardPage() {
     }
   };
 
+  const hasActiveFilters = Boolean(
+    search.trim() ||
+    fromDate ||
+    toDate ||
+    counselorFilter !== "all" ||
+    serviceFilter !== "all" ||
+    statusFilter !== "all" ||
+    claimMonthFilter !== "all" ||
+    claimYearFilter !== "all"
+  );
+
   const handleResetFilters = () => {
     setSearch("");
     setFromDate("");
@@ -287,7 +308,7 @@ export default function CommissionsDashboardPage() {
         [summaryCollected, "", summaryCc, ""],
         [summaryBm, "", summaryCount, ""],
         [],
-        ["Date", "Student Name", "Service", "Counselor", "Amount (Rs.)", "C.C (Rs.)", "B.M (Rs.)", "Claimed Period", "Slip Status"]
+        ["Payment Date", "Student Name", "Service", "Counselor", "Amount (Rs.)", "C.C (Rs.)", "B.M (Rs.)", "Claimed Period", "Slip Status"]
       ];
 
       filteredEntries.forEach((e) => {
@@ -370,7 +391,7 @@ export default function CommissionsDashboardPage() {
       doc.setDrawColor(226, 232, 240);
       doc.line(14, 35, 282, 35);
 
-      const headers = [["Date", "Student", "Service", "Counselor", "Amount", "C.C", "B.M", "Claimed Period", "Status"]];
+      const headers = [["Payment Date", "Student", "Service", "Counselor", "Amount", "C.C", "B.M", "Claimed Period", "Status"]];
       const rows = filteredEntries.map((e) => [
         e.date ? format(new Date(e.date), "dd MMM yyyy") : "-",
         e.studentName,
@@ -537,11 +558,13 @@ export default function CommissionsDashboardPage() {
         </div>
 
         {/* Toolbar: Search and Filter fields with robust widths */}
+        {/* Toolbar: Search and Filter fields - Fully Responsive */}
         <Card className="border border-gray-200 bg-white shadow-2xs">
-          <CardContent className="p-4 md:p-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-12 gap-3 items-end">
+          <CardContent className="p-4 md:p-5 space-y-3.5">
+            {/* Tier 1: Search & Core Category Dropdowns */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
               {/* Search by Student Name */}
-              <div className="lg:col-span-3 flex flex-col gap-1.5">
+              <div className="sm:col-span-12 md:col-span-6 lg:col-span-6 flex flex-col gap-1.5">
                 <Label htmlFor="searchStudent" className="text-xs font-semibold text-gray-700">
                   Search Student Name
                 </Label>
@@ -549,7 +572,7 @@ export default function CommissionsDashboardPage() {
                   <SearchIcon className="absolute left-3 top-3 size-4 text-gray-400" />
                   <Input
                     id="searchStudent"
-                    placeholder="Search student name..."
+                    placeholder="Search student name, counselor, service..."
                     value={search}
                     onChange={(e) => {
                       setSearch(e.target.value);
@@ -561,7 +584,7 @@ export default function CommissionsDashboardPage() {
               </div>
 
               {/* Counselor Filter */}
-              <div className="lg:col-span-2 flex flex-col gap-1.5">
+              <div className="sm:col-span-6 md:col-span-3 lg:col-span-3 flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-gray-700">Counselor</Label>
                 <Select
                   value={counselorFilter}
@@ -573,7 +596,7 @@ export default function CommissionsDashboardPage() {
                   <SelectTrigger className="h-10 border-gray-200 text-xs font-semibold bg-white w-full">
                     <SelectValue placeholder="All Counselors" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-56 bg-white">
+                  <SelectContent className="max-h-56 bg-white min-w-[180px]">
                     <SelectItem value="all">All Counselors</SelectItem>
                     {branchCounselors.map((c) => (
                       <SelectItem key={c.id} value={c.name} className="text-xs font-medium cursor-pointer">
@@ -585,7 +608,7 @@ export default function CommissionsDashboardPage() {
               </div>
 
               {/* Service Filter */}
-              <div className="lg:col-span-2 flex flex-col gap-1.5">
+              <div className="sm:col-span-6 md:col-span-3 lg:col-span-3 flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-gray-700">Service</Label>
                 <Select
                   value={serviceFilter}
@@ -597,7 +620,7 @@ export default function CommissionsDashboardPage() {
                   <SelectTrigger className="h-10 border-gray-200 text-xs font-semibold bg-white w-full">
                     <SelectValue placeholder="All Services" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-56 bg-white">
+                  <SelectContent className="max-h-56 bg-white min-w-[180px]">
                     <SelectItem value="all">All Services</SelectItem>
                     {COMMISSION_SERVICES.map((s) => (
                       <SelectItem key={s} value={s} className="text-xs font-medium cursor-pointer">
@@ -607,9 +630,58 @@ export default function CommissionsDashboardPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            {/* Tier 2: Date Range (Payment Date) & Claim Period */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3 items-end pt-3 border-t border-gray-100">
+              {/* From Date (Payment Date) */}
+              <div className="sm:col-span-1 md:col-span-3 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="fromDate" className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                    <CalendarIcon className="size-3.5 text-emerald-600" />
+                    From Date
+                  </Label>
+                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/80">
+                    Payment Date
+                  </span>
+                </div>
+                <Input
+                  id="fromDate"
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => {
+                    setFromDate(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="h-10 border-gray-200 focus:border-emerald-500 focus:ring-emerald-500 text-xs font-semibold w-full bg-white px-2.5 min-w-[130px]"
+                />
+              </div>
+
+              {/* To Date (Payment Date) */}
+              <div className="sm:col-span-1 md:col-span-3 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="toDate" className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                    <CalendarIcon className="size-3.5 text-emerald-600" />
+                    To Date
+                  </Label>
+                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/80">
+                    Payment Date
+                  </span>
+                </div>
+                <Input
+                  id="toDate"
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => {
+                    setToDate(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="h-10 border-gray-200 focus:border-emerald-500 focus:ring-emerald-500 text-xs font-semibold w-full bg-white px-2.5 min-w-[130px]"
+                />
+              </div>
 
               {/* Claimed Month Filter */}
-              <div className="lg:col-span-2 flex flex-col gap-1.5">
+              <div className="sm:col-span-1 md:col-span-2 flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-gray-700 flex items-center gap-1">
                   <CalendarCheckIcon className="size-3 text-emerald-600" />
                   Claim Month
@@ -624,7 +696,7 @@ export default function CommissionsDashboardPage() {
                   <SelectTrigger className="h-10 border-gray-200 text-xs font-semibold bg-white w-full">
                     <SelectValue placeholder="All Months" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-56 bg-white">
+                  <SelectContent className="max-h-56 bg-white min-w-[160px]">
                     <SelectItem value="all">All Claim Months</SelectItem>
                     {ALL_MONTHS.map((m) => (
                       <SelectItem key={m} value={m} className="text-xs font-medium cursor-pointer">
@@ -636,7 +708,7 @@ export default function CommissionsDashboardPage() {
               </div>
 
               {/* Claimed Year Filter */}
-              <div className="lg:col-span-1 flex flex-col gap-1.5">
+              <div className="sm:col-span-1 md:col-span-2 flex flex-col gap-1.5">
                 <Label className="text-xs font-semibold text-gray-700">Claim Year</Label>
                 <Select
                   value={claimYearFilter}
@@ -648,7 +720,7 @@ export default function CommissionsDashboardPage() {
                   <SelectTrigger className="h-10 border-gray-200 text-xs font-semibold bg-white w-full">
                     <SelectValue placeholder="All" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-56 bg-white">
+                  <SelectContent className="max-h-56 bg-white min-w-[120px]">
                     <SelectItem value="all">All</SelectItem>
                     {ALL_YEARS.map((y) => (
                       <SelectItem key={y} value={y.toString()} className="text-xs font-medium cursor-pointer">
@@ -659,46 +731,35 @@ export default function CommissionsDashboardPage() {
                 </Select>
               </div>
 
-              {/* From Date */}
-              <div className="lg:col-span-1 flex flex-col gap-1.5">
-                <Label className="text-xs font-semibold text-gray-700">From</Label>
-                <Input
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => {
-                    setFromDate(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="h-10 border-gray-200 focus:border-emerald-500 focus:ring-emerald-500 text-xs font-semibold w-full bg-white px-2"
-                />
-              </div>
-
-              {/* To Date */}
-              <div className="lg:col-span-1 flex flex-col gap-1.5">
-                <Label className="text-xs font-semibold text-gray-700">To</Label>
-                <Input
-                  type="date"
-                  value={toDate}
-                  onChange={(e) => {
-                    setToDate(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="h-10 border-gray-200 focus:border-emerald-500 focus:ring-emerald-500 text-xs font-semibold w-full bg-white px-2"
-                />
+              {/* Reset Filters Button */}
+              <div className="sm:col-span-2 md:col-span-2 flex flex-col justify-end">
+                <Button
+                  onClick={handleResetFilters}
+                  variant={hasActiveFilters ? "default" : "outline"}
+                  className={cn(
+                    "h-10 text-xs font-semibold gap-1.5 cursor-pointer w-full transition-colors",
+                    hasActiveFilters
+                      ? "bg-emerald-600 hover:bg-emerald-700 text-white border-transparent shadow-xs"
+                      : "border-gray-200 text-gray-600 hover:text-emerald-700 hover:bg-emerald-50 hover:border-emerald-200"
+                  )}
+                >
+                  <RotateCcwIcon className="size-3.5" />
+                  <span>Reset Filters</span>
+                </Button>
               </div>
             </div>
 
-            {/* Quick Status Filters & Reset Row */}
-            <div className="flex items-center justify-end mt-3.5 pt-3 border-t border-gray-100">
-              <Button
-                onClick={handleResetFilters}
-                variant="ghost"
-                size="sm"
-                className="h-8 text-xs font-semibold text-gray-600 hover:text-emerald-700 hover:bg-emerald-50 gap-1.5 cursor-pointer"
-              >
-                <RotateCcwIcon className="size-3.5" />
-                <span>Reset Filters</span>
-              </Button>
+            {/* Helper Note for Date Filter */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-[11px] text-gray-500 font-normal pt-1 gap-1">
+              <span className="flex items-center gap-1.5">
+                <CalendarIcon className="size-3 text-emerald-600 shrink-0" />
+                <span>Date range filters apply directly to each commission entry&apos;s <strong>Payment Date</strong>.</span>
+              </span>
+              {hasActiveFilters && (
+                <span className="text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60 text-[10px]">
+                  Active filters applied
+                </span>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -722,7 +783,7 @@ export default function CommissionsDashboardPage() {
                       </TableHead>
                     )}
                     <TableHead className="w-12 text-center text-xs font-bold text-gray-400">Slip</TableHead>
-                    <TableHead className="text-xs font-bold text-gray-400">Date</TableHead>
+                    <TableHead className="text-xs font-bold text-gray-400 whitespace-nowrap">Payment Date</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">Student</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">Service</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">Counselor</TableHead>
