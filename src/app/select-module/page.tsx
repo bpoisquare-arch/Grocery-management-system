@@ -18,6 +18,8 @@ import {
   ReceiptIcon,
   UsersIcon,
   TrendingUpIcon,
+  ClockIcon,
+  CalendarCheckIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -43,6 +45,8 @@ export default function SelectModulePage() {
   }
 
   const isAdmin = currentUser.role === "ADMIN";
+  const isLahoreUser = currentUser.role === "LAHORE_USER";
+  const isMultanUser = currentUser.role === "MULTAN_USER";
 
   const handleSelectGrocery = () => {
     if (isAdmin || currentUser.role === "LAHORE_USER") {
@@ -74,10 +78,28 @@ export default function SelectModulePage() {
     }
   };
 
+  const handleSelectAttendance = () => {
+    if (isAdmin) {
+      toast.success("Opening Attendance Records (All Branches)");
+      router.push("/attendance/records?branch=all");
+    } else if (currentUser.role === "LAHORE_USER") {
+      switchEntity("Lahore");
+      toast.success("Opening Lahore Attendance Records");
+      router.push("/attendance/records?branch=Lahore");
+    } else if (currentUser.role === "MULTAN_USER") {
+      switchEntity("Multan");
+      toast.success("Opening Multan Attendance Records");
+      router.push("/attendance/records?branch=Multan");
+    } else if (currentUser.role === "ISQUAREBPO_USER") {
+      toast.info("Opening Attendance Records");
+      router.push("/attendance/records");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-between py-10 px-6 sm:px-12">
       {/* Top Bar */}
-      <div className="max-w-4xl w-full mx-auto flex justify-between items-center mb-8">
+      <div className="max-w-6xl w-full mx-auto flex justify-between items-center mb-8">
         <div className="flex items-center gap-3.5">
           <div className="flex size-14 items-center justify-center rounded-2xl bg-emerald-700/10 p-1 border border-emerald-600/20 shadow-sm">
             <Image
@@ -118,7 +140,7 @@ export default function SelectModulePage() {
       </div>
 
       {/* Main Panel */}
-      <div className="max-w-4xl w-full mx-auto space-y-8 flex-1 flex flex-col justify-center">
+      <div className="max-w-6xl w-full mx-auto space-y-8 flex-1 flex flex-col justify-center">
         <div className="text-center space-y-2">
           <Badge className="bg-emerald-100/80 text-emerald-800 hover:bg-emerald-100 border border-emerald-200/50 text-xs font-bold px-3 py-1 mb-1">
             <SparklesIcon className="size-3 mr-1 text-emerald-600" />
@@ -126,12 +148,12 @@ export default function SelectModulePage() {
           </Badge>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight">Select a Module</h1>
           <p className="text-sm text-gray-500 font-medium max-w-md mx-auto">
-            Choose an operational module to manage monthly branch expenses or employee commission allocations.
+            Choose an operational module to manage branch expenses, employee commissions, or view live attendance records.
           </p>
         </div>
 
-        {/* Module Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Module Cards (3 Columns) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* 1. GROCERY MODULE CARD */}
           <Card
             onClick={handleSelectGrocery}
@@ -162,11 +184,11 @@ export default function SelectModulePage() {
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Building2Icon className="size-4 text-emerald-600 shrink-0" />
-                  <span>
+                  <span className="truncate">
                     {isAdmin
-                      ? "Lahore, Multan, ISquareBPO & Misc"
+                      ? "Lahore, Multan, Misc"
                       : currentUser.role === "LAHORE_USER"
-                      ? "Main Lahore & Miscellaneous"
+                      ? "Lahore & Misc"
                       : `${activeEntity} Entity`}
                   </span>
                 </div>
@@ -180,12 +202,12 @@ export default function SelectModulePage() {
                 }}
                 className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 group-hover:shadow-md cursor-pointer"
               >
-                <span>
+                <span className="truncate">
                   {isAdmin || currentUser.role === "LAHORE_USER"
                     ? "Open Grocery Entity Selector"
-                    : `Open ${activeEntity} Grocery Module`}
+                    : `Open ${activeEntity} Grocery`}
                 </span>
-                <ArrowRightIcon className="size-4 group-hover:translate-x-1 transition-transform" />
+                <ArrowRightIcon className="size-4 group-hover:translate-x-1 transition-transform shrink-0" />
               </Button>
             </CardFooter>
           </Card>
@@ -205,7 +227,7 @@ export default function SelectModulePage() {
                   <BadgePercentIcon className="size-7" />
                 </div>
                 <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 font-semibold text-[11px]">
-                  {currentUser.role === "ISQUAREBPO_USER" ? "Lahore & Multan Only" : "Commissions & Payroll"}
+                  {currentUser.role === "ISQUAREBPO_USER" ? "Lahore & Multan Only" : "Commissions"}
                 </Badge>
               </div>
               <CardTitle className="text-2xl font-bold text-gray-900 mt-5 group-hover:text-emerald-700 transition-colors">
@@ -224,7 +246,7 @@ export default function SelectModulePage() {
                 </div>
                 <div className="flex items-center gap-1.5">
                   <TrendingUpIcon className="size-4 text-emerald-600 shrink-0" />
-                  <span>Performance Payouts</span>
+                  <span>Performance</span>
                 </div>
               </div>
             </CardContent>
@@ -241,23 +263,92 @@ export default function SelectModulePage() {
                     : "bg-emerald-600 hover:bg-emerald-700 group-hover:shadow-md cursor-pointer"
                 }`}
               >
-                <span>
+                <span className="truncate">
                   {currentUser.role === "ISQUAREBPO_USER"
-                    ? "Not Applicable for ISquareBPO"
+                    ? "Not for ISquareBPO"
                     : isAdmin
-                    ? "Open Commissions Entity Selector"
+                    ? "Open Commissions Selector"
                     : `Open ${activeEntity} Commissions`}
                 </span>
                 {currentUser.role !== "ISQUAREBPO_USER" && (
-                  <ArrowRightIcon className="size-4 group-hover:translate-x-1 transition-transform" />
+                  <ArrowRightIcon className="size-4 group-hover:translate-x-1 transition-transform shrink-0" />
                 )}
+              </Button>
+            </CardFooter>
+          </Card>
+
+          {/* 3. ATTENDANCE RECORDS MODULE CARD */}
+          <Card
+            onClick={handleSelectAttendance}
+            className="group border border-gray-200 hover:border-emerald-500/70 bg-white shadow-xs hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden"
+          >
+            <CardHeader className="pb-4">
+              <div className="flex justify-between items-start">
+                <div className="size-13 rounded-2xl bg-teal-50 flex items-center justify-center text-teal-600 shadow-2xs group-hover:bg-teal-600 group-hover:text-white transition-colors duration-200">
+                  <ClockIcon className="size-7" />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Badge className="bg-teal-50 text-teal-700 hover:bg-teal-50 border border-teal-200 font-semibold text-[11px]">
+                    Live Timesheet
+                  </Badge>
+                  <Badge variant="outline" className="bg-slate-100 text-slate-600 text-[10px] font-bold">
+                    Read-Only
+                  </Badge>
+                </div>
+              </div>
+              <CardTitle className="text-2xl font-bold text-gray-900 mt-5 group-hover:text-teal-700 transition-colors">
+                Attendance Records
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-600 leading-relaxed font-normal">
+                View real-time timesheets, check-in/out timestamps, late arrival logs, total worked hours, and monthly attendance reports.
+              </p>
+
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100 text-xs text-gray-600 font-medium">
+                <div className="flex items-center gap-1.5">
+                  <CalendarCheckIcon className="size-4 text-teal-600 shrink-0" />
+                  <span>Biometric Logs</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Building2Icon className="size-4 text-teal-600 shrink-0" />
+                  <span className="truncate">
+                    {isAdmin
+                      ? "All Branches (Lahore & Multan)"
+                      : isLahoreUser
+                      ? "Lahore Branch Locked"
+                      : isMultanUser
+                      ? "Multan Branch Locked"
+                      : `${activeEntity} Branch`}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="pt-2">
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSelectAttendance();
+                }}
+                className="w-full h-11 bg-teal-600 hover:bg-teal-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 group-hover:shadow-md cursor-pointer"
+              >
+                <span className="truncate">
+                  {isAdmin
+                    ? "Open Attendance Records"
+                    : isLahoreUser
+                    ? "Open Lahore Attendance"
+                    : isMultanUser
+                    ? "Open Multan Attendance"
+                    : "Open Attendance Records"}
+                </span>
+                <ArrowRightIcon className="size-4 group-hover:translate-x-1 transition-transform shrink-0" />
               </Button>
             </CardFooter>
           </Card>
         </div>
       </div>
 
-      <div className="max-w-4xl w-full mx-auto text-center text-xs font-semibold text-gray-400 mt-10">
+      <div className="max-w-6xl w-full mx-auto text-center text-xs font-semibold text-gray-400 mt-10">
         ISquareBPO Multi-Branch Management System • 2026
       </div>
     </div>

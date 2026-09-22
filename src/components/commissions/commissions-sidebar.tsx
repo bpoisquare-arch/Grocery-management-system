@@ -26,6 +26,7 @@ import {
   ShoppingBagIcon,
   LayoutGridIcon,
   AwardIcon,
+  ClockIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -181,6 +182,28 @@ export function CommissionsSidebar({ ...props }: React.ComponentProps<typeof Sid
             >
               <ShoppingBagIcon className="size-5 text-emerald-600" />
               <span>Grocery Module</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
+          {/* Attendance Records Module */}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              render={
+                <Link
+                  href={
+                    currentUser?.role === "LAHORE_USER"
+                      ? "/attendance/records?branch=Lahore"
+                      : currentUser?.role === "MULTAN_USER"
+                      ? "/attendance/records?branch=Multan"
+                      : "/attendance/records"
+                  }
+                />
+              }
+              tooltip="Attendance Records"
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-teal-50 hover:text-teal-700"
+            >
+              <ClockIcon className="size-5 text-teal-600" />
+              <span>Attendance Records</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
