@@ -284,11 +284,11 @@ export default function SelectModulePage() {
           >
             <CardHeader className="pb-4">
               <div className="flex justify-between items-start">
-                <div className="size-13 rounded-2xl bg-teal-50 flex items-center justify-center text-teal-600 shadow-2xs group-hover:bg-teal-600 group-hover:text-white transition-colors duration-200">
+                <div className="size-13 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-2xs group-hover:bg-emerald-600 group-hover:text-white transition-colors duration-200">
                   <ClockIcon className="size-7" />
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Badge className="bg-teal-50 text-teal-700 hover:bg-teal-50 border border-teal-200 font-semibold text-[11px]">
+                  <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-semibold text-[11px]">
                     Live Timesheet
                   </Badge>
                   <Badge variant="outline" className="bg-slate-100 text-slate-600 text-[10px] font-bold">
@@ -296,7 +296,7 @@ export default function SelectModulePage() {
                   </Badge>
                 </div>
               </div>
-              <CardTitle className="text-2xl font-bold text-gray-900 mt-5 group-hover:text-teal-700 transition-colors">
+              <CardTitle className="text-2xl font-bold text-gray-900 mt-5 group-hover:text-emerald-700 transition-colors">
                 Attendance Records
               </CardTitle>
             </CardHeader>
@@ -307,11 +307,11 @@ export default function SelectModulePage() {
 
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100 text-xs text-gray-600 font-medium">
                 <div className="flex items-center gap-1.5">
-                  <CalendarCheckIcon className="size-4 text-teal-600 shrink-0" />
+                  <CalendarCheckIcon className="size-4 text-emerald-600 shrink-0" />
                   <span>Biometric Logs</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Building2Icon className="size-4 text-teal-600 shrink-0" />
+                  <Building2Icon className="size-4 text-emerald-600 shrink-0" />
                   <span className="truncate">
                     {isAdmin
                       ? "All Branches (Lahore & Multan)"
@@ -330,7 +330,7 @@ export default function SelectModulePage() {
                   e.stopPropagation();
                   handleSelectAttendance();
                 }}
-                className="w-full h-11 bg-teal-600 hover:bg-teal-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 group-hover:shadow-md cursor-pointer"
+                className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 group-hover:shadow-md cursor-pointer"
               >
                 <span className="truncate">
                   {isAdmin
