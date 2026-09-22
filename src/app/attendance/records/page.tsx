@@ -7,17 +7,23 @@ import {
   Download,
   Calendar,
   Clock,
-  ChevronLeft,
-  ChevronRight,
   Loader2,
   X,
-  Building2,
-  ShieldAlert,
 } from 'lucide-react'
+import { Geist, Geist_Mono } from 'next/font/google'
+
+const geistSans = Geist({
+  subsets: ['latin'],
+  display: 'swap',
+})
+
+const geistMono = Geist_Mono({
+  subsets: ['latin'],
+  display: 'swap',
+})
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
@@ -38,7 +44,7 @@ import { useStore } from '@/lib/store'
 import { AttendanceHeader } from '@/components/attendance/AttendanceHeader'
 import * as XLSX from 'xlsx'
 
-// Months List
+// Quick Selector Months
 const MONTHS_LIST = [
   { value: '01', label: 'January' },
   { value: '02', label: 'February' },
@@ -93,140 +99,12 @@ function getDayName(dateStr: string): string {
   return d.toLocaleDateString('en-US', { weekday: 'long' })
 }
 
-function getRecordStatusFlags(
-  emp: Employee,
-  date: string,
-  recordMatrixMap: Map<string, AttendanceRecordWithEmployee>,
-  holidays: Record<string, string>,
-  settings?: AttendanceSettings
-) {
-  const dayName = getDayName(date)
-  const isSunday = dayName === 'Sunday'
-  const isGazettedHoliday = Boolean(holidays[date])
-  const todayStr = formatDate(new Date())
-  const isFuture = date > todayStr
-  const isToday = date === todayStr
-  const isPast = date < todayStr
-
-  const isBeforeJoining = Boolean(
-    !emp.is_old_staff &&
-    emp.joining_date &&
-    date < emp.joining_date.split('T')[0]
-  )
-
-  const rec = recordMatrixMap.get(`${emp.id}_${date}`) || recordMatrixMap.get(`${emp.employee_id}_${date}`)
-
-  if (rec) {
-    const isWfh = Boolean(
-      rec.notes?.includes('Work From Home') ||
-      rec.arrival_status === 'Work From Home' ||
-      rec.departure_status === 'Work From Home'
-    )
-
-    const isLeave =
-      rec.arrival_status === 'Leave' ||
-      rec.departure_status?.includes('Leave') ||
-      ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.departure_status as any) ||
-      ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.arrival_status as any)
-
-    const hasInTime = Boolean(rec.in_time && rec.in_time !== '---' && rec.in_time !== '--')
-    const hasOutTime = Boolean(rec.out_time && rec.out_time !== '---' && rec.out_time !== '--')
-    const isLate = rec.arrival_status === 'Late Arrival'
-    const isEarlyLeave = rec.departure_status === 'Early Departure'
-
-    const outTimePassed = isPast || (isToday && hasOfficeOutTimePassed(date, settings))
-    const isMissingOut = !isWfh && !isLeave && hasInTime && !hasOutTime && outTimePassed
-    const isMissingIn = !isWfh && !isLeave && !hasInTime && hasOutTime
-    const hasActualData = hasInTime || hasOutTime || (rec.total_working_minutes ? rec.total_working_minutes > 0 : false) || isLeave || isWfh
-
-    const isExplicitAbsent =
-      rec.arrival_status === 'Absent' ||
-      rec.departure_status === 'Absent' ||
-      (!hasInTime && !hasOutTime && !isLeave && !isWfh)
-
-    if (isLeave) {
-      const leaveLabel =
-        ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].find(
-          (l) => l === rec.departure_status || l === rec.arrival_status
-        ) || rec.departure_status || 'Casual Leave'
-      return {
-        isSunday: false,
-        isGazettedHoliday: false,
-        isLeave: true,
-        isAbsent: false,
-        isLate: false,
-        isEarlyLeave: false,
-        isMissingIn: false,
-        isMissingOut: false,
-        isWfh: false,
-        isPresent: false,
-        statusLabel: leaveLabel,
-      }
-    }
-
-    if (isExplicitAbsent && !hasActualData) {
-      if (isBeforeJoining) {
-        return { isSunday: false, isGazettedHoliday: false, isLeave: false, isAbsent: false, isLate: false, isEarlyLeave: false, isMissingIn: false, isMissingOut: false, isWfh: false, isPresent: false, isBeforeJoining: true, statusLabel: '--' }
-      }
-      if (isSunday || isGazettedHoliday) {
-        return { isSunday, isGazettedHoliday, isLeave: false, isAbsent: false, isLate: false, isEarlyLeave: false, isMissingIn: false, isMissingOut: false, isWfh: false, isPresent: false, statusLabel: isSunday ? 'Sunday' : 'Holiday' }
-      }
-      if (isFuture) {
-        return { isSunday: false, isGazettedHoliday: false, isLeave: false, isAbsent: false, isLate: false, isEarlyLeave: false, isMissingIn: false, isMissingOut: false, isWfh: false, isPresent: false, statusLabel: '' }
-      }
-      return { isSunday: false, isGazettedHoliday: false, isLeave: false, isAbsent: true, isLate: false, isEarlyLeave: false, isMissingIn: false, isMissingOut: false, isWfh: false, isPresent: false, statusLabel: 'Absent' }
-    }
-
-    let statusLabel = ''
-    if (isMissingIn) statusLabel = 'Missing In'
-    else if (isMissingOut) statusLabel = 'Missing Out'
-    else if (isLate) statusLabel = 'Late Arrival'
-    else if (isEarlyLeave) statusLabel = 'Early Departure'
-    else if (isWfh) statusLabel = 'Work From Home'
-
-    return {
-      isSunday: false,
-      isGazettedHoliday: false,
-      isLeave: false,
-      isAbsent: false,
-      isLate,
-      isEarlyLeave,
-      isMissingIn,
-      isMissingOut,
-      isWfh,
-      isPresent: true,
-      statusLabel,
-    }
-  }
-
-  if (isSunday || isGazettedHoliday) {
-    return { isSunday, isGazettedHoliday, isLeave: false, isAbsent: false, isLate: false, isEarlyLeave: false, isMissingIn: false, isMissingOut: false, isWfh: false, isPresent: false, statusLabel: isSunday ? 'Sunday' : 'Holiday' }
-  }
-
-  if (isBeforeJoining) {
-    return { isSunday: false, isGazettedHoliday: false, isLeave: false, isAbsent: false, isLate: false, isEarlyLeave: false, isMissingIn: false, isMissingOut: false, isWfh: false, isPresent: false, isBeforeJoining: true, statusLabel: '--' }
-  }
-
-  if (isPast) {
-    return { isSunday: false, isGazettedHoliday: false, isLeave: false, isAbsent: true, isLate: false, isEarlyLeave: false, isMissingIn: false, isMissingOut: false, isWfh: false, isPresent: false, statusLabel: 'Absent' }
-  }
-
-  if (isToday) {
-    if (hasOfficeInTimePassed(date, settings)) {
-      return { isSunday: false, isGazettedHoliday: false, isLeave: false, isAbsent: true, isLate: false, isEarlyLeave: false, isMissingIn: false, isMissingOut: false, isWfh: false, isPresent: false, statusLabel: 'Absent' }
-    }
-  }
-
-  return { isSunday: false, isGazettedHoliday: false, isLeave: false, isAbsent: false, isLate: false, isEarlyLeave: false, isMissingIn: false, isMissingOut: false, isWfh: false, isPresent: false, statusLabel: '' }
-}
-
 export default function AttendanceRecordsPage() {
   const { currentUser } = useStore()
   const isAdmin = currentUser?.role === 'ADMIN'
   const isLahoreUser = currentUser?.role === 'LAHORE_USER'
   const isMultanUser = currentUser?.role === 'MULTAN_USER'
 
-  // Default branch based on user role
   const defaultBranch = isLahoreUser ? 'Lahore' : isMultanUser ? 'Multan' : 'all'
 
   const [records, setRecords] = useState<AttendanceRecordWithEmployee[]>([])
@@ -235,7 +113,7 @@ export default function AttendanceRecordsPage() {
   const [holidays, setHolidays] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(true)
 
-  // Date Range Defaults
+  // Current Month Defaults
   const initialDateRange = useMemo(() => {
     const now = new Date()
     const yStr = String(now.getFullYear())
@@ -254,7 +132,7 @@ export default function AttendanceRecordsPage() {
   const [search, setSearch] = useState('')
   const [pageSize, setPageSize] = useState<number | 'all'>('all')
 
-  // Status Filter Checkboxes
+  // Checkbox Filters
   const [statusFilters, setStatusFilters] = useState({
     absent: false,
     missingIn: false,
@@ -270,7 +148,6 @@ export default function AttendanceRecordsPage() {
     }
   }, [isLahoreUser, isMultanUser])
 
-  // Handle Month/Year Quick changes
   const handleQuickMonthChange = (newMonth: string) => {
     setSelectedQuickMonth(newMonth)
     const { start, end } = getMonthStartAndEnd(selectedQuickYear, newMonth)
@@ -285,7 +162,7 @@ export default function AttendanceRecordsPage() {
     setEndDate(end)
   }
 
-  // Initial Load Metadata
+  // Load Metadata
   useEffect(() => {
     async function loadMeta() {
       try {
@@ -327,9 +204,12 @@ export default function AttendanceRecordsPage() {
       const data = await res.json()
       if (data.success && data.records) {
         setRecords(data.records)
+      } else {
+        setRecords([])
       }
     } catch (err) {
       console.error('Error fetching attendance records:', err)
+      setRecords([])
     } finally {
       setIsLoading(false)
     }
@@ -361,71 +241,66 @@ export default function AttendanceRecordsPage() {
     return map
   }, [records])
 
-  // Available Designations & Branches
-  const availableDesignations = useMemo(() => {
-    const set = new Set<string>()
-    employees.forEach((emp) => {
-      if (emp.designation) set.add(emp.designation.trim())
-    })
-    return Array.from(set).sort()
-  }, [employees])
-
-  const availableBranches = useMemo(() => {
-    const set = new Set<string>()
-    employees.forEach((emp) => {
-      if (emp.branch) set.add(emp.branch.trim())
-    })
-    return Array.from(set).sort()
-  }, [employees])
-
-  // Calculate status counts for status filter checkboxes
-  const statusFilterCounts = useMemo(() => {
-    let totalAbsent = 0
-    let totalMissingIn = 0
-    let totalMissingOut = 0
-    const empHasMap = new Map<string, { hasAbsent: boolean; hasMissingIn: boolean; hasMissingOut: boolean }>()
-
-    employees.forEach((emp) => {
-      let hasAbsent = false
-      let hasMissingIn = false
-      let hasMissingOut = false
-
-      dateColumns.forEach((date) => {
-        const flags = getRecordStatusFlags(emp, date, recordMatrixMap, holidays, settings)
-        if (flags.isAbsent) {
-          hasAbsent = true
-          totalAbsent++
+  // CRITICAL BUSINESS LOGIC: Determine the MAXIMUM date up to which attendance has been uploaded
+  const maxUploadedDate = useMemo(() => {
+    let maxD = ''
+    records.forEach((r) => {
+      // Must have actual attendance data, punches, or leave
+      const hasActualPunchOrLeave = Boolean(
+        (r.in_time && r.in_time !== '---' && r.in_time !== '--') ||
+        (r.out_time && r.out_time !== '---' && r.out_time !== '--') ||
+        (r.total_working_minutes && r.total_working_minutes > 0) ||
+        r.arrival_status === 'Leave' ||
+        r.departure_status?.includes('Leave') ||
+        r.arrival_status === 'On Time Arrival' ||
+        r.arrival_status === 'Late Arrival' ||
+        r.departure_status === 'On Time Departure' ||
+        r.departure_status === 'Early Departure' ||
+        r.departure_status === 'Work From Home' ||
+        r.arrival_status === 'Work From Home'
+      )
+      if (hasActualPunchOrLeave && r.attendance_date) {
+        if (!maxD || r.attendance_date > maxD) {
+          maxD = r.attendance_date
         }
-        if (flags.isMissingIn) {
-          hasMissingIn = true
-          totalMissingIn++
-        }
-        if (flags.isMissingOut) {
-          hasMissingOut = true
-          totalMissingOut++
-        }
-      })
-
-      empHasMap.set(emp.id, { hasAbsent, hasMissingIn, hasMissingOut })
-      empHasMap.set(emp.employee_id, { hasAbsent, hasMissingIn, hasMissingOut })
+      }
     })
+    return maxD
+  }, [records])
 
-    return { totalAbsent, totalMissingIn, totalMissingOut, empHasMap }
-  }, [employees, dateColumns, recordMatrixMap, holidays, settings])
-
-  // Filter Employees
+  // CRITICAL BUSINESS LOGIC: Only show employees who have at least ONE uploaded record in this range
   const filteredEmployees = useMemo(() => {
-    const isAnyStatusActive = statusFilters.absent || statusFilters.missingIn || statusFilters.missingOut
+    const recordedEmployeeIds = new Set<string>()
+    records.forEach((rec) => {
+      if (rec.employee_id) recordedEmployeeIds.add(rec.employee_id)
+      if (rec.employee?.id) recordedEmployeeIds.add(rec.employee.id)
+      if (rec.employee?.employee_id) recordedEmployeeIds.add(rec.employee.employee_id)
+    })
+
+    // If no records uploaded at all for this month/date range, return empty list
+    if (records.length === 0 || recordedEmployeeIds.size === 0) {
+      return []
+    }
 
     let list = employees.filter((emp) => {
+      // Must have at least 1 record in range
+      const hasRecordInRange =
+        recordedEmployeeIds.has(emp.id) ||
+        recordedEmployeeIds.has(emp.employee_id)
+      if (!hasRecordInRange) {
+        return false
+      }
+
       // Branch filter
       if (selectedBranch !== 'all' && (emp.branch || 'Multan').trim().toLowerCase() !== selectedBranch.toLowerCase()) {
         return false
       }
+
       // Designation filter
       if (selectedDesignation !== 'all' && emp.designation?.trim().toLowerCase() !== selectedDesignation.toLowerCase()) {
         return false
       }
+
       // Search filter
       if (search.trim()) {
         const q = search.toLowerCase()
@@ -434,15 +309,7 @@ export default function AttendanceRecordsPage() {
         const matchDesig = emp.designation?.toLowerCase().includes(q)
         if (!matchName && !matchId && !matchDesig) return false
       }
-      // Status Checkbox filters
-      if (isAnyStatusActive) {
-        const empStatus = statusFilterCounts.empHasMap.get(emp.id) || statusFilterCounts.empHasMap.get(emp.employee_id)
-        if (!empStatus) return false
-        const matchAbsent = statusFilters.absent && empStatus.hasAbsent
-        const matchMissingIn = statusFilters.missingIn && empStatus.hasMissingIn
-        const matchMissingOut = statusFilters.missingOut && empStatus.hasMissingOut
-        if (!matchAbsent && !matchMissingIn && !matchMissingOut) return false
-      }
+
       return true
     })
 
@@ -451,46 +318,99 @@ export default function AttendanceRecordsPage() {
     }
 
     return list
-  }, [employees, selectedBranch, selectedDesignation, search, statusFilters, statusFilterCounts, pageSize])
+  }, [employees, records, selectedDesignation, selectedBranch, search, pageSize])
 
-  // KPI Stats
+  // Present employees on date count
+  const getPresentEmployeesCountOnDate = (date: string): number => {
+    let count = 0
+    employees.forEach((emp) => {
+      const rec = recordMatrixMap.get(`${emp.id}_${date}`) || recordMatrixMap.get(`${emp.employee_id}_${date}`)
+      if (rec) {
+        const isPresent =
+          Boolean(rec.in_time && rec.in_time !== '--') ||
+          Boolean(rec.out_time && rec.out_time !== '--') ||
+          (rec.total_working_minutes ? rec.total_working_minutes > 0 : false) ||
+          rec.arrival_status === 'On Time Arrival' ||
+          rec.arrival_status === 'Late Arrival' ||
+          rec.departure_status === 'On Time Departure' ||
+          rec.departure_status === 'Early Departure'
+        if (isPresent) count++
+      }
+    })
+    return count
+  }
+
+  // Summary KPI Counters (Exact match with MIS Attendance page)
   const kpiStats = useMemo(() => {
-    let onTimeArrival = 0
-    let lateArrival = 0
-    let onTimeDeparture = 0
-    let earlyDeparture = 0
+    let onTimeArrivals = 0
+    let lateArrivals = 0
+    let onTimeDepartures = 0
+    let earlyDepartures = 0
     let totalAbsent = 0
-    let totalLeave = 0
+    let totalLeaves = 0
+
+    const todayStr = formatDate(new Date())
 
     filteredEmployees.forEach((emp) => {
       dateColumns.forEach((date) => {
-        const rec = recordMatrixMap.get(`${emp.id}_${date}`) || recordMatrixMap.get(`${emp.employee_id}_${date}`)
-        const flags = getRecordStatusFlags(emp, date, recordMatrixMap, holidays, settings)
+        const isBeforeJoining = Boolean(
+          !emp.is_old_staff &&
+          emp.joining_date &&
+          date < emp.joining_date.split('T')[0]
+        )
+        if (isBeforeJoining) return
 
-        if (flags.isLeave) totalLeave++
-        if (flags.isAbsent) totalAbsent++
+        const dayName = getDayName(date)
+        const isSunday = dayName === 'Sunday'
+        const isGazettedHoliday = Boolean(holidays[date]) && getPresentEmployeesCountOnDate(date) === 0
+        if (isSunday || isGazettedHoliday) return
+
+        // CRITICAL: Dates after the last uploaded date are NOT past unuploaded days and cannot be counted as Absent
+        if (!maxUploadedDate || date > maxUploadedDate) return
+
+        const rec = recordMatrixMap.get(`${emp.id}_${date}`) || recordMatrixMap.get(`${emp.employee_id}_${date}`)
 
         if (rec) {
-          if (rec.arrival_status === 'On Time Arrival') onTimeArrival++
-          if (rec.arrival_status === 'Late Arrival') lateArrival++
-          if (rec.departure_status === 'On Time Departure') onTimeDeparture++
-          if (rec.departure_status === 'Early Departure') earlyDeparture++
+          const isLeave =
+            rec.arrival_status === 'Leave' ||
+            rec.departure_status?.includes('Leave') ||
+            ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.departure_status as any) ||
+            ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.arrival_status as any)
+
+          const isExplicitAbsent =
+            rec.arrival_status === 'Absent' ||
+            rec.departure_status === 'Absent' ||
+            (!rec.in_time && !rec.out_time && !isLeave)
+
+          if (isLeave) {
+            totalLeaves++
+          } else if (isExplicitAbsent) {
+            totalAbsent++
+          } else {
+            if (rec.arrival_status === 'On Time Arrival') onTimeArrivals++
+            if (rec.arrival_status === 'Late Arrival') lateArrivals++
+            if (rec.departure_status === 'On Time Departure') onTimeDepartures++
+            if (rec.departure_status === 'Early Departure') earlyDepartures++
+          }
+        } else {
+          // No record exists up to maxUploadedDate on an official working day -> Absent
+          totalAbsent++
         }
       })
     })
 
     return {
       totalEmployees: filteredEmployees.length,
-      onTimeArrival,
-      lateArrival,
-      onTimeDeparture,
-      earlyDeparture,
-      absent: totalAbsent,
-      leave: totalLeave,
+      onTimeArrivals,
+      lateArrivals,
+      onTimeDepartures,
+      earlyDepartures,
+      totalAbsent,
+      totalLeaves,
     }
-  }, [filteredEmployees, dateColumns, recordMatrixMap, holidays, settings])
+  }, [filteredEmployees, dateColumns, recordMatrixMap, holidays, maxUploadedDate])
 
-  // Export to Excel
+  // Export to Excel (Full matrix)
   const handleExportExcel = () => {
     try {
       const rows: any[] = []
@@ -503,23 +423,30 @@ export default function AttendanceRecordsPage() {
         }
 
         dateColumns.forEach((date) => {
+          const dayName = getDayName(date)
+          const isSunday = dayName === 'Sunday'
+          const isGazettedHoliday = Boolean(holidays[date]) && getPresentEmployeesCountOnDate(date) === 0
           const rec = recordMatrixMap.get(`${emp.id}_${date}`) || recordMatrixMap.get(`${emp.employee_id}_${date}`)
-          const flags = getRecordStatusFlags(emp, date, recordMatrixMap, holidays, settings)
-          if (flags.isSunday) {
-            rowData[date] = 'Sunday (OFF)'
-          } else if (flags.isGazettedHoliday) {
+
+          if (isSunday) {
+            rowData[date] = 'Holiday'
+          } else if (isGazettedHoliday) {
             rowData[date] = `Holiday (${holidays[date] || 'Gazetted'})`
-          } else if (flags.isLeave) {
-            rowData[date] = flags.statusLabel || 'Leave'
-          } else if (flags.isAbsent) {
-            rowData[date] = 'Absent'
-          } else if (rec && (rec.in_time || rec.out_time)) {
-            const inT = rec.in_time || '--'
-            const outT = rec.out_time || '--'
-            const hrs = rec.total_working_hours || ''
-            rowData[date] = `${inT} - ${outT} ${hrs ? `(${hrs})` : ''}`
+          } else if (rec) {
+            const isLeave =
+              rec.arrival_status === 'Leave' ||
+              rec.departure_status?.includes('Leave') ||
+              ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.departure_status as any) ||
+              ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.arrival_status as any)
+            if (isLeave) {
+              rowData[date] = rec.departure_status || rec.arrival_status || 'Leave'
+            } else if (rec.in_time || rec.out_time) {
+              rowData[date] = `${rec.in_time || '--'} - ${rec.out_time || '--'}`
+            } else {
+              rowData[date] = date <= maxUploadedDate ? 'Absent' : '--'
+            }
           } else {
-            rowData[date] = '--'
+            rowData[date] = date <= maxUploadedDate ? 'Absent' : '--'
           }
         })
 
@@ -535,56 +462,108 @@ export default function AttendanceRecordsPage() {
     }
   }
 
-  // Render Cell Content (Strictly Read-Only)
+  // Render Status Badge / Content inside each Grid Cell (Exact MIS Layout & Logic)
   const renderCellContent = (emp: Employee, date: string) => {
-    const flags = getRecordStatusFlags(emp, date, recordMatrixMap, holidays, settings)
-    const rec = recordMatrixMap.get(`${emp.id}_${date}`) || recordMatrixMap.get(`${emp.employee_id}_${date}`)
     const todayStr = formatDate(new Date())
+    const dayName = getDayName(date)
+    const isFuture = date > todayStr
     const isToday = date === todayStr
     const isPast = date < todayStr
-    const isFuture = date > todayStr
+    const presentCountOnDate = getPresentEmployeesCountOnDate(date)
+    const isGazettedHoliday = Boolean(holidays[date]) && presentCountOnDate === 0
 
-    if (flags.isBeforeJoining) {
+    const rec = recordMatrixMap.get(`${emp.id}_${date}`) || recordMatrixMap.get(`${emp.employee_id}_${date}`)
+
+    const isBeforeJoining = Boolean(
+      !emp.is_old_staff &&
+      emp.joining_date &&
+      date < emp.joining_date.split('T')[0]
+    )
+
+    // Pre-joining dates without punches show neutral placeholder "--"
+    if (isBeforeJoining && !rec) {
       return (
-        <span className="text-slate-300 font-mono text-xs select-none">
+        <div className="flex items-center justify-center py-2 text-slate-400 font-mono text-xs select-none">
           --
-        </span>
-      )
-    }
-
-    if (flags.isSunday) {
-      return (
-        <div className="py-1 px-2 bg-amber-50/70 border border-amber-200/80 rounded text-amber-800 text-[10px] font-bold tracking-tight">
-          Sunday
         </div>
       )
     }
 
-    if (flags.isGazettedHoliday) {
+    // Sunday is strictly Holiday
+    if (dayName === 'Sunday') {
       return (
-        <div className="py-1 px-2 bg-amber-100/80 border border-amber-300 rounded text-amber-900 text-[10px] font-extrabold tracking-tight">
-          Holiday
+        <div className="flex items-center justify-center py-2 select-none">
+          <span className="bg-[#b38600] text-white px-2.5 py-1 rounded text-[11px] font-bold shadow-2xs tracking-wide">
+            Holiday
+          </span>
         </div>
       )
     }
 
-    if (flags.isLeave) {
+    // Gazetted Holiday (when 0 punches recorded on this date)
+    if (isGazettedHoliday) {
       return (
-        <div className="py-1 px-2 bg-indigo-50 border border-indigo-200 rounded text-indigo-900 text-[10px] font-bold">
-          {flags.statusLabel || 'Leave'}
+        <div className="flex items-center justify-center py-2 select-none">
+          <span className="bg-[#b38600] text-white px-2 py-0.5 rounded text-[10px] font-bold shadow-2xs tracking-wide whitespace-nowrap">
+            Gazetted Holiday
+          </span>
         </div>
       )
     }
 
-    if (flags.isAbsent) {
-      return (
-        <div className="py-1 px-2.5 bg-rose-50 border border-rose-200 rounded text-rose-800 text-[10px] font-extrabold tracking-wider uppercase">
-          Absent
-        </div>
-      )
-    }
-
+    // Record exists
     if (rec) {
+      const isLeave =
+        rec.arrival_status === 'Leave' ||
+        rec.departure_status?.includes('Leave') ||
+        ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.departure_status as any) ||
+        ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.arrival_status as any)
+
+      const isExplicitAbsent =
+        rec.arrival_status === 'Absent' ||
+        rec.departure_status === 'Absent' ||
+        (!rec.in_time && !rec.out_time && !isLeave)
+
+      // A. Leave Record
+      if (isLeave) {
+        const leaveLabel =
+          ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].find(
+            (l) => l === rec.departure_status || l === rec.arrival_status
+          ) || 'Leave'
+
+        const match = rec.notes?.match(/\(([0-9]+(?:\.[0-9]+)?)\s*day/i) || rec.notes?.match(/([0-9]+(?:\.[0-9]+)?)\s*day/i)
+        const daysSuffix = match && match[1] !== '1' ? ` (${match[1]}d)` : ''
+
+        return (
+          <div className="p-1.5 rounded-md flex items-center justify-center text-center border bg-indigo-50/80 border-indigo-200 text-indigo-950 shadow-2xs select-none">
+            <span className="bg-indigo-600 text-white px-2 py-0.5 rounded text-[10px] font-bold tracking-tight shadow-2xs">
+              {leaveLabel}{daysSuffix}
+            </span>
+          </div>
+        )
+      }
+
+      // B. Explicit Absent Record
+      if (isExplicitAbsent) {
+        // If date is after the last uploaded date, do not show absent! Show --
+        if (maxUploadedDate && date > maxUploadedDate) {
+          return (
+            <div className="flex items-center justify-center py-2 text-slate-300 font-mono text-xs select-none">
+              --
+            </div>
+          )
+        }
+
+        return (
+          <div className="p-1.5 rounded-md flex items-center justify-center text-center border bg-rose-50/80 border-rose-200 text-rose-950 shadow-2xs select-none">
+            <span className="bg-rose-600 text-white px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shadow-2xs">
+              ABSENT
+            </span>
+          </div>
+        )
+      }
+
+      // C. Present Record with timings & notes check
       const isWfh = Boolean(
         rec.notes?.includes('Work From Home') ||
         rec.arrival_status === 'Work From Home' ||
@@ -594,22 +573,27 @@ export default function AttendanceRecordsPage() {
       const isEarlyLeave = rec.departure_status === 'Early Departure'
       const hasInTime = Boolean(rec.in_time && rec.in_time !== '---' && rec.in_time !== '--')
       const hasOutTime = Boolean(rec.out_time && rec.out_time !== '---' && rec.out_time !== '--')
+
       const outTimePassed = isPast || (isToday && hasOfficeOutTimePassed(date, settings))
       const isMissingOut = !isWfh && hasInTime && !hasOutTime && outTimePassed
       const isMissingIn = !isWfh && !hasInTime && hasOutTime
       const isCurrentlyInOffice = !isWfh && hasInTime && !hasOutTime && isToday && !outTimePassed
 
+      const workedTimeStr =
+        rec.total_working_hours ||
+        (rec.total_working_minutes ? `${Math.floor(rec.total_working_minutes / 60)}h ${rec.total_working_minutes % 60}m` : null)
+
       return (
         <div
-          className={`p-1.5 rounded-md flex flex-col items-center justify-center text-center gap-0.5 border ${
+          className={`p-1.5 rounded-md flex flex-col items-center justify-center text-center gap-0.5 border select-none ${
             isWfh
-              ? 'bg-sky-50 border-sky-300 text-sky-950'
+              ? 'bg-sky-50 border-sky-300 text-sky-950 shadow-2xs'
               : isMissingOut || isMissingIn
-              ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
+              ? 'bg-emerald-50 border-emerald-300 text-emerald-950 shadow-2xs'
               : isCurrentlyInOffice
               ? 'bg-emerald-50/70 border-emerald-300 text-emerald-950'
               : isLate || isEarlyLeave
-              ? 'bg-amber-50 border-amber-300 text-amber-950'
+              ? 'bg-amber-50 border-amber-300 text-amber-950 shadow-2xs'
               : 'bg-emerald-50/50 border-emerald-200/70 text-slate-800'
           }`}
         >
@@ -624,7 +608,7 @@ export default function AttendanceRecordsPage() {
             </span>
           </div>
 
-          {/* Duration Badge */}
+          {/* Duration Badge with Clock Icon */}
           <div className="flex items-center justify-center gap-1 text-[11px] font-mono font-medium">
             <span
               className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] ${
@@ -639,31 +623,74 @@ export default function AttendanceRecordsPage() {
                   : 'bg-emerald-600 text-white'
               }`}
             >
-              <Clock className="w-2.5 h-2.5" />
+              {isWfh ? '🏠' : '⏱'}
             </span>
-            <span className="font-bold text-[10px]">
-              {rec.total_working_hours && rec.total_working_hours !== '--' && rec.total_working_hours !== '00:00'
-                ? `(${rec.total_working_hours})`
-                : isCurrentlyInOffice
-                ? '(In Office)'
-                : isMissingOut
-                ? '(Missing Out)'
-                : isMissingIn
-                ? '(Missing In)'
-                : ''}
+            <span className={`font-bold ${isMissingOut || isMissingIn ? 'text-emerald-800' : isWfh ? 'text-sky-900' : isLate || isEarlyLeave ? 'text-amber-800' : 'text-slate-700'}`}>
+              ({workedTimeStr && workedTimeStr !== '00:00' && workedTimeStr !== '--' ? workedTimeStr : isCurrentlyInOffice ? 'Working' : '--'})
             </span>
           </div>
+
+          {/* Status Pill */}
+          {isMissingOut ? (
+            <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-300 mt-0.5">
+              Missing Out
+            </span>
+          ) : isMissingIn ? (
+            <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-300 mt-0.5">
+              Missing In
+            </span>
+          ) : isWfh ? (
+            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-sky-100 text-sky-900 border border-sky-300">
+              WFH
+            </span>
+          ) : isCurrentlyInOffice ? (
+            <span className="text-[9px] font-bold uppercase px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
+              Active Now
+            </span>
+          ) : (isLate || isEarlyLeave) ? (
+            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-amber-200/90 text-amber-900 border border-amber-300">
+              {isLate ? 'Late' : 'Early Out'}
+            </span>
+          ) : null}
         </div>
       )
     }
 
-    if (isFuture) {
-      return <span className="text-slate-300 font-mono text-xs">--</span>
+    // 3. If NO record exists:
+    // A. Future Date OR Date after the last uploaded attendance date -> Show neutral placeholder "--"
+    if (isFuture || (maxUploadedDate && date > maxUploadedDate)) {
+      return (
+        <div className="flex items-center justify-center py-2 text-slate-300 font-mono text-xs select-none">
+          --
+        </div>
+      )
     }
 
+    // B. Today -> If in-time cutoff passed, Absent; else "--"
+    if (isToday) {
+      if (hasOfficeInTimePassed(date, settings)) {
+        return (
+          <div className="p-1.5 rounded-md flex items-center justify-center text-center border bg-rose-50/80 border-rose-200 text-rose-950 shadow-2xs select-none">
+            <span className="bg-rose-600 text-white px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shadow-2xs">
+              ABSENT
+            </span>
+          </div>
+        )
+      } else {
+        return (
+          <div className="flex items-center justify-center py-2 text-slate-400 font-mono text-xs select-none">
+            --
+          </div>
+        )
+      }
+    }
+
+    // C. Past Date up to maxUploadedDate -> Absent
     return (
-      <div className="py-1 px-2.5 bg-rose-50 border border-rose-200 rounded text-rose-800 text-[10px] font-extrabold tracking-wider uppercase">
-        Absent
+      <div className="p-1.5 rounded-md flex items-center justify-center text-center border bg-rose-50/80 border-rose-200 text-rose-950 shadow-2xs select-none">
+        <span className="bg-rose-600 text-white px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shadow-2xs">
+          ABSENT
+        </span>
       </div>
     )
   }
@@ -671,54 +698,54 @@ export default function AttendanceRecordsPage() {
   const activeBranchDisplay = selectedBranch === 'all' ? 'All Branches' : selectedBranch
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans">
+    <div className={`min-h-screen bg-[#F8FAFC] flex flex-col font-sans ${geistSans.className}`}>
       <AttendanceHeader activeBranch={activeBranchDisplay} />
 
-      <main className="flex-1 p-4 md:p-6 lg:p-8 space-y-5 max-w-[1650px] w-full mx-auto">
-        {/* Top Header & Export */}
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-5 max-w-full mx-auto w-full pb-12">
+        {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2.5">
+            <h2 className="text-2xl font-bold text-[#003D5C] tracking-tight flex items-center gap-2.5">
               Attendance Records
-            </h1>
+            </h2>
             <p className="text-xs text-slate-500 mt-1">
               Timesheet grid view with fixed employee columns and dynamic date-wise attendance logs.
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <Button
               variant="outline"
               onClick={handleExportExcel}
               className="text-xs font-bold uppercase tracking-wider text-slate-700 border-slate-300 gap-1.5 shadow-2xs h-9"
             >
-              <Download className="w-4 h-4 text-emerald-600" />
+              <Download className="w-4 h-4 text-[#009D9E]" />
               Excel Export
             </Button>
           </div>
         </div>
 
-        {/* Filter Card */}
-        <Card className="p-4 shadow-xs border-slate-200 space-y-3.5 bg-white">
+        {/* Top Unified Filter Bar with DateRange, Quick Month/Year, Designation, Branch, Search */}
+        <Card className="p-4 shadow-xs border-slate-200/90 space-y-3.5 bg-white">
           <div className="flex flex-wrap items-end gap-3">
-            {/* 1. Date Range: Quick Month & Year */}
+            {/* 1. Date Range: Quick Month & Year + Range Picker */}
             <div className="space-y-1">
               <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
                 Date Range:
               </label>
               <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5">
-                {/* Month */}
-                <div className="w-[125px] shrink-0">
+                {/* Month Select */}
+                <div className="w-[120px] shrink-0">
                   <Select
                     value={selectedQuickMonth}
                     onValueChange={(val) => val && handleQuickMonthChange(val)}
                   >
-                    <SelectTrigger className="text-xs border-slate-300 h-9.5 font-semibold rounded-lg bg-slate-50/50">
+                    <SelectTrigger className="text-xs border-slate-300 h-9.5 font-semibold rounded-lg bg-slate-50/50 focus:bg-white w-full">
                       <SelectValue placeholder="Month">
                         {MONTHS_LIST.find((m) => m.value === selectedQuickMonth)?.label || 'Month'}
                       </SelectValue>
                     </SelectTrigger>
-                    <SelectContent className="max-h-60">
+                    <SelectContent className="max-h-60 min-w-[135px]">
                       {MONTHS_LIST.map((m) => (
                         <SelectItem key={m.value} value={m.value}>
                           {m.label} ({m.value})
@@ -728,16 +755,16 @@ export default function AttendanceRecordsPage() {
                   </Select>
                 </div>
 
-                {/* Year */}
-                <div className="w-[90px] shrink-0">
+                {/* Year Select */}
+                <div className="w-[82px] shrink-0">
                   <Select
                     value={selectedQuickYear}
                     onValueChange={(val) => val && handleQuickYearChange(val)}
                   >
-                    <SelectTrigger className="text-xs border-slate-300 h-9.5 font-semibold rounded-lg bg-slate-50/50">
+                    <SelectTrigger className="text-xs border-slate-300 h-9.5 font-semibold rounded-lg bg-slate-50/50 focus:bg-white w-full">
                       <SelectValue placeholder="Year">{selectedQuickYear}</SelectValue>
                     </SelectTrigger>
-                    <SelectContent className="max-h-60">
+                    <SelectContent className="max-h-60 min-w-[90px]">
                       {YEARS_LIST.map((yr) => (
                         <SelectItem key={yr} value={yr}>
                           {yr}
@@ -747,52 +774,52 @@ export default function AttendanceRecordsPage() {
                   </Select>
                 </div>
 
-                {/* Custom Dates */}
-                <div className="flex items-center gap-1 bg-slate-50 border border-slate-300 rounded-lg px-2 h-9.5">
+                {/* Custom Date Range Picker inputs */}
+                <div className="flex items-center gap-1.5 bg-slate-50/50 border border-slate-300 rounded-lg px-2.5 h-9.5 w-full sm:w-[260px] shrink-0">
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="bg-transparent text-xs font-medium text-slate-700 focus:outline-none"
+                    className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none w-full"
                   />
-                  <span className="text-xs text-slate-400">to</span>
+                  <span className="text-xs text-slate-400 font-medium">to</span>
                   <input
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="bg-transparent text-xs font-medium text-slate-700 focus:outline-none"
+                    className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none w-full"
                   />
                 </div>
               </div>
             </div>
 
             {/* 2. Select Designation */}
-            <div className="w-full sm:w-[200px] shrink-0 space-y-1">
-              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+            <div className="w-full sm:w-[210px] shrink-0 space-y-1">
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block truncate">
                 Select Designation
               </label>
               <Select
                 value={selectedDesignation}
                 onValueChange={(val) => setSelectedDesignation(val || 'all')}
               >
-                <SelectTrigger className="text-xs border-slate-300 h-9.5 font-medium rounded-lg bg-slate-50/50 truncate">
+                <SelectTrigger className="text-xs border-slate-300 h-9.5 font-medium rounded-lg bg-slate-50/50 focus:bg-white w-full truncate">
                   <SelectValue placeholder="ALL DESIGNATIONS" />
                 </SelectTrigger>
-                <SelectContent className="max-h-64">
+                <SelectContent className="max-h-64 min-w-[240px]">
                   <SelectItem value="all">ALL DESIGNATIONS</SelectItem>
-                  {availableDesignations.map((d) => (
-                    <SelectItem key={d} value={d}>
-                      {d}
+                  {Array.from(new Set(employees.map((e) => e.designation))).filter(Boolean).sort().map((desig) => (
+                    <SelectItem key={desig} value={desig}>
+                      {desig}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* 3. Branch Filter (Disabled/Locked for Lahore and Multan users) */}
-            <div className="w-full sm:w-[150px] shrink-0 space-y-1">
+            {/* 3. Branch Filter (Locked for Lahore/Multan users) */}
+            <div className="w-full sm:w-[135px] shrink-0 space-y-1">
               <div className="flex items-center justify-between">
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block truncate">
                   Branch
                 </label>
                 {!isAdmin && (
@@ -807,25 +834,16 @@ export default function AttendanceRecordsPage() {
                 onValueChange={(val) => setSelectedBranch(val || 'all')}
               >
                 <SelectTrigger
-                  className={`text-xs border-slate-300 h-9.5 font-semibold rounded-lg ${
-                    !isAdmin ? 'bg-slate-100 text-slate-600 cursor-not-allowed' : 'bg-slate-50/50'
+                  className={`text-xs border-slate-300 h-9.5 font-medium rounded-lg w-full ${
+                    !isAdmin ? 'bg-slate-100 text-slate-600 cursor-not-allowed' : 'bg-slate-50/50 focus:bg-white'
                   }`}
                 >
                   <SelectValue placeholder="ALL BRANCHES" />
                 </SelectTrigger>
-                <SelectContent className="max-h-64">
+                <SelectContent className="max-h-64 min-w-[150px]">
                   {isAdmin && <SelectItem value="all">ALL BRANCHES</SelectItem>}
                   <SelectItem value="Lahore">Lahore</SelectItem>
                   <SelectItem value="Multan">Multan</SelectItem>
-                  {availableBranches.map(
-                    (b) =>
-                      b !== 'Lahore' &&
-                      b !== 'Multan' && (
-                        <SelectItem key={b} value={b}>
-                          {b}
-                        </SelectItem>
-                      )
-                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -844,7 +862,7 @@ export default function AttendanceRecordsPage() {
                       const val = e.target.value
                       setPageSize(val === 'all' ? 'all' : parseInt(val, 10))
                     }}
-                    className="border border-slate-200 rounded px-1.5 py-0.5 text-[10px] bg-slate-50 focus:outline-none"
+                    className="border border-slate-200 rounded px-1.5 py-0.5 text-[10px] bg-slate-50 focus:outline-none focus:ring-1 focus:ring-[#009D9E]"
                   >
                     <option value="all">All</option>
                     <option value="10">10</option>
@@ -860,7 +878,7 @@ export default function AttendanceRecordsPage() {
                   placeholder="Search Name, ID..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 pr-8 text-xs border-slate-300 h-9.5 w-full rounded-lg bg-slate-50/50"
+                  className="pl-9 pr-8 text-xs border-slate-300 h-9.5 w-full rounded-lg bg-slate-50/50 focus:bg-white transition-colors"
                 />
                 {search && (
                   <button
@@ -879,7 +897,7 @@ export default function AttendanceRecordsPage() {
           <div className="pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5 mr-1">
-                <Filter className="w-3.5 h-3.5 text-emerald-600" />
+                <Filter className="w-3.5 h-3.5 text-[#009D9E]" />
                 Status Filter:
               </span>
 
@@ -887,8 +905,8 @@ export default function AttendanceRecordsPage() {
               <label
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-all select-none ${
                   statusFilters.absent
-                    ? 'bg-rose-50 border-rose-400 text-rose-800 ring-1 ring-rose-300'
-                    : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                    ? 'bg-rose-50 border-rose-400 text-rose-800 shadow-2xs ring-1 ring-rose-300'
+                    : 'bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-700'
                 }`}
               >
                 <input
@@ -897,14 +915,20 @@ export default function AttendanceRecordsPage() {
                   onChange={(e) =>
                     setStatusFilters((prev) => ({ ...prev, absent: e.target.checked }))
                   }
-                  className="w-3.5 h-3.5 rounded text-rose-600 border-slate-300 cursor-pointer accent-rose-600"
+                  className="w-3.5 h-3.5 rounded text-rose-600 focus:ring-rose-500 border-slate-300 cursor-pointer accent-rose-600"
                 />
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-rose-600"></span>
                   <span>Absent</span>
                 </span>
-                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700">
-                  {statusFilterCounts.totalAbsent}
+                <span
+                  className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                    statusFilters.absent
+                      ? 'bg-rose-200 text-rose-900'
+                      : 'bg-slate-200/80 text-slate-600'
+                  }`}
+                >
+                  {kpiStats.totalAbsent}
                 </span>
               </label>
 
@@ -912,8 +936,8 @@ export default function AttendanceRecordsPage() {
               <label
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-all select-none ${
                   statusFilters.missingIn
-                    ? 'bg-emerald-50 border-emerald-400 text-emerald-800 ring-1 ring-emerald-300'
-                    : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                    ? 'bg-emerald-50 border-emerald-400 text-emerald-800 shadow-2xs ring-1 ring-emerald-300'
+                    : 'bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-700'
                 }`}
               >
                 <input
@@ -922,14 +946,20 @@ export default function AttendanceRecordsPage() {
                   onChange={(e) =>
                     setStatusFilters((prev) => ({ ...prev, missingIn: e.target.checked }))
                   }
-                  className="w-3.5 h-3.5 rounded text-emerald-600 border-slate-300 cursor-pointer accent-emerald-600"
+                  className="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer accent-emerald-600"
                 />
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
                   <span>Missing In</span>
                 </span>
-                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700">
-                  {statusFilterCounts.totalMissingIn}
+                <span
+                  className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                    statusFilters.missingIn
+                      ? 'bg-emerald-200 text-emerald-900'
+                      : 'bg-slate-200/80 text-slate-600'
+                  }`}
+                >
+                  0
                 </span>
               </label>
 
@@ -937,8 +967,8 @@ export default function AttendanceRecordsPage() {
               <label
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-all select-none ${
                   statusFilters.missingOut
-                    ? 'bg-emerald-50 border-emerald-400 text-emerald-800 ring-1 ring-emerald-300'
-                    : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                    ? 'bg-emerald-50 border-emerald-400 text-emerald-800 shadow-2xs ring-1 ring-emerald-300'
+                    : 'bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-700'
                 }`}
               >
                 <input
@@ -947,122 +977,133 @@ export default function AttendanceRecordsPage() {
                   onChange={(e) =>
                     setStatusFilters((prev) => ({ ...prev, missingOut: e.target.checked }))
                   }
-                  className="w-3.5 h-3.5 rounded text-emerald-600 border-slate-300 cursor-pointer accent-emerald-600"
+                  className="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer accent-emerald-600"
                 />
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
                   <span>Missing Out</span>
                 </span>
-                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700">
-                  {statusFilterCounts.totalMissingOut}
+                <span
+                  className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                    statusFilters.missingOut
+                      ? 'bg-emerald-200 text-emerald-900'
+                      : 'bg-slate-200/80 text-slate-600'
+                  }`}
+                >
+                  0
                 </span>
               </label>
             </div>
 
             {(statusFilters.absent || statusFilters.missingIn || statusFilters.missingOut) && (
-              <button
-                type="button"
-                onClick={() =>
-                  setStatusFilters({ absent: false, missingIn: false, missingOut: false })
-                }
-                className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-md border border-rose-200 flex items-center gap-1 transition-colors"
-              >
-                <X className="w-3 h-3" />
-                Reset Filters
-              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-medium text-slate-500">
+                  Filtered: <strong className="text-slate-800">{filteredEmployees.length}</strong> employee(s)
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setStatusFilters({ absent: false, missingIn: false, missingOut: false })
+                  }
+                  className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-md border border-rose-200 flex items-center gap-1 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                  Reset Filters
+                </button>
+              </div>
             )}
           </div>
         </Card>
 
-        {/* Summary KPI Counters (7 cards) */}
+        {/* Summary KPI Counters (7 cards) - Exact MIS Card Styling */}
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
           <Card className="p-3 shadow-2xs border-slate-200 bg-white">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Employees</p>
-            <p className="text-lg font-extrabold text-slate-800 mt-0.5">{kpiStats.totalEmployees}</p>
+            <p className="text-lg font-extrabold text-[#003D5C] mt-0.5">{kpiStats.totalEmployees}</p>
           </Card>
-
-          <Card className="p-3 shadow-2xs border-emerald-200 bg-emerald-50/40 border-l-4 border-l-emerald-500">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">On Time Arrival</p>
-            <p className="text-lg font-extrabold text-emerald-800 mt-0.5">{kpiStats.onTimeArrival}</p>
+          <Card className="p-3 shadow-2xs border-slate-200 border-l-4 border-l-emerald-500 bg-white">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">On Time Arrival</p>
+            <p className="text-lg font-extrabold text-emerald-600 mt-0.5">{kpiStats.onTimeArrivals}</p>
           </Card>
-
-          <Card className="p-3 shadow-2xs border-amber-200 bg-amber-50/40 border-l-4 border-l-amber-500">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700">Late Arrival</p>
-            <p className="text-lg font-extrabold text-amber-800 mt-0.5">{kpiStats.lateArrival}</p>
+          <Card className="p-3 shadow-2xs border-slate-200 border-l-4 border-l-amber-500 bg-white">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Late Arrival</p>
+            <p className="text-lg font-extrabold text-amber-600 mt-0.5">{kpiStats.lateArrivals}</p>
           </Card>
-
-          <Card className="p-3 shadow-2xs border-teal-200 bg-teal-50/40 border-l-4 border-l-teal-500">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-teal-700">On Time Departure</p>
-            <p className="text-lg font-extrabold text-teal-800 mt-0.5">{kpiStats.onTimeDeparture}</p>
+          <Card className="p-3 shadow-2xs border-slate-200 border-l-4 border-l-teal-500 bg-white">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">On Time Departure</p>
+            <p className="text-lg font-extrabold text-teal-600 mt-0.5">{kpiStats.onTimeDepartures}</p>
           </Card>
-
-          <Card className="p-3 shadow-2xs border-rose-200 bg-rose-50/40 border-l-4 border-l-rose-400">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-rose-700">Early Departure</p>
-            <p className="text-lg font-extrabold text-rose-800 mt-0.5">{kpiStats.earlyDeparture}</p>
+          <Card className="p-3 shadow-2xs border-slate-200 border-l-4 border-l-rose-400 bg-white">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Early Departure</p>
+            <p className="text-lg font-extrabold text-rose-500 mt-0.5">{kpiStats.earlyDepartures}</p>
           </Card>
-
-          <Card className="p-3 shadow-2xs border-red-200 bg-red-50/40 border-l-4 border-l-red-600">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-red-700">Absent</p>
-            <p className="text-lg font-extrabold text-red-800 mt-0.5">{kpiStats.absent}</p>
+          <Card className="p-3 shadow-2xs border-slate-200 border-l-4 border-l-rose-600 bg-white">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Absent</p>
+            <p className="text-lg font-extrabold text-rose-600 mt-0.5">{kpiStats.totalAbsent}</p>
           </Card>
-
-          <Card className="p-3 shadow-2xs border-indigo-200 bg-indigo-50/40 border-l-4 border-l-indigo-500">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-700">Leave</p>
-            <p className="text-lg font-extrabold text-indigo-800 mt-0.5">{kpiStats.leave}</p>
+          <Card className="p-3 shadow-2xs border-slate-200 border-l-4 border-l-indigo-600 bg-white">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Leave</p>
+            <p className="text-lg font-extrabold text-indigo-600 mt-0.5">{kpiStats.totalLeaves}</p>
           </Card>
         </div>
 
-        {/* Timesheet Matrix Table */}
-        <div className="border border-slate-200 rounded-xl bg-white shadow-xs overflow-hidden">
-          <div className="overflow-x-auto max-h-[700px] overflow-y-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              {/* Header */}
-              <thead className="bg-[#1e293b] text-white sticky top-0 z-30 shadow-xs">
+        {/* MATRIX / GRID TIMESHEET - Exact MIS Table with Sticky Columns */}
+        <div className="bg-white border border-slate-300 rounded-xl shadow-xs overflow-hidden">
+          <div className="overflow-x-auto max-h-[720px] relative scrollbar-thin scrollbar-thumb-slate-300">
+            <table className="w-full text-left text-xs border-collapse border-spacing-0">
+              {/* Dark Styled Header */}
+              <thead className="bg-[#2d3748] text-white font-bold sticky top-0 z-30 shadow-xs">
                 <tr>
-                  <th className="py-3 px-3 text-center font-bold uppercase tracking-wider border-r border-slate-700 w-24 sticky left-0 z-40 bg-[#1e293b]">
-                    Batch ID
-                  </th>
-                  <th className="py-3 px-3.5 font-bold uppercase tracking-wider border-r border-slate-700 w-44 sticky left-[96px] z-40 bg-[#1e293b]">
-                    Employee Name
-                  </th>
-                  <th className="py-3 px-3.5 font-bold uppercase tracking-wider border-r border-slate-700 w-44 sticky left-[272px] z-40 bg-[#1e293b]">
-                    Designation
-                  </th>
-                  <th className="py-3 px-2.5 text-center font-bold uppercase tracking-wider border-r border-slate-700 w-28 sticky left-[448px] z-40 bg-[#1e293b]">
-                    Branch
+                  {/* Fixed Column 1: Batch ID */}
+                  <th className="py-3 px-3.5 sticky left-0 z-40 bg-[#2d3748] border-r border-slate-600/80 w-[90px] min-w-[90px] max-w-[90px] text-center uppercase tracking-wider text-[11px]">
+                    Batch ID ⇅
                   </th>
 
-                  {/* Dynamic Date Headers */}
+                  {/* Fixed Column 2: Employee Name */}
+                  <th className="py-3 px-3.5 sticky left-[90px] z-40 bg-[#2d3748] border-r border-slate-600/80 w-[170px] min-w-[170px] max-w-[170px] uppercase tracking-wider text-[11px]">
+                    Employee Name ⇅
+                  </th>
+
+                  {/* Fixed Column 3: Designation */}
+                  <th className="py-3 px-3.5 sticky left-[260px] z-40 bg-[#2d3748] border-r border-slate-600/80 w-[150px] min-w-[150px] max-w-[150px] uppercase tracking-wider text-[11px]">
+                    Designation ⇅
+                  </th>
+
+                  {/* Fixed Column 4: Branch */}
+                  <th className="py-3 px-3 sticky left-[410px] z-40 bg-[#2d3748] border-r border-slate-600/80 w-[110px] min-w-[110px] max-w-[110px] text-center uppercase tracking-wider text-[11px] shadow-[3px_0_5px_rgba(0,0,0,0.2)]">
+                    Branch ⇅
+                  </th>
+
+                  {/* Dynamic Date Columns */}
                   {dateColumns.map((date) => {
                     const day = getDayName(date)
                     const isSunday = day === 'Sunday'
-                    const isGazettedHoliday = Boolean(holidays[date])
-
+                    const isGazettedHoliday = Boolean(holidays[date]) && getPresentEmployeesCountOnDate(date) === 0
                     return (
                       <th
                         key={date}
-                        className={`py-2 px-2.5 text-center border-r border-slate-700 min-w-[130px] select-none ${
+                        className={`py-2 px-3 text-center border-r border-slate-600/80 w-[155px] min-w-[155px] max-w-[155px] font-sans select-none ${
                           isSunday
-                            ? 'bg-[#182234] text-amber-300'
+                            ? 'bg-[#242c3a] text-amber-300'
                             : isGazettedHoliday
-                            ? 'bg-[#1b2537] text-amber-200'
-                            : 'bg-[#1e293b] text-white'
+                            ? 'bg-[#8c6b00] text-amber-100'
+                            : 'bg-[#2d3748] text-white'
                         }`}
                       >
                         <div className="flex items-center justify-center gap-1">
                           <span className="text-[11px] font-bold font-mono tracking-tight">{date}</span>
                           {isSunday ? (
-                            <span className="text-[9px] bg-amber-400 text-amber-950 font-extrabold px-1 rounded">
+                            <span className="text-[9px] bg-amber-400 text-amber-950 font-extrabold px-1 rounded shadow-2xs">
                               OFF
                             </span>
                           ) : isGazettedHoliday ? (
-                            <span className="text-[9px] bg-amber-300 text-amber-950 font-extrabold px-1 rounded">
+                            <span className="text-[9px] bg-amber-300 text-amber-950 font-extrabold px-1 rounded shadow-2xs">
                               HOLIDAY
                             </span>
                           ) : null}
                         </div>
                         <div className="text-[10px] font-semibold tracking-wider text-slate-300 uppercase mt-0.5">
-                          {day}
+                          <span>{day}</span>
                         </div>
                       </th>
                     )
@@ -1070,7 +1111,7 @@ export default function AttendanceRecordsPage() {
                 </tr>
               </thead>
 
-              {/* Body */}
+              {/* Table Body */}
               <tbody className="divide-y divide-slate-200 text-slate-700 bg-white">
                 {isLoading ? (
                   <tr>
@@ -1078,7 +1119,7 @@ export default function AttendanceRecordsPage() {
                       colSpan={4 + dateColumns.length}
                       className="py-20 text-center text-slate-400 bg-white"
                     >
-                      <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-emerald-600" />
+                      <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-[#009D9E]" />
                       <p className="font-semibold text-slate-600 text-sm">Loading attendance timesheet grid...</p>
                     </td>
                   </tr>
@@ -1089,8 +1130,16 @@ export default function AttendanceRecordsPage() {
                       className="py-20 text-center text-slate-400 bg-white"
                     >
                       <Calendar className="w-10 h-10 mx-auto mb-2 text-slate-300" />
-                      <p className="font-semibold text-slate-600 text-sm">No matching employees found</p>
-                      <p className="text-xs text-slate-400 mt-1">Try adjusting your filters or search query.</p>
+                      <p className="font-semibold text-slate-600 text-sm">
+                        {records.length === 0
+                          ? 'No attendance records uploaded for this period'
+                          : 'No matching employees found'}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        {records.length === 0
+                          ? 'Attendance data has not been uploaded for the selected month or date range.'
+                          : 'Try adjusting your filters or search query.'}
+                      </p>
                     </td>
                   </tr>
                 ) : (
@@ -1099,10 +1148,10 @@ export default function AttendanceRecordsPage() {
                     const rowBgClass = isEven ? 'bg-white' : 'bg-slate-50/60'
 
                     return (
-                      <tr key={emp.id} className={`${rowBgClass} hover:bg-emerald-50/30 transition-colors`}>
+                      <tr key={emp.id} className={`${rowBgClass} hover:bg-blue-50/40 transition-colors`}>
                         {/* Sticky Column 1: Batch ID */}
                         <td
-                          className={`py-3 px-3 text-center font-mono font-bold text-slate-900 border-r border-slate-200 sticky left-0 z-20 ${
+                          className={`py-3 px-3 text-center font-mono font-bold text-slate-900 border-r border-slate-200 sticky left-0 z-20 w-[90px] min-w-[90px] max-w-[90px] ${
                             isEven ? 'bg-white' : 'bg-[#f8fafc]'
                           } shadow-[2px_0_4px_rgba(0,0,0,0.02)]`}
                         >
@@ -1111,25 +1160,27 @@ export default function AttendanceRecordsPage() {
 
                         {/* Sticky Column 2: Employee Name */}
                         <td
-                          className={`py-3 px-3.5 font-bold text-slate-900 border-r border-slate-200 sticky left-[96px] z-20 ${
+                          className={`py-3 px-3.5 font-bold text-slate-900 border-r border-slate-200 sticky left-[90px] z-20 w-[170px] min-w-[170px] max-w-[170px] ${
                             isEven ? 'bg-white' : 'bg-[#f8fafc]'
                           } shadow-[2px_0_4px_rgba(0,0,0,0.02)]`}
                         >
-                          <span className="text-xs">{emp.name}</span>
+                          <span className="text-xs text-slate-900 font-bold block truncate">
+                            {emp.name}
+                          </span>
                         </td>
 
                         {/* Sticky Column 3: Designation */}
                         <td
-                          className={`py-3 px-3.5 text-slate-600 border-r border-slate-200 text-xs sticky left-[272px] z-20 ${
+                          className={`py-3 px-3.5 text-slate-600 border-r border-slate-200 text-xs sticky left-[260px] z-20 w-[150px] min-w-[150px] max-w-[150px] ${
                             isEven ? 'bg-white' : 'bg-[#f8fafc]'
-                          } shadow-[2px_0_4px_rgba(0,0,0,0.02)] font-medium`}
+                          } shadow-[2px_0_4px_rgba(0,0,0,0.02)] font-medium truncate`}
                         >
                           {emp.designation || 'Staff'}
                         </td>
 
                         {/* Sticky Column 4: Branch */}
                         <td
-                          className={`py-3 px-2 text-center border-r border-slate-200 text-xs sticky left-[448px] z-20 ${
+                          className={`py-3 px-2 text-center border-r border-slate-200 text-xs sticky left-[410px] z-20 w-[110px] min-w-[110px] max-w-[110px] ${
                             isEven ? 'bg-white' : 'bg-[#f8fafc]'
                           } shadow-[3px_0_5px_rgba(0,0,0,0.04)]`}
                         >
@@ -1150,7 +1201,7 @@ export default function AttendanceRecordsPage() {
                         {dateColumns.map((date) => (
                           <td
                             key={date}
-                            className="py-2 px-2 border-r border-slate-200 align-middle text-center"
+                            className="py-2 px-2 border-r border-slate-200 align-middle text-center w-[155px] min-w-[155px] max-w-[155px]"
                           >
                             {renderCellContent(emp, date)}
                           </td>
@@ -1177,7 +1228,7 @@ export default function AttendanceRecordsPage() {
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Late / Deviation
               </span>
               <span className="inline-flex items-center gap-1.5 font-medium">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span> Holiday / Sunday
+                <span className="w-2.5 h-2.5 rounded-full bg-[#b38600]"></span> Holiday
               </span>
               <span className="inline-flex items-center gap-1.5 font-medium">
                 <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Absent

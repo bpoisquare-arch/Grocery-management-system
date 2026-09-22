@@ -197,20 +197,41 @@ export async function getAttendanceSettings(): Promise<AttendanceSettings> {
 
 // 5. Get Gazetted Holidays (Read-Only)
 export async function getGazettedHolidays(): Promise<Record<string, string>> {
+  const holidaysMap: Record<string, string> = {}
+
   try {
     const supabase = getSupabaseClient()
-    const { data, error } = await supabase.from('gazetted_holidays').select('*')
-    if (!error && data) {
-      const map: Record<string, string> = {}
-      data.forEach((item: any) => {
-        if (item.holiday_date) {
-          map[item.holiday_date] = item.name || 'Gazetted Holiday'
+
+    // 1. Try dedicated gazetted_holidays table first (columns: date, name)
+    const { data: dbRows, error: tableError } = await supabase
+      .from('gazetted_holidays')
+      .select('*')
+
+    if (!tableError && Array.isArray(dbRows) && dbRows.length > 0) {
+      for (const row of dbRows) {
+        const holidayDate = (row as any).date || (row as any).holiday_date
+        if (holidayDate) {
+          holidaysMap[holidayDate] = (row as any).name || 'Gazetted Holiday'
         }
-      })
-      return map
+      }
+      return holidaysMap
+    }
+
+    // 2. Fallback to audit logs if table is empty
+    const { data, error } = await supabase
+      .from('attendance_audit_logs')
+      .select('details')
+      .eq('action', 'GAZETTED_HOLIDAYS_STORE')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (!error && data && (data as any).details && typeof (data as any).details === 'object') {
+      const dbHolidays = (data as any).details as Record<string, string>
+      return { ...holidaysMap, ...dbHolidays }
     }
   } catch (err) {
     console.error('Error in getGazettedHolidays service:', err)
   }
-  return {}
+  return holidaysMap
 }

@@ -70,8 +70,9 @@ export interface AttendanceSettings {
 }
 
 export interface GazettedHoliday {
-  id: string
-  holiday_date: string
+  id?: string
+  date?: string
+  holiday_date?: string
   name: string
   created_at?: string
 }
