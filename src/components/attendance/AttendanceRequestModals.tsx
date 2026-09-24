@@ -185,9 +185,10 @@ export function ApplyLeaveModal({
   else if (selectedLeaveType.includes('Probation')) currentRem = effectiveRemaining.probation_leaves ?? 0
   else currentRem = effectiveRemaining.casual_leaves ?? 0
 
+  const isUnlimitedWfh = isWfh && (currentRem < 0 || (effectiveQuotas.wfh_quota ?? 0) < 0)
   const requestedVal = isWfh ? 1 : (parseFloat(leaveDays) || 0)
-  const projected = Math.max(0, Number((currentRem - requestedVal).toFixed(2)))
-  const isOver = requestedVal > currentRem
+  const projected = isUnlimitedWfh ? 'Unlimited' : Math.max(0, Number((currentRem - requestedVal).toFixed(2)))
+  const isOver = isUnlimitedWfh ? false : requestedVal > currentRem
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -272,7 +273,7 @@ export function ApplyLeaveModal({
                         Probation Leave ({effectiveRemaining.probation_leaves ?? 3} remaining / {effectiveQuotas.probation_leaves ?? 3} • Max 1/month)
                       </SelectItem>
                       <SelectItem value="Work From Home" className="text-xs sm:text-sm font-medium py-2.5">
-                        Work From Home ({effectiveRemaining.wfh_quota ?? 4} remaining / {effectiveQuotas.wfh_quota ?? 4} • Full Day Only)
+                        {(effectiveQuotas.wfh_quota ?? 0) < 0 || (effectiveRemaining.wfh_quota ?? 0) < 0 ? 'Work From Home (Unlimited • Full Day Only)' : `Work From Home (${effectiveRemaining.wfh_quota ?? 4} remaining / ${effectiveQuotas.wfh_quota ?? 4} • Full Day Only)`}
                       </SelectItem>
                     </>
                   ) : (
@@ -287,7 +288,7 @@ export function ApplyLeaveModal({
                         Annual Leave ({effectiveRemaining.annual_leaves ?? 6} remaining / {effectiveQuotas.annual_leaves ?? 6})
                       </SelectItem>
                       <SelectItem value="Work From Home" className="text-xs sm:text-sm font-medium py-2.5">
-                        Work From Home ({effectiveRemaining.wfh_quota ?? 4} remaining / {effectiveQuotas.wfh_quota ?? 4} • Full Day Only)
+                        {(effectiveQuotas.wfh_quota ?? 0) < 0 || (effectiveRemaining.wfh_quota ?? 0) < 0 ? 'Work From Home (Unlimited • Full Day Only)' : `Work From Home (${effectiveRemaining.wfh_quota ?? 4} remaining / ${effectiveQuotas.wfh_quota ?? 4} • Full Day Only)`}
                       </SelectItem>
                     </>
                   )}
@@ -363,7 +364,7 @@ export function ApplyLeaveModal({
               >
                 <span className="flex items-center gap-1.5">
                   <span className="text-slate-500 font-semibold">Available Balance:</span>
-                  <strong className="text-slate-900 font-bold text-sm sm:text-base">{currentRem}</strong>
+                  <strong className="text-slate-900 font-bold text-sm sm:text-base">{isUnlimitedWfh ? 'Unlimited' : currentRem}</strong>
                 </span>
                 <span className="text-slate-300 font-bold hidden sm:inline text-lg">→</span>
                 <span className="flex items-center gap-1.5">
