@@ -1135,17 +1135,43 @@ export default function AttendanceRecordsPage() {
 
       return (
         <div
-          className={`p-1.5 rounded-md flex flex-col items-center justify-center text-center gap-0.5 border select-none ${
-            isWfh
+          onClick={() => {
+            if (isMissingOut) {
+              setActiveTimingModal({
+                isOpen: true,
+                emp,
+                date,
+                requestType: 'MISSING_OUT',
+                existingTime: rec.in_time,
+              })
+            } else if (isMissingIn) {
+              setActiveTimingModal({
+                isOpen: true,
+                emp,
+                date,
+                requestType: 'MISSING_IN',
+                existingTime: rec.out_time,
+              })
+            }
+          }}
+          className={`p-1.5 rounded-md flex flex-col items-center justify-center text-center gap-0.5 border select-none transition-all ${
+            isMissingOut || isMissingIn
+              ? 'bg-emerald-50 hover:bg-emerald-100/90 border-emerald-300 text-emerald-950 shadow-2xs hover:shadow-xs cursor-pointer group/cell ring-0 hover:ring-1 hover:ring-emerald-400'
+              : isWfh
               ? 'bg-sky-50 border-sky-300 text-sky-950 shadow-2xs'
-              : isMissingOut || isMissingIn
-              ? 'bg-emerald-50 border-emerald-300 text-emerald-950 shadow-2xs'
               : isCurrentlyInOffice
               ? 'bg-emerald-50/70 border-emerald-300 text-emerald-950'
               : isLate || isEarlyLeave
               ? 'bg-amber-50 border-amber-300 text-amber-950 shadow-2xs'
               : 'bg-emerald-50/50 border-emerald-200/70 text-slate-800'
           }`}
+          title={
+            isMissingOut
+              ? 'Missing Out-Time. Click anywhere on this box to regularize Out-Time'
+              : isMissingIn
+              ? 'Missing In-Time. Click anywhere on this box to regularize In-Time'
+              : undefined
+          }
         >
           {/* In Time - Out Time */}
           <div className="font-mono text-[11px] font-semibold tracking-tight whitespace-nowrap flex items-center justify-center gap-1">
@@ -1182,41 +1208,21 @@ export default function AttendanceRecordsPage() {
 
           {/* Status Pill (Clickable for Regularization) */}
           {isMissingOut ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                setActiveTimingModal({
-                  isOpen: true,
-                  emp,
-                  date,
-                  requestType: 'MISSING_OUT',
-                  existingTime: rec.in_time,
-                })
-              }}
-              className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 mt-0.5 cursor-pointer shadow-2xs transition-colors"
+            <span
+              className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-100 group-hover/cell:bg-emerald-200 text-emerald-900 border border-emerald-300 mt-0.5 cursor-pointer shadow-2xs transition-colors flex items-center gap-1"
               title="Click to regularize Out-Time"
             >
-              Missing Out ✎
-            </button>
+              <span>Missing Out</span>
+              <span className="text-[10px]">✎</span>
+            </span>
           ) : isMissingIn ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                setActiveTimingModal({
-                  isOpen: true,
-                  emp,
-                  date,
-                  requestType: 'MISSING_IN',
-                  existingTime: rec.out_time,
-                })
-              }}
-              className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 mt-0.5 cursor-pointer shadow-2xs transition-colors"
+            <span
+              className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-100 group-hover/cell:bg-emerald-200 text-emerald-900 border border-emerald-300 mt-0.5 cursor-pointer shadow-2xs transition-colors flex items-center gap-1"
               title="Click to regularize In-Time"
             >
-              Missing In ✎
-            </button>
+              <span>Missing In</span>
+              <span className="text-[10px]">✎</span>
+            </span>
           ) : isWfh ? (
             <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-sky-100 text-sky-900 border border-sky-300">
               WFH

@@ -424,6 +424,50 @@ interface RegularizeTimingModalProps {
   onSubmitted: () => void
 }
 
+// Helpers for Time Conversion & Formatting
+function toTimeInputValue(timeStr: string): string {
+  if (!timeStr || !timeStr.trim() || timeStr === '---') return ''
+  const s = timeStr.trim().toUpperCase()
+  const match12 = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/)
+  if (match12) {
+    let hours = parseInt(match12[1], 10)
+    const minutes = match12[2]
+    const meridian = match12[3]
+    if (meridian === 'PM' && hours < 12) hours += 12
+    if (meridian === 'AM' && hours === 12) hours = 0
+    return `${String(hours).padStart(2, '0')}:${minutes}`
+  }
+  return ''
+}
+
+function fromTimeInputValue(timeInput: string): string {
+  if (!timeInput || !timeInput.trim()) return ''
+  const parts = timeInput.split(':')
+  if (parts.length >= 2) {
+    let hours = parseInt(parts[0], 10)
+    const minutes = parts[1]
+    const meridian = hours >= 12 ? 'PM' : 'AM'
+    hours = hours % 12
+    if (hours === 0) hours = 12
+    return `${String(hours).padStart(2, '0')}:${minutes} ${meridian}`
+  }
+  return timeInput
+}
+
+function parse12HourParts(timeStr: string) {
+  const match = (timeStr || '').trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i)
+  if (match) {
+    let h = parseInt(match[1], 10)
+    if (h === 0) h = 12
+    return {
+      hour: String(h).padStart(2, '0'),
+      minute: match[2],
+      period: (match[3] || 'AM').toUpperCase() as 'AM' | 'PM',
+    }
+  }
+  return { hour: '10', minute: '30', period: 'AM' as const }
+}
+
 export function RegularizeTimingModal({
   isOpen,
   onClose,
@@ -439,6 +483,32 @@ export function RegularizeTimingModal({
   const [reason, setReason] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (isOpen) {
+      setRequestedTime(isMissingIn ? '10:30 AM' : '06:30 PM')
+      setReason('')
+      setError(null)
+    }
+  }, [isOpen, isMissingIn])
+
+  const { hour, minute, period } = parse12HourParts(requestedTime)
+
+  const handleHourChange = (newHour: string) => {
+    setRequestedTime(`${newHour}:${minute} ${period}`)
+  }
+
+  const handleMinuteChange = (newMin: string) => {
+    setRequestedTime(`${hour}:${newMin} ${period}`)
+  }
+
+  const handlePeriodChange = (newPeriod: 'AM' | 'PM') => {
+    setRequestedTime(`${hour}:${minute} ${newPeriod}`)
+  }
+
+  const inPresets = ['10:00 AM', '10:15 AM', '10:30 AM', '10:45 AM', '11:00 AM']
+  const outPresets = ['06:00 PM', '06:15 PM', '06:30 PM', '06:45 PM', '07:00 PM']
+  const presets = isMissingIn ? inPresets : outPresets
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -518,21 +588,128 @@ export function RegularizeTimingModal({
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-              {isMissingIn ? 'Enter In-Time (HH:MM AM/PM)' : 'Enter Out-Time (HH:MM AM/PM)'}
-            </Label>
-            <Input
-              type="text"
-              placeholder={isMissingIn ? '10:30 AM' : '06:30 PM'}
-              value={requestedTime}
-              onChange={(e) => setRequestedTime(e.target.value)}
-              className="text-xs sm:text-sm h-10.5 bg-white border-slate-300 font-mono font-bold rounded-xl"
-              required
-            />
-            <p className="text-[11px] text-slate-400">
-              Format: e.g. {isMissingIn ? '10:30 AM' : '06:30 PM'}
-            </p>
+          {/* TIME SELECTOR (UI Friendly) */}
+          <div className="space-y-3 bg-[#f8faff] p-4.5 rounded-2xl border border-indigo-100 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-bold text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-indigo-600" />
+                {isMissingIn ? 'Select Official In-Time' : 'Select Official Out-Time'}
+              </Label>
+              <span className="font-mono text-xs font-extrabold text-indigo-900 bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200">
+                {requestedTime}
+              </span>
+            </div>
+
+            {/* Quick Presets */}
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                Quick Presets:
+              </span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {presets.map((p) => {
+                  const isSelected = requestedTime.toUpperCase() === p.toUpperCase()
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setRequestedTime(p)}
+                      className={`px-2.5 py-1 text-xs font-mono font-bold rounded-lg transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Dropdowns: Hour, Minute, AM/PM */}
+            <div className="pt-2 border-t border-indigo-100 space-y-1.5">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                Or Pick Hour, Minute & Period:
+              </span>
+              <div className="grid grid-cols-3 gap-2">
+                {/* Hour */}
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold block mb-1">HOUR</span>
+                  <Select value={hour} onValueChange={(val) => val && handleHourChange(val)}>
+                    <SelectTrigger className="w-full text-xs font-mono font-bold bg-white border-slate-300 h-10 rounded-xl">
+                      <SelectValue placeholder="Hour" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-56">
+                      {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map((h) => (
+                        <SelectItem key={h} value={h} className="font-mono text-xs">
+                          {h}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Minute */}
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold block mb-1">MINUTE</span>
+                  <Select value={minute} onValueChange={(val) => val && handleMinuteChange(val)}>
+                    <SelectTrigger className="w-full text-xs font-mono font-bold bg-white border-slate-300 h-10 rounded-xl">
+                      <SelectValue placeholder="Minute" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-56">
+                      {['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'].map((m) => (
+                        <SelectItem key={m} value={m} className="font-mono text-xs">
+                          {m}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Period AM/PM */}
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold block mb-1">PERIOD</span>
+                  <div className="grid grid-cols-2 gap-1 h-10 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => handlePeriodChange('AM')}
+                      className={`text-xs font-bold rounded-lg transition-all ${
+                        period === 'AM'
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      AM
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePeriodChange('PM')}
+                      className={`text-xs font-bold rounded-lg transition-all ${
+                        period === 'PM'
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      PM
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Exact time picker */}
+              <div className="pt-2 flex items-center justify-between text-xs text-slate-500">
+                <span className="text-[11px]">Exact Time Input:</span>
+                <input
+                  type="time"
+                  value={toTimeInputValue(requestedTime)}
+                  onChange={(e) => {
+                    const converted = fromTimeInputValue(e.target.value)
+                    if (converted) setRequestedTime(converted)
+                  }}
+                  className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg font-mono text-xs cursor-pointer shadow-2xs"
+                />
+              </div>
+            </div>
           </div>
 
           <div className="space-y-1.5">
