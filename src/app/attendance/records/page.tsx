@@ -49,6 +49,9 @@ import {
 } from '@/components/attendance/AttendanceRequestModals'
 import { AttendanceRequestItem } from '@/lib/services/attendance-requests.service'
 import * as XLSX from 'xlsx'
+import { cn } from '@/lib/utils'
+import { DataTableViewOptions } from '@/components/ui/data-table-view-options'
+import { DataTableFacetedFilter } from '@/components/ui/data-table-faceted-filter'
 
 // Quick Selector Months
 const MONTHS_LIST = [
@@ -103,6 +106,278 @@ function getDayName(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00')
   if (isNaN(d.getTime())) return ''
   return d.toLocaleDateString('en-US', { weekday: 'long' })
+}
+
+// Helper to evaluate record status flags for filtering & excel
+function getRecordStatusFlags(
+  emp: Employee,
+  date: string,
+  recordMatrixMap: Map<string, AttendanceRecordWithEmployee>,
+  holidays: Record<string, string>,
+  settings?: AttendanceSettings,
+  maxUploadedDate?: string
+) {
+  const dayName = getDayName(date)
+  const isSunday = dayName === 'Sunday'
+  const isGazettedHoliday = Boolean(holidays[date])
+  const todayStr = formatDate(new Date())
+  const isFuture = date > todayStr
+  const isToday = date === todayStr
+  const isPast = date < todayStr
+
+  const isBeforeJoining = Boolean(
+    !emp.is_old_staff &&
+    emp.joining_date &&
+    date < emp.joining_date.split('T')[0]
+  )
+
+  const rec = recordMatrixMap.get(`${emp.id}_${date}`) || recordMatrixMap.get(`${emp.employee_id}_${date}`)
+
+  if (rec) {
+    const isWfh = Boolean(
+      rec.notes?.includes('Work From Home') ||
+      rec.arrival_status === 'Work From Home' ||
+      rec.departure_status === 'Work From Home'
+    )
+
+    const isLeave =
+      rec.arrival_status === 'Leave' ||
+      rec.departure_status?.includes('Leave') ||
+      ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.departure_status as any) ||
+      ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.arrival_status as any)
+
+    const hasInTime = Boolean(rec.in_time && rec.in_time !== '---' && rec.in_time !== '--')
+    const hasOutTime = Boolean(rec.out_time && rec.out_time !== '---' && rec.out_time !== '--')
+    const isLate = rec.arrival_status === 'Late Arrival'
+    const isEarlyLeave = rec.departure_status === 'Early Departure'
+
+    const outTimePassed = isPast || (isToday && hasOfficeOutTimePassed(date, settings))
+
+    const isMissingOut = !isWfh && !isLeave && hasInTime && !hasOutTime && outTimePassed
+    const isMissingIn = !isWfh && !isLeave && !hasInTime && hasOutTime
+
+    const hasActualData = hasInTime || hasOutTime || (rec.total_working_minutes ? rec.total_working_minutes > 0 : false) || isLeave || isWfh
+
+    const isExplicitAbsent =
+      rec.arrival_status === 'Absent' ||
+      rec.departure_status === 'Absent' ||
+      (!hasInTime && !hasOutTime && !isLeave && !isWfh)
+
+    if (isLeave) {
+      const leaveLabel =
+        ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].find(
+          (l) => l === rec.departure_status || l === rec.arrival_status
+        ) || rec.departure_status || 'Casual Leave'
+
+      return {
+        isSunday: false,
+        isGazettedHoliday: false,
+        isLeave: true,
+        isAbsent: false,
+        isLate: false,
+        isEarlyLeave: false,
+        isMissingIn: false,
+        isMissingOut: false,
+        isWfh: false,
+        isPresent: false,
+        isBeforeJoining: false,
+        statusLabel: leaveLabel,
+      }
+    }
+
+    if (isExplicitAbsent && !hasActualData) {
+      if (isBeforeJoining) {
+        return {
+          isSunday: false,
+          isGazettedHoliday: false,
+          isLeave: false,
+          isAbsent: false,
+          isLate: false,
+          isEarlyLeave: false,
+          isMissingIn: false,
+          isMissingOut: false,
+          isWfh: false,
+          isPresent: false,
+          isBeforeJoining: true,
+          statusLabel: '--',
+        }
+      }
+
+      if (isSunday || isGazettedHoliday) {
+        return {
+          isSunday,
+          isGazettedHoliday,
+          isLeave: false,
+          isAbsent: false,
+          isLate: false,
+          isEarlyLeave: false,
+          isMissingIn: false,
+          isMissingOut: false,
+          isWfh: false,
+          isPresent: false,
+          isBeforeJoining: false,
+          statusLabel: isSunday ? 'Sunday' : 'Holiday',
+        }
+      }
+
+      if (isFuture) {
+        return {
+          isSunday: false,
+          isGazettedHoliday: false,
+          isLeave: false,
+          isAbsent: false,
+          isLate: false,
+          isEarlyLeave: false,
+          isMissingIn: false,
+          isMissingOut: false,
+          isWfh: false,
+          isPresent: false,
+          isBeforeJoining: false,
+          statusLabel: '',
+        }
+      }
+
+      return {
+        isSunday: false,
+        isGazettedHoliday: false,
+        isLeave: false,
+        isAbsent: true,
+        isLate: false,
+        isEarlyLeave: false,
+        isMissingIn: false,
+        isMissingOut: false,
+        isWfh: false,
+        isPresent: false,
+        isBeforeJoining: false,
+        statusLabel: 'Absent',
+      }
+    }
+
+    let statusLabel = ''
+    if (isMissingIn) statusLabel = 'Missing In'
+    else if (isMissingOut) statusLabel = 'Missing Out'
+    else if (isLate) statusLabel = 'Late Arrival'
+    else if (isEarlyLeave) statusLabel = 'Early Departure'
+    else if (isWfh) statusLabel = 'Work From Home'
+
+    return {
+      isSunday: false,
+      isGazettedHoliday: false,
+      isLeave: false,
+      isAbsent: false,
+      isLate,
+      isEarlyLeave,
+      isMissingIn,
+      isMissingOut,
+      isWfh,
+      isPresent: true,
+      isBeforeJoining: false,
+      statusLabel,
+    }
+  }
+
+  // No record in database
+  if (isSunday || isGazettedHoliday) {
+    return {
+      isSunday,
+      isGazettedHoliday,
+      isLeave: false,
+      isAbsent: false,
+      isLate: false,
+      isEarlyLeave: false,
+      isMissingIn: false,
+      isMissingOut: false,
+      isWfh: false,
+      isPresent: false,
+      isBeforeJoining: false,
+      statusLabel: isSunday ? 'Sunday' : 'Holiday',
+    }
+  }
+
+  if (isBeforeJoining) {
+    return {
+      isSunday: false,
+      isGazettedHoliday: false,
+      isLeave: false,
+      isAbsent: false,
+      isLate: false,
+      isEarlyLeave: false,
+      isMissingIn: false,
+      isMissingOut: false,
+      isWfh: false,
+      isPresent: false,
+      isBeforeJoining: true,
+      statusLabel: '--',
+    }
+  }
+
+  if (maxUploadedDate && date > maxUploadedDate) {
+    return {
+      isSunday: false,
+      isGazettedHoliday: false,
+      isLeave: false,
+      isAbsent: false,
+      isLate: false,
+      isEarlyLeave: false,
+      isMissingIn: false,
+      isMissingOut: false,
+      isWfh: false,
+      isPresent: false,
+      isBeforeJoining: false,
+      statusLabel: '--',
+    }
+  }
+
+  if (isPast) {
+    return {
+      isSunday: false,
+      isGazettedHoliday: false,
+      isLeave: false,
+      isAbsent: true,
+      isLate: false,
+      isEarlyLeave: false,
+      isMissingIn: false,
+      isMissingOut: false,
+      isWfh: false,
+      isPresent: false,
+      isBeforeJoining: false,
+      statusLabel: 'Absent',
+    }
+  }
+
+  if (isToday) {
+    if (hasOfficeInTimePassed(date, settings)) {
+      return {
+        isSunday: false,
+        isGazettedHoliday: false,
+        isLeave: false,
+        isAbsent: true,
+        isLate: false,
+        isEarlyLeave: false,
+        isMissingIn: false,
+        isMissingOut: false,
+        isWfh: false,
+        isPresent: false,
+        isBeforeJoining: false,
+        statusLabel: 'Absent',
+      }
+    }
+  }
+
+  return {
+    isSunday: false,
+    isGazettedHoliday: false,
+    isLeave: false,
+    isAbsent: false,
+    isLate: false,
+    isEarlyLeave: false,
+    isMissingIn: false,
+    isMissingOut: false,
+    isWfh: false,
+    isPresent: false,
+    isBeforeJoining: false,
+    statusLabel: '',
+  }
 }
 
 export default function AttendanceRecordsPage() {
@@ -171,12 +446,97 @@ export default function AttendanceRecordsPage() {
   const [search, setSearch] = useState('')
   const [pageSize, setPageSize] = useState<number | 'all'>('all')
 
-  // Checkbox Filters
-  const [statusFilters, setStatusFilters] = useState({
+  // Checkbox Filters State (Absent, Missing In, Missing Out)
+  const [statusFilters, setStatusFilters] = useState<{
+    absent: boolean
+    missingIn: boolean
+    missingOut: boolean
+  }>({
     absent: false,
     missingIn: false,
     missingOut: false,
   })
+
+  // Table Column Visibility State (View Options Dropdown)
+  const defaultVisibleColumns = useMemo(
+    () => ({
+      batchId: true,
+      employeeName: true,
+      designation: true,
+      branch: true,
+      sundays: true,
+    }),
+    []
+  )
+
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
+    batchId: true,
+    employeeName: true,
+    designation: true,
+    branch: true,
+    sundays: true,
+  })
+
+  // Restore column preferences from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('attendance_records_visible_cols')
+      if (saved) {
+        setVisibleColumns((prev) => ({ ...prev, ...JSON.parse(saved) }))
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  }, [])
+
+  const handleToggleColumn = (colId: string) => {
+    setVisibleColumns((prev) => {
+      const updated = { ...prev, [colId]: !prev[colId] }
+      try {
+        localStorage.setItem('attendance_records_visible_cols', JSON.stringify(updated))
+      } catch {}
+      return updated
+    })
+  }
+
+  const handleResetColumns = () => {
+    setVisibleColumns(defaultVisibleColumns)
+    try {
+      localStorage.removeItem('attendance_records_visible_cols')
+    } catch {}
+  }
+
+  // Fixed employee columns layout configuration for dynamic sticky offsets
+  const FIXED_COLUMNS = useMemo(
+    () => [
+      { id: 'batchId', label: 'Batch ID', width: 90 },
+      { id: 'employeeName', label: 'Employee Name', width: 170 },
+      { id: 'designation', label: 'Designation', width: 150 },
+      { id: 'branch', label: 'Branch', width: 110 },
+    ],
+    []
+  )
+
+  const stickyColumnLayout = useMemo(() => {
+    let accumulatedLeft = 0
+    const offsets: Record<string, number> = {}
+    let lastVisibleId: string | null = null
+
+    FIXED_COLUMNS.forEach((col) => {
+      if (visibleColumns[col.id]) {
+        offsets[col.id] = accumulatedLeft
+        accumulatedLeft += col.width
+        lastVisibleId = col.id
+      }
+    })
+
+    return {
+      offsets,
+      lastVisibleId,
+      totalWidth: accumulatedLeft,
+      visibleCount: Object.keys(offsets).length,
+    }
+  }, [visibleColumns, FIXED_COLUMNS])
 
   // Synchronize branch filter if role changes
   useEffect(() => {
@@ -312,6 +672,52 @@ export default function AttendanceRecordsPage() {
     return maxD
   }, [records])
 
+  // Calculate status counts across entire active range for filter badges & employee map
+  const statusFilterCounts = useMemo(() => {
+    let totalAbsent = 0
+    let totalMissingIn = 0
+    let totalMissingOut = 0
+
+    const empHasMap = new Map<string, { hasAbsent: boolean; hasMissingIn: boolean; hasMissingOut: boolean }>()
+
+    employees.forEach((emp) => {
+      let hasAbsent = false
+      let hasMissingIn = false
+      let hasMissingOut = false
+
+      dateColumns.forEach((date) => {
+        const flags = getRecordStatusFlags(emp, date, recordMatrixMap, holidays, settings, maxUploadedDate)
+        if (flags.isAbsent) {
+          hasAbsent = true
+          totalAbsent++
+        }
+        if (flags.isMissingIn) {
+          hasMissingIn = true
+          totalMissingIn++
+        }
+        if (flags.isMissingOut) {
+          hasMissingOut = true
+          totalMissingOut++
+        }
+      })
+
+      empHasMap.set(emp.id, { hasAbsent, hasMissingIn, hasMissingOut })
+      empHasMap.set(emp.employee_id, { hasAbsent, hasMissingIn, hasMissingOut })
+    })
+
+    return {
+      totalAbsent,
+      totalMissingIn,
+      totalMissingOut,
+      empHasMap,
+    }
+  }, [employees, dateColumns, recordMatrixMap, holidays, settings, maxUploadedDate])
+
+  // Is any status filter active?
+  const isAnyStatusFilterActive = Boolean(
+    statusFilters.absent || statusFilters.missingIn || statusFilters.missingOut
+  )
+
   // CRITICAL BUSINESS LOGIC: Only show employees who have at least ONE uploaded record in this range
   const filteredEmployees = useMemo(() => {
     const recordedEmployeeIds = new Set<string>()
@@ -354,6 +760,20 @@ export default function AttendanceRecordsPage() {
         if (!matchName && !matchId && !matchDesig) return false
       }
 
+      // Status Checkbox filters (Absent, Missing In, Missing Out)
+      if (isAnyStatusFilterActive) {
+        const empStatus = statusFilterCounts.empHasMap.get(emp.id) || statusFilterCounts.empHasMap.get(emp.employee_id)
+        if (!empStatus) return false
+
+        const matchAbsent = statusFilters.absent && empStatus.hasAbsent
+        const matchMissingIn = statusFilters.missingIn && empStatus.hasMissingIn
+        const matchMissingOut = statusFilters.missingOut && empStatus.hasMissingOut
+
+        if (!matchAbsent && !matchMissingIn && !matchMissingOut) {
+          return false
+        }
+      }
+
       return true
     })
 
@@ -362,7 +782,43 @@ export default function AttendanceRecordsPage() {
     }
 
     return list
-  }, [employees, records, selectedDesignation, selectedBranch, search, pageSize])
+  }, [employees, records, selectedDesignation, selectedBranch, search, pageSize, isAnyStatusFilterActive, statusFilters, statusFilterCounts])
+
+  // Smart Date Columns for Grid View & Export:
+  // If status filter (Absent, Missing In, Missing Out) is active, ONLY show dates where at least one employee had that status!
+  const displayDateColumns = useMemo(() => {
+    let dates = dateColumns
+
+    // 1. Hide Sundays if toggled off in View options
+    if (visibleColumns.sundays === false) {
+      dates = dates.filter((date) => getDayName(date) !== 'Sunday')
+    }
+
+    // 2. If status filter is active, filter date columns to only show matching dates!
+    if (isAnyStatusFilterActive && filteredEmployees.length > 0) {
+      dates = dates.filter((date) => {
+        return filteredEmployees.some((emp) => {
+          const flags = getRecordStatusFlags(emp, date, recordMatrixMap, holidays, settings, maxUploadedDate)
+          const matchAbsent = statusFilters.absent && flags.isAbsent
+          const matchMissingIn = statusFilters.missingIn && flags.isMissingIn
+          const matchMissingOut = statusFilters.missingOut && flags.isMissingOut
+          return matchAbsent || matchMissingIn || matchMissingOut
+        })
+      })
+    }
+
+    return dates
+  }, [
+    dateColumns,
+    visibleColumns.sundays,
+    isAnyStatusFilterActive,
+    filteredEmployees,
+    recordMatrixMap,
+    holidays,
+    settings,
+    statusFilters,
+    maxUploadedDate,
+  ])
 
   // Present employees on date count
   const getPresentEmployeesCountOnDate = (date: string): number => {
@@ -458,15 +914,16 @@ export default function AttendanceRecordsPage() {
   const handleExportExcel = () => {
     try {
       const rows: any[] = []
-      filteredEmployees.forEach((emp) => {
-        const rowData: Record<string, any> = {
-          'Batch ID': emp.employee_id,
-          'Employee Name': emp.name,
-          'Designation': emp.designation,
-          'Branch': emp.branch || 'Multan',
-        }
+      const exportDates = isAnyStatusFilterActive ? displayDateColumns : (visibleColumns.sundays ? dateColumns : dateColumns.filter((d) => getDayName(d) !== 'Sunday'))
 
-        dateColumns.forEach((date) => {
+      filteredEmployees.forEach((emp) => {
+        const rowData: Record<string, any> = {}
+        if (visibleColumns.batchId) rowData['Batch ID'] = emp.employee_id
+        if (visibleColumns.employeeName) rowData['Employee Name'] = emp.name
+        if (visibleColumns.designation) rowData['Designation'] = emp.designation
+        if (visibleColumns.branch) rowData['Branch'] = emp.branch || 'Multan'
+
+        exportDates.forEach((date) => {
           const dayName = getDayName(date)
           const isSunday = dayName === 'Sunday'
           const isGazettedHoliday = Boolean(holidays[date]) && getPresentEmployeesCountOnDate(date) === 0
@@ -487,10 +944,10 @@ export default function AttendanceRecordsPage() {
             } else if (rec.in_time || rec.out_time) {
               rowData[date] = `${rec.in_time || '--'} - ${rec.out_time || '--'}`
             } else {
-              rowData[date] = date <= maxUploadedDate ? 'Absent' : '--'
+              rowData[date] = (!maxUploadedDate || date <= maxUploadedDate) ? 'Absent' : '--'
             }
           } else {
-            rowData[date] = date <= maxUploadedDate ? 'Absent' : '--'
+            rowData[date] = (!maxUploadedDate || date <= maxUploadedDate) ? 'Absent' : '--'
           }
         })
 
@@ -1016,108 +1473,48 @@ export default function AttendanceRecordsPage() {
             </div>
           </div>
 
-          {/* Quick Status Checkbox Filter Bar */}
-          <div className="pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600 flex items-center gap-1.5 mr-1">
-                <Filter className="w-3.5 h-3.5 text-[#009D9E]" />
-                Status Filter:
-              </span>
+        {/* Responsive Quick Status Filter & View Bar (Matching UI Style) */}
+        <div className="pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          {/* Left Section: Status Filter Dropdown & Active Indicator */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Status Filter Dropdown Component */}
+            <DataTableFacetedFilter
+              title="Status Filter"
+              options={[
+                {
+                  id: 'absent',
+                  label: 'Absent',
+                  colorDot: 'bg-rose-600',
+                  count: statusFilterCounts.totalAbsent,
+                  isSelected: statusFilters.absent,
+                },
+                {
+                  id: 'missingIn',
+                  label: 'Missing In',
+                  colorDot: 'bg-emerald-600',
+                  count: statusFilterCounts.totalMissingIn,
+                  isSelected: statusFilters.missingIn,
+                },
+                {
+                  id: 'missingOut',
+                  label: 'Missing Out',
+                  colorDot: 'bg-emerald-600',
+                  count: statusFilterCounts.totalMissingOut,
+                  isSelected: statusFilters.missingOut,
+                },
+              ]}
+              onToggleOption={(id) => {
+                setStatusFilters((prev) => ({
+                  ...prev,
+                  [id]: !prev[id as keyof typeof prev],
+                }))
+              }}
+              onClear={() => {
+                setStatusFilters({ absent: false, missingIn: false, missingOut: false })
+              }}
+            />
 
-              {/* Checkbox 1: Absent */}
-              <label
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-all select-none ${
-                  statusFilters.absent
-                    ? 'bg-rose-50 border-rose-400 text-rose-800 shadow-2xs ring-1 ring-rose-300'
-                    : 'bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-700'
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={statusFilters.absent}
-                  onChange={(e) =>
-                    setStatusFilters((prev) => ({ ...prev, absent: e.target.checked }))
-                  }
-                  className="w-3.5 h-3.5 rounded text-rose-600 focus:ring-rose-500 border-slate-300 cursor-pointer accent-rose-600"
-                />
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-rose-600"></span>
-                  <span>Absent</span>
-                </span>
-                <span
-                  className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
-                    statusFilters.absent
-                      ? 'bg-rose-200 text-rose-900'
-                      : 'bg-slate-200/80 text-slate-600'
-                  }`}
-                >
-                  {kpiStats.totalAbsent}
-                </span>
-              </label>
-
-              {/* Checkbox 2: Missing In */}
-              <label
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-all select-none ${
-                  statusFilters.missingIn
-                    ? 'bg-emerald-50 border-emerald-400 text-emerald-800 shadow-2xs ring-1 ring-emerald-300'
-                    : 'bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-700'
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={statusFilters.missingIn}
-                  onChange={(e) =>
-                    setStatusFilters((prev) => ({ ...prev, missingIn: e.target.checked }))
-                  }
-                  className="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer accent-emerald-600"
-                />
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-                  <span>Missing In</span>
-                </span>
-                <span
-                  className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
-                    statusFilters.missingIn
-                      ? 'bg-emerald-200 text-emerald-900'
-                      : 'bg-slate-200/80 text-slate-600'
-                  }`}
-                >
-                  0
-                </span>
-              </label>
-
-              {/* Checkbox 3: Missing Out */}
-              <label
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-all select-none ${
-                  statusFilters.missingOut
-                    ? 'bg-emerald-50 border-emerald-400 text-emerald-800 shadow-2xs ring-1 ring-emerald-300'
-                    : 'bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-700'
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={statusFilters.missingOut}
-                  onChange={(e) =>
-                    setStatusFilters((prev) => ({ ...prev, missingOut: e.target.checked }))
-                  }
-                  className="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer accent-emerald-600"
-                />
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-                  <span>Missing Out</span>
-                </span>
-                <span
-                  className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
-                    statusFilters.missingOut
-                      ? 'bg-emerald-200 text-emerald-900'
-                      : 'bg-slate-200/80 text-slate-600'
-                  }`}
-                >
-                  0
-                </span>
-              </label>
-            </div>
-
+            {/* Reset Filters / Active indicator */}
             {(statusFilters.absent || statusFilters.missingIn || statusFilters.missingOut) && (
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-medium text-slate-500">
@@ -1128,7 +1525,7 @@ export default function AttendanceRecordsPage() {
                   onClick={() =>
                     setStatusFilters({ absent: false, missingIn: false, missingOut: false })
                   }
-                  className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-md border border-rose-200 flex items-center gap-1 transition-colors"
+                  className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-md border border-rose-200 flex items-center gap-1 transition-colors cursor-pointer"
                 >
                   <X className="w-3 h-3" />
                   Reset Filters
@@ -1136,6 +1533,23 @@ export default function AttendanceRecordsPage() {
               </div>
             )}
           </div>
+
+          {/* Right Section: View (Toggle columns) Options */}
+          <div className="flex items-center gap-2.5 ml-auto">
+            {/* View (Toggle Columns) Component */}
+            <DataTableViewOptions
+              columns={[
+                { id: 'batchId', label: 'Batch ID', isVisible: Boolean(visibleColumns.batchId) },
+                { id: 'employeeName', label: 'Employee Name', isVisible: Boolean(visibleColumns.employeeName) },
+                { id: 'designation', label: 'Designation', isVisible: Boolean(visibleColumns.designation) },
+                { id: 'branch', label: 'Branch', isVisible: Boolean(visibleColumns.branch) },
+                { id: 'sundays', label: 'Sundays (Off Days)', isVisible: Boolean(visibleColumns.sundays) },
+              ]}
+              onToggleColumn={handleToggleColumn}
+              onResetAll={handleResetColumns}
+            />
+          </div>
+        </div>
         </Card>
 
         {/* Summary KPI Counters (7 cards) - Exact MIS Card Styling */}
@@ -1178,27 +1592,59 @@ export default function AttendanceRecordsPage() {
               <thead className="bg-[#2d3748] text-white font-bold sticky top-0 z-30 shadow-xs">
                 <tr>
                   {/* Fixed Column 1: Batch ID */}
-                  <th className="py-3 px-3.5 sticky left-0 z-40 bg-[#2d3748] border-r border-slate-600/80 w-[90px] min-w-[90px] max-w-[90px] text-center uppercase tracking-wider text-[11px]">
-                    Batch ID ⇅
-                  </th>
+                  {visibleColumns.batchId && (
+                    <th
+                      style={{ left: `${stickyColumnLayout.offsets.batchId ?? 0}px` }}
+                      className={cn(
+                        'py-3 px-3.5 sticky z-40 bg-[#2d3748] border-r border-slate-600/80 min-w-[90px] text-center uppercase tracking-wider text-[11px]',
+                        stickyColumnLayout.lastVisibleId === 'batchId' && 'shadow-[3px_0_5px_rgba(0,0,0,0.2)]'
+                      )}
+                    >
+                      Batch ID ⇅
+                    </th>
+                  )}
 
                   {/* Fixed Column 2: Employee Name */}
-                  <th className="py-3 px-3.5 sticky left-[90px] z-40 bg-[#2d3748] border-r border-slate-600/80 w-[170px] min-w-[170px] max-w-[170px] uppercase tracking-wider text-[11px]">
-                    Employee Name ⇅
-                  </th>
+                  {visibleColumns.employeeName && (
+                    <th
+                      style={{ left: `${stickyColumnLayout.offsets.employeeName ?? 0}px` }}
+                      className={cn(
+                        'py-3 px-3.5 sticky z-40 bg-[#2d3748] border-r border-slate-600/80 min-w-[170px] uppercase tracking-wider text-[11px]',
+                        stickyColumnLayout.lastVisibleId === 'employeeName' && 'shadow-[3px_0_5px_rgba(0,0,0,0.2)]'
+                      )}
+                    >
+                      Employee Name ⇅
+                    </th>
+                  )}
 
                   {/* Fixed Column 3: Designation */}
-                  <th className="py-3 px-3.5 sticky left-[260px] z-40 bg-[#2d3748] border-r border-slate-600/80 w-[150px] min-w-[150px] max-w-[150px] uppercase tracking-wider text-[11px]">
-                    Designation ⇅
-                  </th>
+                  {visibleColumns.designation && (
+                    <th
+                      style={{ left: `${stickyColumnLayout.offsets.designation ?? 0}px` }}
+                      className={cn(
+                        'py-3 px-3.5 sticky z-40 bg-[#2d3748] border-r border-slate-600/80 min-w-[150px] uppercase tracking-wider text-[11px]',
+                        stickyColumnLayout.lastVisibleId === 'designation' && 'shadow-[3px_0_5px_rgba(0,0,0,0.2)]'
+                      )}
+                    >
+                      Designation ⇅
+                    </th>
+                  )}
 
                   {/* Fixed Column 4: Branch */}
-                  <th className="py-3 px-3 sticky left-[410px] z-40 bg-[#2d3748] border-r border-slate-600/80 w-[110px] min-w-[110px] max-w-[110px] text-center uppercase tracking-wider text-[11px] shadow-[3px_0_5px_rgba(0,0,0,0.2)]">
-                    Branch ⇅
-                  </th>
+                  {visibleColumns.branch && (
+                    <th
+                      style={{ left: `${stickyColumnLayout.offsets.branch ?? 0}px` }}
+                      className={cn(
+                        'py-3 px-3 sticky z-40 bg-[#2d3748] border-r border-slate-600/80 min-w-[110px] text-center uppercase tracking-wider text-[11px]',
+                        stickyColumnLayout.lastVisibleId === 'branch' && 'shadow-[3px_0_5px_rgba(0,0,0,0.2)]'
+                      )}
+                    >
+                      Branch ⇅
+                    </th>
+                  )}
 
                   {/* Dynamic Date Columns */}
-                  {dateColumns.map((date) => {
+                  {displayDateColumns.map((date) => {
                     const day = getDayName(date)
                     const isSunday = day === 'Sunday'
                     const isGazettedHoliday = Boolean(holidays[date]) && getPresentEmployeesCountOnDate(date) === 0
@@ -1239,7 +1685,7 @@ export default function AttendanceRecordsPage() {
                 {isLoading ? (
                   <tr>
                     <td
-                      colSpan={4 + dateColumns.length}
+                      colSpan={stickyColumnLayout.visibleCount + displayDateColumns.length}
                       className="py-20 text-center text-slate-400 bg-white"
                     >
                       <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-[#009D9E]" />
@@ -1249,7 +1695,7 @@ export default function AttendanceRecordsPage() {
                 ) : filteredEmployees.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={4 + dateColumns.length}
+                      colSpan={stickyColumnLayout.visibleCount + displayDateColumns.length}
                       className="py-20 text-center text-slate-400 bg-white"
                     >
                       <Calendar className="w-10 h-10 mx-auto mb-2 text-slate-300" />
@@ -1273,55 +1719,75 @@ export default function AttendanceRecordsPage() {
                     return (
                       <tr key={emp.id} className={`${rowBgClass} hover:bg-blue-50/40 transition-colors`}>
                         {/* Sticky Column 1: Batch ID */}
-                        <td
-                          className={`py-3 px-3 text-center font-mono font-bold text-slate-900 border-r border-slate-200 sticky left-0 z-20 w-[90px] min-w-[90px] max-w-[90px] ${
-                            isEven ? 'bg-white' : 'bg-[#f8fafc]'
-                          } shadow-[2px_0_4px_rgba(0,0,0,0.02)]`}
-                        >
-                          {emp.employee_id}
-                        </td>
+                        {visibleColumns.batchId && (
+                          <td
+                            style={{ left: `${stickyColumnLayout.offsets.batchId ?? 0}px` }}
+                            className={cn(
+                              'py-3 px-3 text-center font-mono font-bold text-slate-900 border-r border-slate-200 sticky z-20 shadow-[2px_0_4px_rgba(0,0,0,0.02)]',
+                              isEven ? 'bg-white' : 'bg-[#f8fafc]',
+                              stickyColumnLayout.lastVisibleId === 'batchId' && 'shadow-[3px_0_5px_rgba(0,0,0,0.04)]'
+                            )}
+                          >
+                            {emp.employee_id}
+                          </td>
+                        )}
 
                         {/* Sticky Column 2: Employee Name */}
-                        <td
-                          className={`py-3 px-3.5 font-bold text-slate-900 border-r border-slate-200 sticky left-[90px] z-20 w-[170px] min-w-[170px] max-w-[170px] ${
-                            isEven ? 'bg-white' : 'bg-[#f8fafc]'
-                          } shadow-[2px_0_4px_rgba(0,0,0,0.02)]`}
-                        >
-                          <span className="text-xs text-slate-900 font-bold block truncate">
-                            {emp.name}
-                          </span>
-                        </td>
+                        {visibleColumns.employeeName && (
+                          <td
+                            style={{ left: `${stickyColumnLayout.offsets.employeeName ?? 0}px` }}
+                            className={cn(
+                              'py-3 px-3.5 font-bold text-slate-900 border-r border-slate-200 sticky z-20 shadow-[2px_0_4px_rgba(0,0,0,0.02)]',
+                              isEven ? 'bg-white' : 'bg-[#f8fafc]',
+                              stickyColumnLayout.lastVisibleId === 'employeeName' && 'shadow-[3px_0_5px_rgba(0,0,0,0.04)]'
+                            )}
+                          >
+                            <span className="text-xs text-slate-900 font-bold block truncate">
+                              {emp.name}
+                            </span>
+                          </td>
+                        )}
 
                         {/* Sticky Column 3: Designation */}
-                        <td
-                          className={`py-3 px-3.5 text-slate-600 border-r border-slate-200 text-xs sticky left-[260px] z-20 w-[150px] min-w-[150px] max-w-[150px] ${
-                            isEven ? 'bg-white' : 'bg-[#f8fafc]'
-                          } shadow-[2px_0_4px_rgba(0,0,0,0.02)] font-medium truncate`}
-                        >
-                          {emp.designation || 'Staff'}
-                        </td>
+                        {visibleColumns.designation && (
+                          <td
+                            style={{ left: `${stickyColumnLayout.offsets.designation ?? 0}px` }}
+                            className={cn(
+                              'py-3 px-3.5 text-slate-600 border-r border-slate-200 text-xs sticky z-20 shadow-[2px_0_4px_rgba(0,0,0,0.02)] font-medium truncate',
+                              isEven ? 'bg-white' : 'bg-[#f8fafc]',
+                              stickyColumnLayout.lastVisibleId === 'designation' && 'shadow-[3px_0_5px_rgba(0,0,0,0.04)]'
+                            )}
+                          >
+                            {emp.designation || 'Staff'}
+                          </td>
+                        )}
 
                         {/* Sticky Column 4: Branch */}
-                        <td
-                          className={`py-3 px-2 text-center border-r border-slate-200 text-xs sticky left-[410px] z-20 w-[110px] min-w-[110px] max-w-[110px] ${
-                            isEven ? 'bg-white' : 'bg-[#f8fafc]'
-                          } shadow-[3px_0_5px_rgba(0,0,0,0.04)]`}
-                        >
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              emp.branch === 'Lahore'
-                                ? 'bg-purple-100 text-purple-800 border border-purple-200'
-                                : emp.branch === 'Multan'
-                                ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                                : 'bg-slate-100 text-slate-700 border border-slate-200'
-                            }`}
+                        {visibleColumns.branch && (
+                          <td
+                            style={{ left: `${stickyColumnLayout.offsets.branch ?? 0}px` }}
+                            className={cn(
+                              'py-3 px-2 text-center border-r border-slate-200 text-xs sticky z-20',
+                              isEven ? 'bg-white' : 'bg-[#f8fafc]',
+                              stickyColumnLayout.lastVisibleId === 'branch' && 'shadow-[3px_0_5px_rgba(0,0,0,0.04)]'
+                            )}
                           >
-                            {emp.branch || 'Multan'}
-                          </span>
-                        </td>
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                emp.branch === 'Lahore'
+                                  ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                                  : emp.branch === 'Multan'
+                                  ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                  : 'bg-slate-100 text-slate-700 border border-slate-200'
+                              }`}
+                            >
+                              {emp.branch || 'Multan'}
+                            </span>
+                          </td>
+                        )}
 
                         {/* Dynamic Date Data Cells */}
-                        {dateColumns.map((date) => (
+                        {displayDateColumns.map((date) => (
                           <td
                             key={date}
                             className="py-2 px-2 border-r border-slate-200 align-middle text-center w-[155px] min-w-[155px] max-w-[155px]"
@@ -1341,7 +1807,7 @@ export default function AttendanceRecordsPage() {
           <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
             <div>
               Showing <span className="font-bold text-slate-800">{filteredEmployees.length}</span> employees across{' '}
-              <span className="font-bold text-slate-800">{dateColumns.length}</span> days ({startDate} to {endDate})
+              <span className="font-bold text-slate-800">{displayDateColumns.length}</span> days ({startDate} to {endDate})
             </div>
             <div className="flex items-center gap-3.5 flex-wrap">
               <span className="inline-flex items-center gap-1.5 font-medium">
