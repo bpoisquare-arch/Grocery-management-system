@@ -16,8 +16,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Grocery Expense Manager",
-  description: "Internal business web application for managing monthly grocery expenses.",
+  title: {
+    default: "BMS - Branch Management System",
+    template: "%s | BMS - Branch Management System",
+  },
+  description: "BMS - Branch Management System & Business Operations Portal",
+  icons: {
+    icon: "/isquarebpo.png",
+    shortcut: "/isquarebpo.png",
+    apple: "/isquarebpo.png",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
