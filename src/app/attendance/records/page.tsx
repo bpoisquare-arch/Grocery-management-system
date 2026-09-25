@@ -672,54 +672,8 @@ export default function AttendanceRecordsPage() {
     return maxD
   }, [records])
 
-  // Calculate status counts across entire active range for filter badges & employee map
-  const statusFilterCounts = useMemo(() => {
-    let totalAbsent = 0
-    let totalMissingIn = 0
-    let totalMissingOut = 0
-
-    const empHasMap = new Map<string, { hasAbsent: boolean; hasMissingIn: boolean; hasMissingOut: boolean }>()
-
-    employees.forEach((emp) => {
-      let hasAbsent = false
-      let hasMissingIn = false
-      let hasMissingOut = false
-
-      dateColumns.forEach((date) => {
-        const flags = getRecordStatusFlags(emp, date, recordMatrixMap, holidays, settings, maxUploadedDate)
-        if (flags.isAbsent) {
-          hasAbsent = true
-          totalAbsent++
-        }
-        if (flags.isMissingIn) {
-          hasMissingIn = true
-          totalMissingIn++
-        }
-        if (flags.isMissingOut) {
-          hasMissingOut = true
-          totalMissingOut++
-        }
-      })
-
-      empHasMap.set(emp.id, { hasAbsent, hasMissingIn, hasMissingOut })
-      empHasMap.set(emp.employee_id, { hasAbsent, hasMissingIn, hasMissingOut })
-    })
-
-    return {
-      totalAbsent,
-      totalMissingIn,
-      totalMissingOut,
-      empHasMap,
-    }
-  }, [employees, dateColumns, recordMatrixMap, holidays, settings, maxUploadedDate])
-
-  // Is any status filter active?
-  const isAnyStatusFilterActive = Boolean(
-    statusFilters.absent || statusFilters.missingIn || statusFilters.missingOut
-  )
-
-  // CRITICAL BUSINESS LOGIC: Only show employees who have at least ONE uploaded record in this range
-  const filteredEmployees = useMemo(() => {
+  // CRITICAL BUSINESS LOGIC: Only show employees who have at least ONE uploaded record in this range and match filters
+  const baseFilteredEmployees = useMemo(() => {
     const recordedEmployeeIds = new Set<string>()
     records.forEach((rec) => {
       if (rec.employee_id) recordedEmployeeIds.add(rec.employee_id)
@@ -760,8 +714,64 @@ export default function AttendanceRecordsPage() {
         if (!matchName && !matchId && !matchDesig) return false
       }
 
-      // Status Checkbox filters (Absent, Missing In, Missing Out)
-      if (isAnyStatusFilterActive) {
+      return true
+    })
+
+    return list
+  }, [employees, records, selectedDesignation, selectedBranch, search])
+
+  // Calculate status counts across currently filtered base employees (matches KPI Card perfectly!)
+  const statusFilterCounts = useMemo(() => {
+    let totalAbsent = 0
+    let totalMissingIn = 0
+    let totalMissingOut = 0
+
+    const empHasMap = new Map<string, { hasAbsent: boolean; hasMissingIn: boolean; hasMissingOut: boolean }>()
+
+    baseFilteredEmployees.forEach((emp) => {
+      let hasAbsent = false
+      let hasMissingIn = false
+      let hasMissingOut = false
+
+      dateColumns.forEach((date) => {
+        const flags = getRecordStatusFlags(emp, date, recordMatrixMap, holidays, settings, maxUploadedDate)
+        if (flags.isAbsent) {
+          hasAbsent = true
+          totalAbsent++
+        }
+        if (flags.isMissingIn) {
+          hasMissingIn = true
+          totalMissingIn++
+        }
+        if (flags.isMissingOut) {
+          hasMissingOut = true
+          totalMissingOut++
+        }
+      })
+
+      empHasMap.set(emp.id, { hasAbsent, hasMissingIn, hasMissingOut })
+      empHasMap.set(emp.employee_id, { hasAbsent, hasMissingIn, hasMissingOut })
+    })
+
+    return {
+      totalAbsent,
+      totalMissingIn,
+      totalMissingOut,
+      empHasMap,
+    }
+  }, [baseFilteredEmployees, dateColumns, recordMatrixMap, holidays, settings, maxUploadedDate])
+
+  // Is any status filter active?
+  const isAnyStatusFilterActive = Boolean(
+    statusFilters.absent || statusFilters.missingIn || statusFilters.missingOut
+  )
+
+  // Filtered employees after status filter checkboxes
+  const filteredEmployees = useMemo(() => {
+    let list = baseFilteredEmployees
+
+    if (isAnyStatusFilterActive) {
+      list = list.filter((emp) => {
         const empStatus = statusFilterCounts.empHasMap.get(emp.id) || statusFilterCounts.empHasMap.get(emp.employee_id)
         if (!empStatus) return false
 
@@ -769,20 +779,16 @@ export default function AttendanceRecordsPage() {
         const matchMissingIn = statusFilters.missingIn && empStatus.hasMissingIn
         const matchMissingOut = statusFilters.missingOut && empStatus.hasMissingOut
 
-        if (!matchAbsent && !matchMissingIn && !matchMissingOut) {
-          return false
-        }
-      }
-
-      return true
-    })
+        return matchAbsent || matchMissingIn || matchMissingOut
+      })
+    }
 
     if (pageSize !== 'all') {
       list = list.slice(0, pageSize)
     }
 
     return list
-  }, [employees, records, selectedDesignation, selectedBranch, search, pageSize, isAnyStatusFilterActive, statusFilters, statusFilterCounts])
+  }, [baseFilteredEmployees, isAnyStatusFilterActive, statusFilters, statusFilterCounts, pageSize])
 
   // Smart Date Columns for Grid View & Export:
   // If status filter (Absent, Missing In, Missing Out) is active, ONLY show dates where at least one employee had that status!
