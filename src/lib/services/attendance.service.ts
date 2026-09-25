@@ -324,11 +324,11 @@ export async function getEmployeeLeaveBalanceSummary(
   }
 
   const initialQuotas = {
-    annual_leaves: emp?.base_leave_quotas?.annual_leaves ?? meta.base_leave_quotas?.annual_leaves ?? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.annual_leaves,
-    sick_leaves: emp?.base_leave_quotas?.sick_leaves ?? meta.base_leave_quotas?.sick_leaves ?? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.sick_leaves,
-    casual_leaves: emp?.base_leave_quotas?.casual_leaves ?? meta.base_leave_quotas?.casual_leaves ?? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.casual_leaves,
-    wfh_quota: emp?.base_leave_quotas?.wfh_quota ?? meta.base_leave_quotas?.wfh_quota ?? (emp?.leave_quotas?.wfh_quota === -1 ? -1 : DEFAULT_EMPLOYEE_LEAVE_QUOTAS.wfh_quota),
-    probation_leaves: isOldStaff ? 0 : (emp?.base_leave_quotas?.probation_leaves ?? meta.base_leave_quotas?.probation_leaves ?? (isProbation ? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.probation_leaves : 0)),
+    annual_leaves: emp?.leave_quotas?.annual_leaves ?? emp?.base_leave_quotas?.annual_leaves ?? meta.leave_quotas?.annual_leaves ?? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.annual_leaves,
+    sick_leaves: emp?.leave_quotas?.sick_leaves ?? emp?.base_leave_quotas?.sick_leaves ?? meta.leave_quotas?.sick_leaves ?? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.sick_leaves,
+    casual_leaves: emp?.leave_quotas?.casual_leaves ?? emp?.base_leave_quotas?.casual_leaves ?? meta.leave_quotas?.casual_leaves ?? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.casual_leaves,
+    wfh_quota: emp?.leave_quotas?.wfh_quota ?? emp?.base_leave_quotas?.wfh_quota ?? meta.leave_quotas?.wfh_quota ?? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.wfh_quota,
+    probation_leaves: isOldStaff ? 0 : (emp?.leave_quotas?.probation_leaves ?? emp?.base_leave_quotas?.probation_leaves ?? meta.leave_quotas?.probation_leaves ?? (isProbation ? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.probation_leaves : 0)),
   }
 
   const initial_prob = isOldStaff ? 0 : (initialQuotas.probation_leaves !== undefined ? Number(initialQuotas.probation_leaves) : (isProbation ? 3 : 0))
@@ -348,7 +348,7 @@ export async function getEmployeeLeaveBalanceSummary(
       .from('attendance_records')
       .select('id, employee_id, attendance_date, arrival_status, departure_status, raw_punches')
       .eq('employee_id', empDbId)
-      .gte('attendance_date', year + '-01-01')
+      .gte('attendance_date', '2026-09-01')
       .lte('attendance_date', year + '-12-31')
     allRecords = data || []
   }
@@ -405,11 +405,11 @@ export async function getEmployeeLeaveBalanceSummary(
     isProbation,
     joiningDate,
     quotas: {
-      probation_leaves: initial_prob,
-      annual_leaves: initial_ann,
-      sick_leaves: initial_sick,
-      casual_leaves: initial_cas,
-      wfh_quota: initial_wfh,
+      probation_leaves: isOldStaff ? 0 : 3,
+      annual_leaves: 6,
+      sick_leaves: 7,
+      casual_leaves: 7,
+      wfh_quota: 4,
     },
     used: {
       probation_leaves: Number(used_probation.toFixed(2)),
@@ -423,7 +423,7 @@ export async function getEmployeeLeaveBalanceSummary(
       annual_leaves: Math.max(0, Number((initial_ann - used_annual).toFixed(2))),
       sick_leaves: Math.max(0, Number((initial_sick - used_sick).toFixed(2))),
       casual_leaves: Math.max(0, Number((initial_cas - used_casual).toFixed(2))),
-      wfh_quota: initial_wfh < 0 ? -1 : Number((initial_wfh - used_wfh).toFixed(2)),
+      wfh_quota: Number((initial_wfh - used_wfh).toFixed(2)),
     },
     probationDates,
     hasProbationInTargetMonth,

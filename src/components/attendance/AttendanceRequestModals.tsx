@@ -185,10 +185,11 @@ export function ApplyLeaveModal({
   else if (selectedLeaveType.includes('Probation')) currentRem = effectiveRemaining.probation_leaves ?? 0
   else currentRem = effectiveRemaining.casual_leaves ?? 0
 
-  const isUnlimitedWfh = isWfh && (currentRem < 0 || (effectiveQuotas.wfh_quota ?? 0) < 0)
   const requestedVal = isWfh ? 1 : (parseFloat(leaveDays) || 0)
-  const projected = isUnlimitedWfh ? 'Unlimited' : Math.max(0, Number((currentRem - requestedVal).toFixed(2)))
-  const isOver = isUnlimitedWfh ? false : requestedVal > currentRem
+  const projected = isWfh
+    ? Number((currentRem - requestedVal).toFixed(2))
+    : Math.max(0, Number((currentRem - requestedVal).toFixed(2)))
+  const isOver = isWfh ? false : requestedVal > currentRem
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -273,7 +274,7 @@ export function ApplyLeaveModal({
                         Probation Leave ({effectiveRemaining.probation_leaves ?? 3} remaining / {effectiveQuotas.probation_leaves ?? 3} • Max 1/month)
                       </SelectItem>
                       <SelectItem value="Work From Home" className="text-xs sm:text-sm font-medium py-2.5">
-                        {(effectiveQuotas.wfh_quota ?? 0) < 0 || (effectiveRemaining.wfh_quota ?? 0) < 0 ? 'Work From Home (Unlimited • Full Day Only)' : `Work From Home (${effectiveRemaining.wfh_quota ?? 4} remaining / ${effectiveQuotas.wfh_quota ?? 4} • Full Day Only)`}
+                        {`Work From Home (${effectiveRemaining.wfh_quota ?? 4} remaining / ${effectiveQuotas.wfh_quota ?? 4} • Full Day Only)`}
                       </SelectItem>
                     </>
                   ) : (
@@ -288,7 +289,7 @@ export function ApplyLeaveModal({
                         Annual Leave ({effectiveRemaining.annual_leaves ?? 6} remaining / {effectiveQuotas.annual_leaves ?? 6})
                       </SelectItem>
                       <SelectItem value="Work From Home" className="text-xs sm:text-sm font-medium py-2.5">
-                        {(effectiveQuotas.wfh_quota ?? 0) < 0 || (effectiveRemaining.wfh_quota ?? 0) < 0 ? 'Work From Home (Unlimited • Full Day Only)' : `Work From Home (${effectiveRemaining.wfh_quota ?? 4} remaining / ${effectiveQuotas.wfh_quota ?? 4} • Full Day Only)`}
+                        {`Work From Home (${effectiveRemaining.wfh_quota ?? 4} remaining / ${effectiveQuotas.wfh_quota ?? 4} • Full Day Only)`}
                       </SelectItem>
                     </>
                   )}
@@ -359,17 +360,19 @@ export function ApplyLeaveModal({
                 className={`p-3 sm:p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 font-medium text-xs ${
                   isOver
                     ? 'bg-rose-50 border-rose-200 text-rose-700'
+                    : isWfh && currentRem < 0
+                    ? 'bg-sky-50/70 border-sky-200 text-sky-950 shadow-2xs'
                     : 'bg-white border-indigo-100 text-indigo-950 shadow-2xs'
                 }`}
               >
                 <span className="flex items-center gap-1.5">
                   <span className="text-slate-500 font-semibold">Available Balance:</span>
-                  <strong className="text-slate-900 font-bold text-sm sm:text-base">{isUnlimitedWfh ? 'Unlimited' : currentRem}</strong>
+                  <strong className="text-slate-900 font-bold text-sm sm:text-base">{currentRem}</strong>
                 </span>
                 <span className="text-slate-300 font-bold hidden sm:inline text-lg">→</span>
                 <span className="flex items-center gap-1.5">
                   <span className="text-slate-500 font-semibold">After Deduction:</span>
-                  <strong className={`text-sm sm:text-base font-bold ${isOver ? 'text-rose-600' : 'text-emerald-700'}`}>
+                  <strong className={`text-sm sm:text-base font-bold ${isOver ? 'text-rose-600' : isWfh && projected < 0 ? 'text-sky-700' : 'text-emerald-700'}`}>
                     {projected}
                   </strong>
                 </span>
