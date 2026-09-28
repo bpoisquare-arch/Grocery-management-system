@@ -35,6 +35,41 @@ export async function getEmployees(options?: {
   search?: string
   isActiveOnly?: boolean
 }): Promise<Employee[]> {
+  const misUrl = process.env.NEXT_PUBLIC_MIS_API_URL || 'http://localhost:3000'
+  try {
+    const res = await fetch(`${misUrl}/api/attendance/employees`, { cache: 'no-store' })
+    if (res.ok) {
+      const json = await res.json()
+      let employees: Employee[] = (json.employees || []).map((row: any) => ({
+        ...row,
+        branch: row.branch || 'Multan',
+        designation: cleanDesignation(row.designation),
+      }))
+      if (options?.isActiveOnly) {
+        employees = employees.filter((e) => e.is_active !== false)
+      }
+      if (options?.branch && options.branch.toLowerCase() !== 'all') {
+        const targetBranch = options.branch.trim().toLowerCase()
+        employees = employees.filter(
+          (e) => (e.branch || 'Multan').trim().toLowerCase() === targetBranch
+        )
+      }
+      if (options?.search) {
+        const q = options.search.toLowerCase()
+        employees = employees.filter(
+          (e) =>
+            e.name?.toLowerCase().includes(q) ||
+            e.employee_id?.toLowerCase().includes(q)
+        )
+      }
+      if (employees.length > 0) {
+        return employees
+      }
+    }
+  } catch (err) {
+    // Fall back to Supabase
+  }
+
   try {
     const supabase = getSupabaseClient()
     let query = supabase.from('employees').select('*').order('employee_id', { ascending: true })
@@ -103,6 +138,51 @@ export async function getAttendanceRecords(params: {
   arrivalStatus?: string
   departureStatus?: string
 }): Promise<AttendanceRecordWithEmployee[]> {
+  const misUrl = process.env.NEXT_PUBLIC_MIS_API_URL || 'http://localhost:3000'
+  try {
+    const q = new URLSearchParams()
+    if (params.startDate) q.set('startDate', params.startDate)
+    if (params.endDate) q.set('endDate', params.endDate)
+    if (params.employeeId && params.employeeId !== 'all') q.set('employeeId', params.employeeId)
+    q.set('pageSize', '1000')
+
+    const res = await fetch(`${misUrl}/api/attendance/records?${q.toString()}`, { cache: 'no-store' })
+    if (res.ok) {
+      const json = await res.json()
+      if (Array.isArray(json.records) && json.records.length > 0) {
+        const employees = await getEmployees({ branch: params.branch })
+        const empMap = new Map<string, Employee>()
+        employees.forEach((e) => {
+          empMap.set(e.id, e)
+          empMap.set(e.employee_id, e)
+        })
+
+        let records: AttendanceRecordWithEmployee[] = json.records.map((rec: any) => {
+          const emp = empMap.get(rec.employee_id) || rec.employee
+          let parsedPunches = rec.raw_punches_parsed || []
+          if (!parsedPunches.length && rec.raw_punches) {
+            try {
+              parsedPunches = typeof rec.raw_punches === 'string' ? JSON.parse(rec.raw_punches) : rec.raw_punches
+            } catch {}
+          }
+          return {
+            ...rec,
+            employee: emp || null,
+            raw_punches_parsed: parsedPunches,
+          }
+        })
+
+        if (params.branch && params.branch.toLowerCase() !== 'all') {
+          const b = params.branch.trim().toLowerCase()
+          records = records.filter(r => (r.employee?.branch || 'Multan').trim().toLowerCase() === b)
+        }
+        return records
+      }
+    }
+  } catch (err) {
+    // Fall back to Supabase
+  }
+
   try {
     const supabase = getSupabaseClient()
     const employees = await getEmployees({ branch: params.branch })
@@ -184,6 +264,15 @@ export async function getAttendanceRecords(params: {
 
 // 4. Get Attendance Settings (Read-Only)
 export async function getAttendanceSettings(): Promise<AttendanceSettings> {
+  const misUrl = process.env.NEXT_PUBLIC_MIS_API_URL || 'http://localhost:3000'
+  try {
+    const res = await fetch(`${misUrl}/api/attendance/settings`, { cache: 'no-store' })
+    if (res.ok) {
+      const json = await res.json()
+      if (json.settings) return json.settings
+    }
+  } catch {}
+
   try {
     const supabase = getSupabaseClient()
     const { data, error } = await supabase.from('attendance_settings').select('*').limit(1).single()
@@ -199,6 +288,19 @@ export async function getAttendanceSettings(): Promise<AttendanceSettings> {
 // 5. Get Gazetted Holidays (Read-Only)
 export async function getGazettedHolidays(): Promise<Record<string, string>> {
   const holidaysMap: Record<string, string> = {}
+  const misUrl = process.env.NEXT_PUBLIC_MIS_API_URL || 'http://localhost:3000'
+  try {
+    const res = await fetch(`${misUrl}/api/attendance/holidays?year=2026`, { cache: 'no-store' })
+    if (res.ok) {
+      const json = await res.json()
+      if (Array.isArray(json.holidays)) {
+        for (const h of json.holidays) {
+          if (h.date) holidaysMap[h.date] = h.name || 'Gazetted Holiday'
+        }
+        return holidaysMap
+      }
+    }
+  } catch {}
 
   try {
     const supabase = getSupabaseClient()
