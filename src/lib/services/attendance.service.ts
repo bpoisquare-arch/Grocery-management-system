@@ -149,7 +149,9 @@ export async function getAttendanceRecords(params: {
     const res = await fetch(`${misUrl}/api/attendance/records?${q.toString()}`, { cache: 'no-store' })
     if (res.ok) {
       const json = await res.json()
-      if (Array.isArray(json.records) && json.records.length > 0) {
+      if (Array.isArray(json.records)) {
+        if (json.records.length === 0) return []
+
         const employees = await getEmployees({ branch: params.branch })
         const empMap = new Map<string, Employee>()
         employees.forEach((e) => {
@@ -180,86 +182,11 @@ export async function getAttendanceRecords(params: {
       }
     }
   } catch (err) {
-    // Fall back to Supabase
+    console.warn('MIS API attendance records fetch warning:', err)
   }
 
-  try {
-    const supabase = getSupabaseClient()
-    const employees = await getEmployees({ branch: params.branch })
-    const empMap = new Map<string, Employee>()
-    employees.forEach((e) => {
-      empMap.set(e.id, e)
-      empMap.set(e.employee_id, e)
-    })
-
-    let query = supabase.from('attendance_records').select('*')
-
-    if (params.startDate) {
-      query = query.gte('attendance_date', params.startDate)
-    }
-    if (params.endDate) {
-      query = query.lte('attendance_date', params.endDate)
-    }
-    if (params.arrivalStatus && params.arrivalStatus !== 'all') {
-      query = query.eq('arrival_status', params.arrivalStatus)
-    }
-    if (params.departureStatus && params.departureStatus !== 'all') {
-      query = query.eq('departure_status', params.departureStatus)
-    }
-    if (params.employeeId && params.employeeId !== 'all') {
-      const targetEmp = empMap.get(params.employeeId)
-      const empUuid = targetEmp?.id || (params.employeeId.includes('-') && params.employeeId.length > 20 ? params.employeeId : null)
-      if (empUuid) {
-        query = query.eq('employee_id', empUuid)
-      } else {
-        query = query.eq('employee_id', params.employeeId)
-      }
-    }
-
-    const { data, error } = await query
-
-    if (error || !data) {
-      console.error('Error fetching attendance records from Supabase:', error)
-      return []
-    }
-
-    // Attach employee info & filter by branch
-    const recordsWithEmp: AttendanceRecordWithEmployee[] = []
-
-    const recordsList = (data as any[]) || []
-    for (const rec of recordsList) {
-      const emp = empMap.get(rec.employee_id)
-      // If branch filter is active, only include if employee belongs to this branch
-      if (params.branch && params.branch.toLowerCase() !== 'all') {
-        if (!emp) continue // employee not in this branch
-      }
-
-      let parsedPunches: any[] = []
-      if (rec.raw_punches) {
-        try {
-          parsedPunches = typeof rec.raw_punches === 'string'
-            ? JSON.parse(rec.raw_punches)
-            : rec.raw_punches
-        } catch {
-          parsedPunches = []
-        }
-      }
-
-      recordsWithEmp.push({
-        ...rec,
-        employee: emp || null,
-        raw_punches_parsed: parsedPunches,
-      })
-    }
-
-    // Sort by attendance_date asc
-    recordsWithEmp.sort((a, b) => a.attendance_date.localeCompare(b.attendance_date))
-
-    return recordsWithEmp
-  } catch (err) {
-    console.error('Error in getAttendanceRecords service:', err)
-    return []
-  }
+  // Fallback to local DB or empty array if API unreachable
+  return []
 }
 
 // 4. Get Attendance Settings (Read-Only)
