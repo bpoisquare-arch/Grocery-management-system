@@ -103,7 +103,28 @@ export async function getAttendanceRequests(filter?: {
   const supabase: any = getSupabaseClient()
   let requestsList: AttendanceRequestItem[] = []
 
-  // 1. Try dedicated table if exists
+  // 1. Primary: Fetch from MIS API (live Hostinger MySQL database)
+  try {
+    const misUrl = process.env.NEXT_PUBLIC_MIS_API_URL || (process.env.NODE_ENV === 'production' ? 'https://mis.isquarebpo.com' : 'http://localhost:3000')
+    const q = new URLSearchParams()
+    if (filter?.branch && filter.branch !== 'all') q.set('branch', filter.branch)
+    if (filter?.status && filter.status !== 'all') q.set('status', filter.status)
+    if (filter?.employeeId && filter.employeeId !== 'all') q.set('employeeId', filter.employeeId)
+    if (filter?.startDate) q.set('startDate', filter.startDate)
+    if (filter?.endDate) q.set('endDate', filter.endDate)
+
+    const res = await fetch(`${misUrl}/api/attendance/requests?${q.toString()}`, { cache: 'no-store' })
+    if (res.ok) {
+      const data = await res.json()
+      if (data.success && Array.isArray(data.requests) && data.requests.length > 0) {
+        return data.requests
+      }
+    }
+  } catch (err) {
+    console.warn('MIS API getAttendanceRequests fetch warning:', err)
+  }
+
+  // 2. Fallback: Try Supabase table if exists
   try {
     let query = supabase.from('attendance_requests').select('*').order('created_at', { ascending: false })
 
@@ -254,14 +275,32 @@ export async function createAttendanceRequest(params: {
     updated_at: new Date().toISOString(),
   }
 
+  // 1. Primary: Forward request directly to MIS API (so it is saved into MIS MySQL database)
+  try {
+    const misUrl = process.env.NEXT_PUBLIC_MIS_API_URL || (process.env.NODE_ENV === 'production' ? 'https://mis.isquarebpo.com' : 'http://localhost:3000')
+    const res = await fetch(`${misUrl}/api/attendance/requests`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newItem),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data.request?.id) {
+        newItem.id = data.request.id
+      }
+    }
+  } catch (apiErr) {
+    console.warn('MIS API request sync warning:', apiErr)
+  }
+
   const supabase: any = getSupabaseClient()
 
-  // 1. Try dedicated table if exists
+  // 2. Try dedicated table if exists in Supabase
   try {
     await supabase.from('attendance_requests').insert(newItem as any)
   } catch {}
 
-  // 2. ALWAYS sync directly to `attendance_records` table in Supabase
+  // 3. ALWAYS sync directly to `attendance_records` table in Supabase
   try {
     const { data: existingRecs } = await supabase
       .from('attendance_records')
@@ -307,7 +346,7 @@ export async function createAttendanceRequest(params: {
     console.error('Error syncing request to attendance_records in Supabase:', syncErr)
   }
 
-  // 3. Fallback save to local store
+  // 4. Fallback save to local store
   try {
     const current = readFallbackRequests().filter(
       (r) => !(r.employee_id === newItem.employee_id && r.attendance_date === newItem.attendance_date && r.status === 'PENDING')
@@ -322,6 +361,16 @@ export async function createAttendanceRequest(params: {
  * 3. Cancel / Withdraw Pending Request
  */
 export async function cancelAttendanceRequest(requestId: string): Promise<boolean> {
+  // 1. Primary: Cancel in MIS API
+  try {
+    const misUrl = process.env.NEXT_PUBLIC_MIS_API_URL || (process.env.NODE_ENV === 'production' ? 'https://mis.isquarebpo.com' : 'http://localhost:3000')
+    await fetch(`${misUrl}/api/attendance/requests?id=${encodeURIComponent(requestId)}`, {
+      method: 'DELETE',
+    })
+  } catch (apiErr) {
+    console.warn('MIS API cancel request warning:', apiErr)
+  }
+
   const supabase: any = getSupabaseClient()
   try {
     await supabase.from('attendance_requests').delete().eq('id', requestId).eq('status', 'PENDING')
