@@ -62,71 +62,15 @@ export async function getEmployees(options?: {
             e.employee_id?.toLowerCase().includes(q)
         )
       }
-      if (employees.length > 0) {
+      if (Array.isArray(json.employees)) {
         return employees
       }
     }
   } catch (err) {
-    // Fall back to Supabase
+    console.warn('MIS API getEmployees fetch warning:', err)
   }
 
-  try {
-    const supabase = getSupabaseClient()
-    let query = supabase.from('employees').select('*').order('employee_id', { ascending: true })
-
-    if (options?.isActiveOnly) {
-      query = query.eq('is_active', true)
-    }
-
-    const [empRes, metaMap] = await Promise.all([
-      query,
-      getEmployeeMetadataMap(),
-    ])
-
-    if (empRes.error) {
-      console.error('Error fetching employees:', empRes.error)
-      return []
-    }
-
-    let employees: Employee[] = (empRes.data || []).map((row: any) => {
-      const meta = metaMap[row.id] || metaMap[row.employee_id] || {}
-      const branch = meta.branch !== undefined ? meta.branch : (row.branch || 'Multan')
-      return {
-        ...row,
-        branch,
-        designation: cleanDesignation(row.designation),
-        joining_date: meta.joining_date !== undefined ? meta.joining_date : (row.joining_date || null),
-        is_old_staff: meta.is_old_staff !== undefined ? meta.is_old_staff : Boolean(row.is_old_staff),
-        is_attendance_exempt: meta.is_attendance_exempt !== undefined ? meta.is_attendance_exempt : Boolean(row.is_attendance_exempt),
-        leave_quotas: row.leave_quotas || meta.leave_quotas || undefined,
-        base_leave_quotas: row.base_leave_quotas || meta.base_leave_quotas || undefined,
-      }
-    })
-
-    // Branch filter
-    if (options?.branch && options.branch.toLowerCase() !== 'all') {
-      const targetBranch = options.branch.trim().toLowerCase()
-      employees = employees.filter(
-        (e) => (e.branch || 'Multan').trim().toLowerCase() === targetBranch
-      )
-    }
-
-    // Search filter
-    if (options?.search) {
-      const q = options.search.toLowerCase()
-      employees = employees.filter(
-        (e) =>
-          e.name.toLowerCase().includes(q) ||
-          e.employee_id.toLowerCase().includes(q) ||
-          (e.designation && e.designation.toLowerCase().includes(q))
-      )
-    }
-
-    return employees
-  } catch (err) {
-    console.error('Error in getEmployees service:', err)
-    return []
-  }
+  return []
 }
 
 // 3. Get Attendance Records (Read-Only)
