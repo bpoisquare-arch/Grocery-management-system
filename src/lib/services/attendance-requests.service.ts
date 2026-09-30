@@ -1,4 +1,3 @@
-import { getSupabaseClient } from '@/lib/supabase/client'
 import fs from 'fs'
 import path from 'path'
 
@@ -25,17 +24,6 @@ export interface AttendanceRequestItem {
   review_notes?: string | null
   created_at: string
   updated_at: string
-}
-
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-
-function getDayOfWeekName(dateStr: string): string {
-  try {
-    const d = new Date(dateStr)
-    return isNaN(d.getTime()) ? 'Monday' : DAYS[d.getUTCDay()]
-  } catch {
-    return 'Monday'
-  }
 }
 
 function getFallbackStorePath(): string {
@@ -91,7 +79,7 @@ function writeFallbackRequests(items: AttendanceRequestItem[]) {
 
 /**
  * 1. Fetch Requests for branch or user
- * Priority: Supabase attendance_records (live cloud sync) -> dedicated table -> local store fallback
+ * Primary: MIS API (Hostinger MySQL) -> local store fallback
  */
 export async function getAttendanceRequests(filter?: {
   branch?: string
@@ -100,10 +88,9 @@ export async function getAttendanceRequests(filter?: {
   startDate?: string
   endDate?: string
 }): Promise<AttendanceRequestItem[]> {
-  const supabase: any = getSupabaseClient()
   let requestsList: AttendanceRequestItem[] = []
 
-  // 1. Primary: Fetch from MIS API (live Hostinger MySQL database)
+  // 1. Primary: Fetch from MIS API (Hostinger MySQL database)
   try {
     const misUrl = process.env.NEXT_PUBLIC_MIS_API_URL || (process.env.NODE_ENV === 'production' ? 'https://mis.isquarebpo.com' : 'http://localhost:3000')
     const q = new URLSearchParams()
@@ -124,88 +111,7 @@ export async function getAttendanceRequests(filter?: {
     console.warn('MIS API getAttendanceRequests fetch warning:', err)
   }
 
-  // 2. Fallback: Try Supabase table if exists
-  try {
-    let query = supabase.from('attendance_requests').select('*').order('created_at', { ascending: false })
-
-    if (filter?.branch && filter.branch !== 'all') {
-      query = query.ilike('branch', `%${filter.branch}%`)
-    }
-    if (filter?.status && filter.status !== 'all') {
-      query = query.eq('status', filter.status)
-    }
-    if (filter?.employeeId && filter.employeeId !== 'all') {
-      query = query.eq('employee_id', filter.employeeId)
-    }
-    if (filter?.startDate) {
-      query = query.gte('attendance_date', filter.startDate)
-    }
-    if (filter?.endDate) {
-      query = query.lte('attendance_date', filter.endDate)
-    }
-
-    const { data, error } = await query
-
-    if (!error && Array.isArray(data) && data.length > 0) {
-      return data as AttendanceRequestItem[]
-    }
-  } catch {}
-
-  // 2. ALWAYS query Supabase attendance_records table (live cloud persistence across ALL deployments)
-  try {
-    let recQuery = supabase
-      .from('attendance_records')
-      .select('id, employee_id, attendance_date, arrival_status, departure_status, raw_punches')
-      .not('raw_punches', 'is', null)
-      .order('attendance_date', { ascending: false })
-
-    if (filter?.startDate) {
-      recQuery = recQuery.gte('attendance_date', filter.startDate)
-    }
-    if (filter?.endDate) {
-      recQuery = recQuery.lte('attendance_date', filter.endDate)
-    }
-    if (filter?.employeeId && filter.employeeId !== 'all') {
-      recQuery = recQuery.eq('employee_id', filter.employeeId)
-    }
-
-    const { data: recs, error: recErr } = await recQuery
-
-    if (!recErr && recs && (recs as any[]).length > 0) {
-      for (const r of recs as any[]) {
-        if (!Array.isArray(r.raw_punches)) continue
-        const reqObj: any = (r.raw_punches as any[]).find((p: any) => p && p.type === 'BRANCH_REQUEST')
-        if (reqObj) {
-          const item: AttendanceRequestItem = {
-            id: reqObj.id || reqObj.request_id || `req-${r.id}`,
-            employee_id: reqObj.employee_id || r.employee_id,
-            employee_name: reqObj.employee_name || '',
-            batch_id: reqObj.batch_id || '',
-            branch: reqObj.branch || 'Multan',
-            attendance_date: reqObj.attendance_date || r.attendance_date,
-            request_type: reqObj.request_type || 'LEAVE',
-            leave_type: reqObj.leave_type || null,
-            leave_duration: reqObj.leave_duration !== undefined ? reqObj.leave_duration : 1,
-            requested_in_time: reqObj.requested_in_time || null,
-            requested_out_time: reqObj.requested_out_time || null,
-            reason: reqObj.reason || null,
-            status: reqObj.status || 'PENDING',
-            submitted_by: reqObj.submitted_by || 'Branch User',
-            reviewed_by: reqObj.reviewed_by || null,
-            reviewed_at: reqObj.reviewed_at || null,
-            review_notes: reqObj.review_notes || null,
-            created_at: reqObj.created_at || r.attendance_date,
-            updated_at: reqObj.updated_at || r.attendance_date,
-          }
-          requestsList.push(item)
-        }
-      }
-    }
-  } catch (err) {
-    console.error('Error fetching live requests from attendance_records in Grocery Management:', err)
-  }
-
-  // 3. Fallback to local store as extra layer
+  // 2. Fallback to local store as extra layer
   try {
     const local = readFallbackRequests()
     for (const loc of local) {
@@ -237,7 +143,7 @@ export async function getAttendanceRequests(filter?: {
 
 /**
  * 2. Create Attendance Request from Branch User
- * Persists 100% to Supabase cloud `attendance_records` so MIS (Invoice Gen) on live server immediately receives it!
+ * Primary: MIS API (MySQL) -> local store fallback
  */
 export async function createAttendanceRequest(params: {
   employee_id: string
@@ -275,7 +181,7 @@ export async function createAttendanceRequest(params: {
     updated_at: new Date().toISOString(),
   }
 
-  // 1. Primary: Forward request directly to MIS API (so it is saved into MIS MySQL database)
+  // 1. Primary: Forward request directly to MIS API (saved into MySQL database)
   try {
     const misUrl = process.env.NEXT_PUBLIC_MIS_API_URL || (process.env.NODE_ENV === 'production' ? 'https://mis.isquarebpo.com' : 'http://localhost:3000')
     const res = await fetch(`${misUrl}/api/attendance/requests`, {
@@ -293,60 +199,7 @@ export async function createAttendanceRequest(params: {
     console.warn('MIS API request sync warning:', apiErr)
   }
 
-  const supabase: any = getSupabaseClient()
-
-  // 2. Try dedicated table if exists in Supabase
-  try {
-    await supabase.from('attendance_requests').insert(newItem as any)
-  } catch {}
-
-  // 3. ALWAYS sync directly to `attendance_records` table in Supabase
-  try {
-    const { data: existingRecs } = await supabase
-      .from('attendance_records')
-      .select('id, employee_id, attendance_date, raw_punches')
-      .eq('employee_id', newItem.employee_id)
-      .eq('attendance_date', newItem.attendance_date)
-      .limit(1)
-
-    const branchReqPayload = {
-      type: 'BRANCH_REQUEST',
-      ...newItem,
-    }
-
-    if (existingRecs && (existingRecs as any[]).length > 0) {
-      const rec = (existingRecs as any[])[0]
-      const punches = Array.isArray(rec.raw_punches) ? [...rec.raw_punches] : []
-      const updatedPunches = [
-        ...punches.filter((p: any) => p && p.type !== 'BRANCH_REQUEST'),
-        branchReqPayload,
-      ]
-      await supabase
-        .from('attendance_records')
-        .update({
-          raw_punches: updatedPunches,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', rec.id)
-    } else {
-      const dayName = getDayOfWeekName(newItem.attendance_date)
-      await supabase
-        .from('attendance_records')
-        .insert({
-          employee_id: newItem.employee_id,
-          attendance_date: newItem.attendance_date,
-          day_of_week: dayName,
-          arrival_status: 'Absent',
-          departure_status: 'Absent',
-          raw_punches: [branchReqPayload],
-          updated_at: new Date().toISOString(),
-        })
-    }
-  } catch (syncErr) {
-    console.error('Error syncing request to attendance_records in Supabase:', syncErr)
-  }
-
-  // 4. Fallback save to local store
+  // 2. Fallback save to local store
   try {
     const current = readFallbackRequests().filter(
       (r) => !(r.employee_id === newItem.employee_id && r.attendance_date === newItem.attendance_date && r.status === 'PENDING')
@@ -369,40 +222,6 @@ export async function cancelAttendanceRequest(requestId: string): Promise<boolea
     })
   } catch (apiErr) {
     console.warn('MIS API cancel request warning:', apiErr)
-  }
-
-  const supabase: any = getSupabaseClient()
-  try {
-    await supabase.from('attendance_requests').delete().eq('id', requestId).eq('status', 'PENDING')
-  } catch {}
-
-  // Also remove from attendance_records in Supabase!
-  try {
-    const { data: recs } = await supabase
-      .from('attendance_records')
-      .select('id, raw_punches')
-      .not('raw_punches', 'is', null)
-
-    if (recs && (recs as any[]).length > 0) {
-      for (const rec of recs as any[]) {
-        if (!Array.isArray(rec.raw_punches)) continue
-        const reqObj: any = (rec.raw_punches as any[]).find(
-          (p: any) => p && (p.id === requestId || p.request_id === requestId || `req-${rec.id}` === requestId)
-        )
-        if (reqObj) {
-          const updatedPunches = (rec.raw_punches as any[]).filter(
-            (p: any) => !(p && (p.id === requestId || p.request_id === requestId || `req-${rec.id}` === requestId))
-          )
-          await supabase
-            .from('attendance_records')
-            .update({ raw_punches: updatedPunches, updated_at: new Date().toISOString() })
-            .eq('id', rec.id)
-          break
-        }
-      }
-    }
-  } catch (err) {
-    console.error('Error removing cancelled request from attendance_records in Supabase:', err)
   }
 
   const current = readFallbackRequests().filter((r) => !(r.id === requestId && r.status === 'PENDING'))

@@ -1,4 +1,3 @@
-import { getSupabaseClient } from '@/lib/supabase/client'
 import {
   Employee,
   AttendanceRecord,
@@ -7,29 +6,12 @@ import {
 } from '@/lib/attendance/database.types'
 import { DEFAULT_ATTENDANCE_SETTINGS, cleanDesignation } from '@/lib/attendance/attendance-calculator'
 
-// 1. Get Employee Metadata Map from Supabase audit logs
+// 1. Get Employee Metadata Map (Read-Only)
 export async function getEmployeeMetadataMap(): Promise<Record<string, any>> {
-  try {
-    const supabase = getSupabaseClient()
-    const { data, error } = await supabase
-      .from('attendance_audit_logs')
-      .select('details')
-      .eq('action', 'EMPLOYEE_METADATA_STORE')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
-
-    const rowData = data as any
-    if (!error && rowData && rowData.details && typeof rowData.details === 'object') {
-      return rowData.details as Record<string, any>
-    }
-  } catch (err) {
-    console.error('Error fetching employee metadata map in Grocery Management:', err)
-  }
   return {}
 }
 
-// 2. Get Employees (Read-Only)
+// 2. Get Employees (Read-Only via MIS API / MySQL)
 export async function getEmployees(options?: {
   branch?: string
   search?: string
@@ -73,7 +55,7 @@ export async function getEmployees(options?: {
   return []
 }
 
-// 3. Get Attendance Records (Read-Only)
+// 3. Get Attendance Records (Read-Only via MIS API / MySQL)
 export async function getAttendanceRecords(params: {
   startDate?: string
   endDate?: string
@@ -129,11 +111,10 @@ export async function getAttendanceRecords(params: {
     console.warn('MIS API attendance records fetch warning:', err)
   }
 
-  // Fallback to local DB or empty array if API unreachable
   return []
 }
 
-// 4. Get Attendance Settings (Read-Only)
+// 4. Get Attendance Settings (Read-Only via MIS API / MySQL)
 export async function getAttendanceSettings(): Promise<AttendanceSettings> {
   const misUrl = process.env.NEXT_PUBLIC_MIS_API_URL || 'http://localhost:3000'
   try {
@@ -144,19 +125,10 @@ export async function getAttendanceSettings(): Promise<AttendanceSettings> {
     }
   } catch {}
 
-  try {
-    const supabase = getSupabaseClient()
-    const { data, error } = await supabase.from('attendance_settings').select('*').limit(1).single()
-    if (!error && data) {
-      return data
-    }
-  } catch (err) {
-    console.error('Error in getAttendanceSettings service:', err)
-  }
   return DEFAULT_ATTENDANCE_SETTINGS
 }
 
-// 5. Get Gazetted Holidays (Read-Only)
+// 5. Get Gazetted Holidays (Read-Only via MIS API / MySQL)
 export async function getGazettedHolidays(): Promise<Record<string, string>> {
   const holidaysMap: Record<string, string> = {}
   const misUrl = process.env.NEXT_PUBLIC_MIS_API_URL || 'http://localhost:3000'
@@ -173,40 +145,6 @@ export async function getGazettedHolidays(): Promise<Record<string, string>> {
     }
   } catch {}
 
-  try {
-    const supabase = getSupabaseClient()
-
-    // 1. Try dedicated gazetted_holidays table first (columns: date, name)
-    const { data: dbRows, error: tableError } = await supabase
-      .from('gazetted_holidays')
-      .select('*')
-
-    if (!tableError && Array.isArray(dbRows) && dbRows.length > 0) {
-      for (const row of dbRows) {
-        const holidayDate = (row as any).date || (row as any).holiday_date
-        if (holidayDate) {
-          holidaysMap[holidayDate] = (row as any).name || 'Gazetted Holiday'
-        }
-      }
-      return holidaysMap
-    }
-
-    // 2. Fallback to audit logs if table is empty
-    const { data, error } = await supabase
-      .from('attendance_audit_logs')
-      .select('details')
-      .eq('action', 'GAZETTED_HOLIDAYS_STORE')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
-
-    if (!error && data && (data as any).details && typeof (data as any).details === 'object') {
-      const dbHolidays = (data as any).details as Record<string, string>
-      return { ...holidaysMap, ...dbHolidays }
-    }
-  } catch (err) {
-    console.error('Error in getGazettedHolidays service:', err)
-  }
   return holidaysMap
 }
 
@@ -260,23 +198,12 @@ export async function getEmployeeLeaveBalanceSummary(
   probationDates: string[]
   hasProbationInTargetMonth: boolean
 }> {
-  const supabase = getSupabaseClient()
-  const isUuid = Boolean(employeeIdOrUuid && employeeIdOrUuid.match(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/))
+  const employees = await getEmployees()
+  const emp = employees.find(
+    (e) => e.id === employeeIdOrUuid || e.employee_id === employeeIdOrUuid
+  )
 
-  let empQuery = supabase.from('employees').select('*')
-  if (isUuid) {
-    empQuery = empQuery.eq('id', employeeIdOrUuid)
-  } else {
-    empQuery = empQuery.eq('employee_id', employeeIdOrUuid)
-  }
-
-  const [empRes, metaMap] = await Promise.all([
-    empQuery.limit(1).maybeSingle(),
-    getEmployeeMetadataMap(),
-  ])
-
-  const emp = (empRes.data as any) || null
-  const meta = (emp?.id && metaMap[emp.id]) || (emp?.employee_id && metaMap[emp.employee_id]) || metaMap[employeeIdOrUuid] || {}
+  const meta: any = {}
   const isOldStaff = meta.is_old_staff !== undefined ? Boolean(meta.is_old_staff) : Boolean(emp?.is_old_staff)
   const joiningDate = isOldStaff ? null : (meta.joining_date || emp?.joining_date || emp?.created_at || null)
 
@@ -284,7 +211,6 @@ export async function getEmployeeLeaveBalanceSummary(
   const targetMonthStr = targetDateStr ? targetDateStr.substring(0, 7) : ''
   const year = targetDateStr ? targetDateStr.substring(0, 4) : String(new Date().getFullYear())
 
-  // Calculate probation status
   let isProbation = false
   if (!isOldStaff && joiningDate && targetDateStr) {
     const j = new Date(joiningDate.split('T')[0])
@@ -297,11 +223,11 @@ export async function getEmployeeLeaveBalanceSummary(
   }
 
   const initialQuotas = {
-    annual_leaves: emp?.leave_quotas?.annual_leaves ?? emp?.base_leave_quotas?.annual_leaves ?? meta.leave_quotas?.annual_leaves ?? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.annual_leaves,
-    sick_leaves: emp?.leave_quotas?.sick_leaves ?? emp?.base_leave_quotas?.sick_leaves ?? meta.leave_quotas?.sick_leaves ?? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.sick_leaves,
-    casual_leaves: emp?.leave_quotas?.casual_leaves ?? emp?.base_leave_quotas?.casual_leaves ?? meta.leave_quotas?.casual_leaves ?? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.casual_leaves,
-    wfh_quota: emp?.leave_quotas?.wfh_quota ?? emp?.base_leave_quotas?.wfh_quota ?? meta.leave_quotas?.wfh_quota ?? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.wfh_quota,
-    probation_leaves: isOldStaff ? 0 : (emp?.leave_quotas?.probation_leaves ?? emp?.base_leave_quotas?.probation_leaves ?? meta.leave_quotas?.probation_leaves ?? (isProbation ? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.probation_leaves : 0)),
+    annual_leaves: emp?.leave_quotas?.annual_leaves ?? emp?.base_leave_quotas?.annual_leaves ?? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.annual_leaves,
+    sick_leaves: emp?.leave_quotas?.sick_leaves ?? emp?.base_leave_quotas?.sick_leaves ?? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.sick_leaves,
+    casual_leaves: emp?.leave_quotas?.casual_leaves ?? emp?.base_leave_quotas?.casual_leaves ?? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.casual_leaves,
+    wfh_quota: emp?.leave_quotas?.wfh_quota ?? emp?.base_leave_quotas?.wfh_quota ?? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.wfh_quota,
+    probation_leaves: isOldStaff ? 0 : (emp?.leave_quotas?.probation_leaves ?? emp?.base_leave_quotas?.probation_leaves ?? (isProbation ? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.probation_leaves : 0)),
   }
 
   const initial_prob = isOldStaff ? 0 : (initialQuotas.probation_leaves !== undefined ? Number(initialQuotas.probation_leaves) : (isProbation ? 3 : 0))
@@ -310,21 +236,8 @@ export async function getEmployeeLeaveBalanceSummary(
   const initial_cas = initialQuotas.casual_leaves !== undefined ? Number(initialQuotas.casual_leaves) : 7
   const initial_wfh = initialQuotas.wfh_quota !== undefined ? Number(initialQuotas.wfh_quota) : 4
 
-  const uuidPattern = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
-  const empDbId = (emp?.id && uuidPattern.test(emp.id))
-    ? emp.id
-    : (uuidPattern.test(employeeIdOrUuid) ? employeeIdOrUuid : null)
-
-  let allRecords: any[] = []
-  if (empDbId) {
-    const { data } = await supabase
-      .from('attendance_records')
-      .select('id, employee_id, attendance_date, arrival_status, departure_status, raw_punches')
-      .eq('employee_id', empDbId)
-      .gte('attendance_date', '2026-09-01')
-      .lte('attendance_date', year + '-12-31')
-    allRecords = data || []
-  }
+  const empId = emp?.employee_id || employeeIdOrUuid
+  const allRecords = await getAttendanceRecords({ employeeId: empId, startDate: `${year}-01-01`, endDate: `${year}-12-31` })
 
   const probationDates: string[] = []
   let used_annual = 0
