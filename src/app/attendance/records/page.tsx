@@ -143,8 +143,8 @@ function getRecordStatusFlags(
     const isLeave =
       rec.arrival_status === 'Leave' ||
       rec.departure_status?.includes('Leave') ||
-      ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.departure_status as any) ||
-      ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.arrival_status as any)
+      ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Maternity Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.departure_status as any) ||
+      ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Maternity Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.arrival_status as any)
 
     const hasInTime = Boolean(rec.in_time && rec.in_time !== '---' && rec.in_time !== '--')
     const hasOutTime = Boolean(rec.out_time && rec.out_time !== '---' && rec.out_time !== '--')
@@ -165,7 +165,7 @@ function getRecordStatusFlags(
 
     if (isLeave) {
       const leaveLabel =
-        ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].find(
+        ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Maternity Leave', 'Probation Leave', 'Gazetted Leave'].find(
           (l) => l === rec.departure_status || l === rec.arrival_status
         ) || rec.departure_status || 'Casual Leave'
 
@@ -880,8 +880,8 @@ export default function AttendanceRecordsPage() {
           const isLeave =
             rec.arrival_status === 'Leave' ||
             rec.departure_status?.includes('Leave') ||
-            ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.departure_status as any) ||
-            ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.arrival_status as any)
+            ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Maternity Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.departure_status as any) ||
+            ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Maternity Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.arrival_status as any)
 
           const isExplicitAbsent =
             rec.arrival_status === 'Absent' ||
@@ -943,8 +943,8 @@ export default function AttendanceRecordsPage() {
             const isLeave =
               rec.arrival_status === 'Leave' ||
               rec.departure_status?.includes('Leave') ||
-              ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.departure_status as any) ||
-              ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.arrival_status as any)
+              ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Maternity Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.departure_status as any) ||
+              ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Maternity Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.arrival_status as any)
             if (isLeave) {
               rowData[date] = rec.departure_status || rec.arrival_status || 'Leave'
             } else if (rec.in_time || rec.out_time) {
@@ -1063,8 +1063,8 @@ export default function AttendanceRecordsPage() {
       const isLeave =
         rec.arrival_status === 'Leave' ||
         rec.departure_status?.includes('Leave') ||
-        ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.departure_status as any) ||
-        ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.arrival_status as any)
+        ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Maternity Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.departure_status as any) ||
+        ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Maternity Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.arrival_status as any)
 
       const isExplicitAbsent =
         rec.arrival_status === 'Absent' ||
@@ -1074,7 +1074,7 @@ export default function AttendanceRecordsPage() {
       // A. Leave Record
       if (isLeave) {
         const leaveLabel =
-          ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Gazetted Leave'].find(
+          ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Maternity Leave', 'Probation Leave', 'Gazetted Leave'].find(
             (l) => l === rec.departure_status || l === rec.arrival_status
           ) || 'Leave'
 

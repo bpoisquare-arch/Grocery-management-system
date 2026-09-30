@@ -250,7 +250,11 @@ export function ApplyLeaveModal({
                 <FileText className="w-4 h-4 text-indigo-600" />
                 SELECT LEAVE TYPE
               </Label>
-              {isProbation ? (
+              {selectedLeaveType === 'Maternity Leave' ? (
+                <span className="px-3 py-1 rounded-full bg-purple-100 text-purple-900 text-[11px] font-bold border border-purple-200 whitespace-nowrap self-start sm:self-auto">
+                  Maternity Leave (Unlimited / No Quota Limit)
+                </span>
+              ) : isProbation ? (
                 <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-[11px] font-bold border border-amber-200 whitespace-nowrap self-start sm:self-auto">
                   Probation Active (Max 1/mo, {effectiveQuotas.probation_leaves ?? 3} total)
                 </span>
@@ -273,6 +277,9 @@ export function ApplyLeaveModal({
                       <SelectItem value="Probation Leave" className="text-xs sm:text-sm font-bold text-indigo-950 py-2.5">
                         Probation Leave ({effectiveRemaining.probation_leaves ?? 3} remaining / {effectiveQuotas.probation_leaves ?? 3} • Max 1/month)
                       </SelectItem>
+                      <SelectItem value="Maternity Leave" className="text-xs sm:text-sm font-semibold text-purple-700 py-2.5">
+                        Maternity Leave (No Quota Limit)
+                      </SelectItem>
                       <SelectItem value="Work From Home" className="text-xs sm:text-sm font-medium py-2.5">
                         {`Work From Home (${effectiveRemaining.wfh_quota ?? 4} remaining / ${effectiveQuotas.wfh_quota ?? 4} • Full Day Only)`}
                       </SelectItem>
@@ -287,6 +294,9 @@ export function ApplyLeaveModal({
                       </SelectItem>
                       <SelectItem value="Annual Leave" className="text-xs sm:text-sm font-medium py-2.5">
                         Annual Leave ({effectiveRemaining.annual_leaves ?? 6} remaining / {effectiveQuotas.annual_leaves ?? 6})
+                      </SelectItem>
+                      <SelectItem value="Maternity Leave" className="text-xs sm:text-sm font-semibold text-purple-700 py-2.5">
+                        Maternity Leave (No Quota Limit)
                       </SelectItem>
                       <SelectItem value="Work From Home" className="text-xs sm:text-sm font-medium py-2.5">
                         {`Work From Home (${effectiveRemaining.wfh_quota ?? 4} remaining / ${effectiveQuotas.wfh_quota ?? 4} • Full Day Only)`}
@@ -356,27 +366,34 @@ export function ApplyLeaveModal({
               </div>
 
               {/* Real-time Dynamic Balance Deduction Display (Attachment 2) */}
-              <div
-                className={`p-3 sm:p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 font-medium text-xs ${
-                  isOver
-                    ? 'bg-rose-50 border-rose-200 text-rose-700'
-                    : isWfh && currentRem < 0
-                    ? 'bg-sky-50/70 border-sky-200 text-sky-950 shadow-2xs'
-                    : 'bg-white border-indigo-100 text-indigo-950 shadow-2xs'
-                }`}
-              >
-                <span className="flex items-center gap-1.5">
-                  <span className="text-slate-500 font-semibold">Available Balance:</span>
-                  <strong className="text-slate-900 font-bold text-sm sm:text-base">{currentRem}</strong>
-                </span>
-                <span className="text-slate-300 font-bold hidden sm:inline text-lg">→</span>
-                <span className="flex items-center gap-1.5">
-                  <span className="text-slate-500 font-semibold">After Deduction:</span>
-                  <strong className={`text-sm sm:text-base font-bold ${isOver ? 'text-rose-600' : isWfh && projected < 0 ? 'text-sky-700' : 'text-emerald-700'}`}>
-                    {projected}
-                  </strong>
-                </span>
-              </div>
+              {selectedLeaveType === 'Maternity Leave' ? (
+                <div className="p-3 sm:p-3.5 rounded-xl border bg-purple-50 border-purple-200 text-purple-900 flex items-center justify-between font-medium text-xs">
+                  <span className="font-semibold text-purple-800">Maternity Leave (Unlimited / No Quota Limit)</span>
+                  <span className="text-purple-700 font-bold">Approved Leave</span>
+                </div>
+              ) : (
+                <div
+                  className={`p-3 sm:p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 font-medium text-xs ${
+                    isOver
+                      ? 'bg-rose-50 border-rose-200 text-rose-700'
+                      : isWfh && currentRem < 0
+                      ? 'bg-sky-50/70 border-sky-200 text-sky-950 shadow-2xs'
+                      : 'bg-white border-indigo-100 text-indigo-950 shadow-2xs'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-slate-500 font-semibold">Available Balance:</span>
+                    <strong className="text-slate-900 font-bold text-sm sm:text-base">{currentRem}</strong>
+                  </span>
+                  <span className="text-slate-300 font-bold hidden sm:inline text-lg">→</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-slate-500 font-semibold">After Deduction:</span>
+                    <strong className={`text-sm sm:text-base font-bold ${isOver ? 'text-rose-600' : isWfh && projected < 0 ? 'text-sky-700' : 'text-emerald-700'}`}>
+                      {projected}
+                    </strong>
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
