@@ -140,6 +140,10 @@ export function ApplyLeaveModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!employee) return
+    if (!reason.trim()) {
+      setError('Please provide reason / remarks for your leave request.')
+      return
+    }
     setIsSubmitting(true)
     setError(null)
 
@@ -158,7 +162,7 @@ export function ApplyLeaveModal({
           request_type: 'LEAVE',
           leave_type: selectedLeaveType,
           leave_duration: numDays,
-          reason: reason.trim() || undefined,
+          reason: reason.trim(),
         }),
       })
 
@@ -248,7 +252,8 @@ export function ApplyLeaveModal({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <Label className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
                 <FileText className="w-4 h-4 text-indigo-600" />
-                SELECT LEAVE TYPE
+                <span>SELECT LEAVE TYPE</span>
+                <span className="text-rose-600 font-extrabold text-sm">*</span>
               </Label>
               {selectedLeaveType === 'Maternity Leave' ? (
                 <span className="px-3 py-1 rounded-full bg-purple-100 text-purple-900 text-[11px] font-bold border border-purple-200 whitespace-nowrap self-start sm:self-auto">
@@ -316,8 +321,9 @@ export function ApplyLeaveModal({
             {/* LEAVE VALUE / DURATION (ATTACHMENT 2 - PROPER RESPONSIVE SINGLE-LINE BUTTONS) */}
             <div className="space-y-2.5 pt-2.5 border-t border-indigo-100">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                <Label className="text-xs font-bold text-indigo-950 uppercase tracking-wider">
-                  LEAVE VALUE / DURATION
+                <Label className="text-xs font-bold text-indigo-950 uppercase tracking-wider flex items-center gap-1">
+                  <span>LEAVE VALUE / DURATION</span>
+                  <span className="text-rose-600 font-extrabold text-sm">*</span>
                 </Label>
                 {isWfh ? (
                   <Badge className="bg-sky-600 text-white font-mono text-xs px-3 py-1 rounded-lg">
@@ -399,10 +405,12 @@ export function ApplyLeaveModal({
 
           {/* Reason / Remarks */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-              Reason / Remarks (Optional)
+            <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+              <span>REASON / REMARKS</span>
+              <span className="text-rose-600 font-extrabold text-sm">*</span>
             </Label>
             <Input
+              required
               placeholder="e.g. Medical emergency, urgent family matter..."
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -530,6 +538,10 @@ export function RegularizeTimingModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!employee || !requestedTime.trim()) return
+    if (!reason.trim()) {
+      setError('Please provide reason / remarks for your request.')
+      return
+    }
     setIsSubmitting(true)
     setError(null)
 
@@ -546,7 +558,7 @@ export function RegularizeTimingModal({
           request_type: requestType,
           requested_in_time: isMissingIn ? requestedTime : undefined,
           requested_out_time: !isMissingIn ? requestedTime : undefined,
-          reason: reason.trim() || undefined,
+          reason: reason.trim(),
         }),
       })
 
@@ -610,7 +622,8 @@ export function RegularizeTimingModal({
             <div className="flex items-center justify-between">
               <Label className="text-xs font-bold text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
                 <Clock className="w-4 h-4 text-indigo-600" />
-                {isMissingIn ? 'Select Official In-Time' : 'Select Official Out-Time'}
+                <span>{isMissingIn ? 'Select Official In-Time' : 'Select Official Out-Time'}</span>
+                <span className="text-rose-600 font-extrabold text-sm">*</span>
               </Label>
               <span className="font-mono text-xs font-extrabold text-indigo-900 bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200">
                 {requestedTime}
@@ -730,10 +743,12 @@ export function RegularizeTimingModal({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-              Reason / Remark (Optional)
+            <Label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+              <span>REASON / REMARKS</span>
+              <span className="text-rose-600 font-extrabold text-sm">*</span>
             </Label>
             <Input
+              required
               placeholder="e.g. Biometric machine glitch, client call outside..."
               value={reason}
               onChange={(e) => setReason(e.target.value)}

@@ -336,7 +336,8 @@ export function AddGroceryModal({ open, onOpenChange }: AddGroceryModalProps) {
               <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-emerald-50/50 border border-emerald-100/80">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="assign-budget-month" className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
-                    ASSIGN BUDGET MONTH *
+                    <span>ASSIGN BUDGET MONTH</span>
+                    <span className="text-rose-600 font-extrabold text-sm">*</span>
                   </Label>
                   <span className="text-[10px] text-emerald-700 font-medium">
                     Calculated against this budget
@@ -378,7 +379,10 @@ export function AddGroceryModal({ open, onOpenChange }: AddGroceryModalProps) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Date */}
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="date" className="text-xs font-semibold text-gray-700">TRANSACTION / BILL DATE *</Label>
+                  <Label htmlFor="date" className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                    <span>TRANSACTION / BILL DATE</span>
+                    <span className="text-rose-600 font-extrabold text-sm">*</span>
+                  </Label>
                   <Popover>
                     <PopoverTrigger
                       render={
@@ -422,7 +426,10 @@ export function AddGroceryModal({ open, onOpenChange }: AddGroceryModalProps) {
 
               {/* Amount */}
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="amount" className="text-xs font-semibold text-gray-700">AMOUNT (RS.) *</Label>
+                <Label htmlFor="amount" className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                  <span>AMOUNT (RS.)</span>
+                  <span className="text-rose-600 font-extrabold text-sm">*</span>
+                </Label>
                 <div className="relative">
                   <span className="absolute left-3 top-2.5 text-xs text-gray-400 font-semibold">Rs.</span>
                   <Input
@@ -440,7 +447,10 @@ export function AddGroceryModal({ open, onOpenChange }: AddGroceryModalProps) {
 
               {/* Details */}
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="details" className="text-xs font-semibold text-gray-700">GROCERY DETAILS *</Label>
+                <Label htmlFor="details" className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                  <span>GROCERY DETAILS</span>
+                  <span className="text-rose-600 font-extrabold text-sm">*</span>
+                </Label>
                 <Textarea
                   id="details"
                   value={details}

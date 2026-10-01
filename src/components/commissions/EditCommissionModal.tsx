@@ -403,7 +403,7 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
                     <div className="flex flex-col gap-1">
                       <Label htmlFor="edit-claimedMonth" className="text-xs font-semibold text-gray-700 flex items-center gap-1">
                         <CalendarCheckIcon className="size-3.5 text-emerald-600" />
-                        Claim Month
+                        Claim Month <span className="text-red-500">*</span>
                       </Label>
                       <Select
                         value={claimedMonth}
@@ -427,7 +427,7 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
                     {/* Claimed Year */}
                     <div className="flex flex-col gap-1">
                       <Label htmlFor="edit-claimedYear" className="text-xs font-semibold text-gray-700">
-                        Claim Year
+                        Claim Year <span className="text-red-500">*</span>
                       </Label>
                       <Select
                         value={claimedYear.toString()}
