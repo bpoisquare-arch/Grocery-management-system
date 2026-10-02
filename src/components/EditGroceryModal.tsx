@@ -230,6 +230,43 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, entry]);
 
+  // Handle Clipboard Paste (Ctrl+V) for copied image/file slips
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const clipboardItems = e.clipboardData?.items;
+      if (!clipboardItems || clipboardItems.length === 0) return;
+
+      const filesFromPaste: File[] = [];
+      for (let i = 0; i < clipboardItems.length; i++) {
+        const item = clipboardItems[i];
+        if (item.kind === "file") {
+          const file = item.getAsFile();
+          if (file) {
+            let fileName = file.name;
+            if (!fileName || fileName === "image.png") {
+              const ext = file.type.split("/")[1] || "png";
+              fileName = `Pasted_Slip_${Date.now()}.${ext}`;
+            }
+            const renamedFile = new File([file], fileName, { type: file.type });
+            filesFromPaste.push(renamedFile);
+          }
+        }
+      }
+
+      if (filesFromPaste.length > 0) {
+        e.preventDefault();
+        handleFiles(filesFromPaste);
+      }
+    };
+
+    window.addEventListener("paste", handlePaste);
+    return () => {
+      window.removeEventListener("paste", handlePaste);
+    };
+  }, [open, slipItems.length]);
+
   // Live Budget calculations for the chosen assignedBudgetMonth & assignedBudgetYear
   const totalBudget = getEntityBudget(targetEntity, assignedBudgetMonth, assignedBudgetYear);
   const totalSpentInAssignedMonth = groceryEntries
@@ -590,10 +627,10 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
                         <UploadIcon className="size-4.5" />
                       </div>
                       <span className="text-xs font-bold text-gray-800">
-                        Add More Slips (Click or Drag & Drop)
+                        Add More Slips (Click, Drag & Drop, or Paste image Ctrl+V)
                       </span>
                       <span className="text-[10px] text-gray-500">
-                        Attach up to 10 receipts • Click Preview on any slip to inspect before saving
+                        Attach up to 10 receipts • Paste copied images directly • Click Preview on any slip
                       </span>
                     </label>
                   </div>

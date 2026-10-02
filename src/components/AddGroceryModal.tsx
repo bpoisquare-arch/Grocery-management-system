@@ -153,6 +153,44 @@ export function AddGroceryModal({ open, onOpenChange }: AddGroceryModalProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, activeEntity]);
 
+  // Handle Clipboard Paste (Ctrl+V) for copied image/file slips
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const clipboardItems = e.clipboardData?.items;
+      if (!clipboardItems || clipboardItems.length === 0) return;
+
+      const filesFromPaste: File[] = [];
+      for (let i = 0; i < clipboardItems.length; i++) {
+        const item = clipboardItems[i];
+        if (item.kind === "file") {
+          const file = item.getAsFile();
+          if (file) {
+            // Generate nice filename for pasted images if defaulted to image.png
+            let fileName = file.name;
+            if (!fileName || fileName === "image.png") {
+              const ext = file.type.split("/")[1] || "png";
+              fileName = `Pasted_Slip_${Date.now()}.${ext}`;
+            }
+            const renamedFile = new File([file], fileName, { type: file.type });
+            filesFromPaste.push(renamedFile);
+          }
+        }
+      }
+
+      if (filesFromPaste.length > 0) {
+        e.preventDefault();
+        handleFiles(filesFromPaste);
+      }
+    };
+
+    window.addEventListener("paste", handlePaste);
+    return () => {
+      window.removeEventListener("paste", handlePaste);
+    };
+  }, [open, slipItems.length]);
+
   // Live Budget calculations for the chosen assignedBudgetMonth & assignedBudgetYear
   const totalBudget = getEntityBudget(activeEntity, assignedBudgetMonth, assignedBudgetYear);
 
@@ -497,10 +535,10 @@ export function AddGroceryModal({ open, onOpenChange }: AddGroceryModalProps) {
                         <UploadIcon className="size-4.5" />
                       </div>
                       <span className="text-xs font-bold text-gray-800">
-                        Upload Slips (Click or Drag & Drop)
+                        Upload Slips (Click, Drag & Drop, or Paste image Ctrl+V)
                       </span>
                       <span className="text-[10px] text-gray-500">
-                        Attach up to 10 slips • PDFs up to 30MB supported with instant live preview
+                        Attach up to 10 slips • Paste copied images directly • PDFs up to 30MB
                       </span>
                     </label>
                   </div>

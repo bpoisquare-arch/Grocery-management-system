@@ -154,8 +154,7 @@ export function AddCommissionModal({ open, onOpenChange }: AddCommissionModalPro
     recalculateCommission(val, service, amountStr);
   };
 
-  const handleFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+  const processFiles = (files: File[]) => {
     if (!files.length) return;
 
     const availableSlots = 5 - slipItems.length;
@@ -196,6 +195,48 @@ export function AddCommissionModal({ open, onOpenChange }: AddCommissionModalPro
       fileInputRef.current.value = "";
     }
   };
+
+  const handleFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    processFiles(files);
+  };
+
+  // Handle Clipboard Paste (Ctrl+V) for copied images/slips
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const clipboardItems = e.clipboardData?.items;
+      if (!clipboardItems || clipboardItems.length === 0) return;
+
+      const filesFromPaste: File[] = [];
+      for (let i = 0; i < clipboardItems.length; i++) {
+        const item = clipboardItems[i];
+        if (item.kind === "file") {
+          const file = item.getAsFile();
+          if (file) {
+            let fileName = file.name;
+            if (!fileName || fileName === "image.png") {
+              const ext = file.type.split("/")[1] || "png";
+              fileName = `Pasted_Slip_${Date.now()}.${ext}`;
+            }
+            const renamedFile = new File([file], fileName, { type: file.type });
+            filesFromPaste.push(renamedFile);
+          }
+        }
+      }
+
+      if (filesFromPaste.length > 0) {
+        e.preventDefault();
+        processFiles(filesFromPaste);
+      }
+    };
+
+    window.addEventListener("paste", handlePaste);
+    return () => {
+      window.removeEventListener("paste", handlePaste);
+    };
+  }, [open, slipItems.length]);
 
   const handleRemoveSlip = (id: string) => {
     setSlipItems((prev) => {
@@ -534,7 +575,7 @@ export function AddCommissionModal({ open, onOpenChange }: AddCommissionModalPro
                     >
                       <UploadCloudIcon className="size-4 mx-auto text-emerald-600 mb-0.5" />
                       <p className="text-[11px] font-bold text-gray-800">Upload Image Slips / Receipts</p>
-                      <p className="text-[9px] text-gray-400">Attach up to 5 images/PDFs (Max 5MB each)</p>
+                      <p className="text-[9px] text-gray-400">Click to select, or Paste image (Ctrl+V) • Max 5MB each</p>
                       <input
                         ref={fileInputRef}
                         type="file"
