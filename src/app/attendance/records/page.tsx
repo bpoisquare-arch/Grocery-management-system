@@ -52,6 +52,7 @@ import * as XLSX from 'xlsx'
 import { cn } from '@/lib/utils'
 import { DataTableViewOptions } from '@/components/ui/data-table-view-options'
 import { DataTableFacetedFilter } from '@/components/ui/data-table-faceted-filter'
+import { SearchableCombobox } from '@/components/ui/combobox'
 
 // Quick Selector Months
 const MONTHS_LIST = [
@@ -1327,24 +1328,18 @@ export default function AttendanceRecordsPage() {
               </label>
               <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5">
                 {/* Month Select */}
-                <div className="w-[120px] shrink-0">
-                  <Select
+                <div className="w-[130px] shrink-0">
+                  <SearchableCombobox
+                    options={MONTHS_LIST.map((m) => ({
+                      value: m.value,
+                      label: m.label,
+                    }))}
                     value={selectedQuickMonth}
-                    onValueChange={(val) => val && handleQuickMonthChange(val)}
-                  >
-                    <SelectTrigger className="text-xs border-slate-300 h-9.5 font-semibold rounded-lg bg-slate-50/50 focus:bg-white w-full">
-                      <SelectValue placeholder="Month">
-                        {MONTHS_LIST.find((m) => m.value === selectedQuickMonth)?.label || 'Month'}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent className="max-h-60 min-w-[135px]">
-                      {MONTHS_LIST.map((m) => (
-                        <SelectItem key={m.value} value={m.value}>
-                          {m.label} ({m.value})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onSelect={(val) => handleQuickMonthChange(val)}
+                    placeholder="Month"
+                    searchPlaceholder="Search month..."
+                    popoverWidth="w-[170px]"
+                  />
                 </div>
 
                 {/* Year Select */}
@@ -1390,22 +1385,20 @@ export default function AttendanceRecordsPage() {
               <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block truncate">
                 Select Designation
               </label>
-              <Select
+              <SearchableCombobox
+                options={[
+                  { value: 'all', label: 'ALL DESIGNATIONS' },
+                  ...Array.from(new Set(employees.map((e) => e.designation)))
+                    .filter(Boolean)
+                    .sort()
+                    .map((desig) => ({ value: desig, label: desig })),
+                ]}
                 value={selectedDesignation}
-                onValueChange={(val) => setSelectedDesignation(val || 'all')}
-              >
-                <SelectTrigger className="text-xs border-slate-300 h-9.5 font-medium rounded-lg bg-slate-50/50 focus:bg-white w-full truncate">
-                  <SelectValue placeholder="ALL DESIGNATIONS" />
-                </SelectTrigger>
-                <SelectContent className="max-h-64 min-w-[240px]">
-                  <SelectItem value="all">ALL DESIGNATIONS</SelectItem>
-                  {Array.from(new Set(employees.map((e) => e.designation))).filter(Boolean).sort().map((desig) => (
-                    <SelectItem key={desig} value={desig}>
-                      {desig}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onSelect={(val) => setSelectedDesignation(val)}
+                placeholder="ALL DESIGNATIONS"
+                searchPlaceholder="Search designation..."
+                popoverWidth="w-[260px]"
+              />
             </div>
 
             {/* 3. Branch Filter (Locked for Lahore/Multan users) */}
