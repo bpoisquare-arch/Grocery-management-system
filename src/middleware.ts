@@ -12,6 +12,7 @@ const protectedRoutes = [
   '/select-entity',
   '/select-module',
   '/commissions',
+  '/attendance',
 ];
 const authRoutes = ['/login'];
 
@@ -71,5 +72,6 @@ export const config = {
     '/grocery/:path*',
     '/budget/:path*',
     '/reports/:path*',
+    '/attendance/:path*',
   ],
 };

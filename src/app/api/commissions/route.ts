@@ -1,3 +1,4 @@
+import { AUTH_COOKIE_NAME, verifyToken } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { mockCommissionEntries } from '@/lib/mockData';
@@ -45,6 +46,11 @@ function formatCommissionEntry(comm: any) {
 
 // GET /api/commissions - Fetch all commission entries
 export async function GET(request: NextRequest) {
+  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const session = token ? await verifyToken(token) : null;
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
   const { searchParams } = new URL(request.url);
   const entity = searchParams.get('entity');
   const claimedMonth = searchParams.get('claimedMonth');
@@ -134,6 +140,11 @@ export async function GET(request: NextRequest) {
 
 // POST /api/commissions - Create a new commission entry
 export async function POST(request: NextRequest) {
+  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const session = token ? await verifyToken(token) : null;
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
   try {
     const body = await request.json();
     const {

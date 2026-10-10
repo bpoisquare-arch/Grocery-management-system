@@ -1,8 +1,14 @@
+import { AUTH_COOKIE_NAME, verifyToken } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 // POST /api/groceries/bulk-delete - Delete multiple grocery entries
 export async function POST(request: NextRequest) {
+  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const session = token ? await verifyToken(token) : null;
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
   try {
     const { ids } = await request.json();
 

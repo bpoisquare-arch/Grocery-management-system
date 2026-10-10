@@ -1,3 +1,4 @@
+import { AUTH_COOKIE_NAME, verifyToken } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { mockGroceryEntries } from '@/lib/mockData';
@@ -61,6 +62,11 @@ function formatGroceryEntry(entry: any) {
 
 // GET /api/groceries - Fetch all grocery entries or filter by entity/date
 export async function GET(request: NextRequest) {
+  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const session = token ? await verifyToken(token) : null;
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
   const { searchParams } = new URL(request.url);
   const entity = searchParams.get('entity');
   const month = searchParams.get('month');
@@ -142,6 +148,11 @@ export async function GET(request: NextRequest) {
 
 // POST /api/groceries - Create a new grocery entry (supporting up to 10 slips and explicit budget month)
 export async function POST(request: NextRequest) {
+  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const session = token ? await verifyToken(token) : null;
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
   try {
     const body = await request.json();
     const {

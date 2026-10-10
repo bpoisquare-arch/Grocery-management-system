@@ -1,3 +1,4 @@
+import { AUTH_COOKIE_NAME, verifyToken } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
@@ -63,6 +64,11 @@ export async function PUT(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const session = token ? await verifyToken(token) : null;
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
   try {
     const { id } = await context.params;
     const body = await request.json();
@@ -116,7 +122,7 @@ export async function PUT(
 
       // Attempt auto-migration
       try {
-        await prisma.$executeRawUnsafe('ALTER TABLE `GroceryEntry` ADD COLUMN `category` VARCHAR(255) NULL, ADD COLUMN `slipUrls` LONGTEXT NULL, ADD COLUMN `budgetMonth` VARCHAR(50) NULL, ADD COLUMN `budgetYear` INT NULL');
+        // Safe fallback without runtime DDL alteration
         updated = await (prisma as any).groceryEntry.update({
           where: { id },
           data: updateData,
@@ -161,6 +167,11 @@ export async function DELETE(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const session = token ? await verifyToken(token) : null;
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
   try {
     const { id } = await context.params;
 

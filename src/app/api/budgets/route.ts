@@ -1,9 +1,15 @@
+import { AUTH_COOKIE_NAME, verifyToken } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { mockBudgets } from '@/lib/mockData';
 
 // GET /api/budgets - Fetch all budgets
 export async function GET(request: NextRequest) {
+  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const session = token ? await verifyToken(token) : null;
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
   const { searchParams } = new URL(request.url);
   const entity = searchParams.get('entity');
 
@@ -47,6 +53,11 @@ export async function GET(request: NextRequest) {
 
 // POST /api/budgets - Upsert monthly budget for entity
 export async function POST(request: NextRequest) {
+  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const session = token ? await verifyToken(token) : null;
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
   try {
     const body = await request.json();
     const { entity, month, year, amount } = body;
@@ -89,6 +100,11 @@ export async function POST(request: NextRequest) {
 
 // DELETE /api/budgets - Delete single budget or clean all
 export async function DELETE(request: NextRequest) {
+  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const session = token ? await verifyToken(token) : null;
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
