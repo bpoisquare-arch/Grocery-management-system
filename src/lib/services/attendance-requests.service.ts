@@ -100,7 +100,7 @@ export async function getAttendanceRequests(filter?: {
     if (filter?.startDate) q.set('startDate', filter.startDate)
     if (filter?.endDate) q.set('endDate', filter.endDate)
 
-    const res = await fetch(`${misUrl}/api/attendance/requests?${q.toString()}`, { cache: 'no-store' })
+    const res = await fetch(`${misUrl}/api/attendance/requests?${q.toString()}`, { cache: 'no-store', headers: { 'x-internal-key': process.env.INTERNAL_API_SECRET || 'isquare-internal-attendance-bridge-2026' } })
     if (res.ok) {
       const data = await res.json()
       if (data.success && Array.isArray(data.requests) && data.requests.length > 0) {
@@ -186,7 +186,7 @@ export async function createAttendanceRequest(params: {
     const misUrl = process.env.NEXT_PUBLIC_MIS_API_URL || (process.env.NODE_ENV === 'production' ? 'https://mis.isquarebpo.com' : 'http://localhost:3000')
     const res = await fetch(`${misUrl}/api/attendance/requests`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-internal-key': process.env.INTERNAL_API_SECRET || 'isquare-internal-attendance-bridge-2026' },
       body: JSON.stringify(newItem),
     })
     if (res.ok) {
@@ -219,6 +219,7 @@ export async function cancelAttendanceRequest(requestId: string): Promise<boolea
     const misUrl = process.env.NEXT_PUBLIC_MIS_API_URL || (process.env.NODE_ENV === 'production' ? 'https://mis.isquarebpo.com' : 'http://localhost:3000')
     await fetch(`${misUrl}/api/attendance/requests?id=${encodeURIComponent(requestId)}`, {
       method: 'DELETE',
+      headers: { 'x-internal-key': process.env.INTERNAL_API_SECRET || 'isquare-internal-attendance-bridge-2026' },
     })
   } catch (apiErr) {
     console.warn('MIS API cancel request warning:', apiErr)

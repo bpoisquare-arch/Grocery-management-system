@@ -19,7 +19,7 @@ export async function getEmployees(options?: {
 }): Promise<Employee[]> {
   const misUrl = process.env.NEXT_PUBLIC_MIS_API_URL || 'http://localhost:3000'
   try {
-    const res = await fetch(`${misUrl}/api/attendance/employees`, { cache: 'no-store' })
+    const res = await fetch(`${misUrl}/api/attendance/employees`, { cache: 'no-store', headers: { 'x-internal-key': process.env.INTERNAL_API_SECRET || 'isquare-internal-attendance-bridge-2026' } })
     if (res.ok) {
       const json = await res.json()
       let employees: Employee[] = (json.employees || []).map((row: any) => ({
@@ -72,7 +72,7 @@ export async function getAttendanceRecords(params: {
     if (params.employeeId && params.employeeId !== 'all') q.set('employeeId', params.employeeId)
     q.set('pageSize', '1000')
 
-    const res = await fetch(`${misUrl}/api/attendance/records?${q.toString()}`, { cache: 'no-store' })
+    const res = await fetch(`${misUrl}/api/attendance/records?${q.toString()}`, { cache: 'no-store', headers: { 'x-internal-key': process.env.INTERNAL_API_SECRET || 'isquare-internal-attendance-bridge-2026' } })
     if (res.ok) {
       const json = await res.json()
       if (Array.isArray(json.records)) {
@@ -118,7 +118,7 @@ export async function getAttendanceRecords(params: {
 export async function getAttendanceSettings(): Promise<AttendanceSettings> {
   const misUrl = process.env.NEXT_PUBLIC_MIS_API_URL || 'http://localhost:3000'
   try {
-    const res = await fetch(`${misUrl}/api/attendance/settings`, { cache: 'no-store' })
+    const res = await fetch(`${misUrl}/api/attendance/settings`, { cache: 'no-store', headers: { 'x-internal-key': process.env.INTERNAL_API_SECRET || 'isquare-internal-attendance-bridge-2026' } })
     if (res.ok) {
       const json = await res.json()
       if (json.settings) return json.settings
@@ -133,7 +133,7 @@ export async function getGazettedHolidays(): Promise<Record<string, string>> {
   const holidaysMap: Record<string, string> = {}
   const misUrl = process.env.NEXT_PUBLIC_MIS_API_URL || 'http://localhost:3000'
   try {
-    const res = await fetch(`${misUrl}/api/attendance/holidays?year=2026`, { cache: 'no-store' })
+    const res = await fetch(`${misUrl}/api/attendance/holidays?year=2026`, { cache: 'no-store', headers: { 'x-internal-key': process.env.INTERNAL_API_SECRET || 'isquare-internal-attendance-bridge-2026' } })
     if (res.ok) {
       const json = await res.json()
       if (Array.isArray(json.holidays)) {
