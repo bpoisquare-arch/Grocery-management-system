@@ -391,6 +391,40 @@ export default function CommissionsDashboardPage() {
       doc.setDrawColor(226, 232, 240);
       doc.line(14, 35, 282, 35);
 
+      // Summary Metric Cards
+      const cards = [
+        { label: "TOTAL COLLECTED", value: `Rs. ${totalAmountCollected.toLocaleString()}`, color: [5, 150, 105] },
+        { label: "TOTAL COUNSELOR COMM (C.C)", value: `Rs. ${totalCounselorCommission.toLocaleString()}`, color: [30, 41, 59] },
+        { label: "TOTAL BM COMM", value: `Rs. ${totalBmCommission.toLocaleString()}`, color: [30, 41, 59] },
+        { label: "TOTAL RECORDS", value: `${filteredEntries.length}`, color: [30, 41, 59] },
+      ];
+
+      const cardY = 39;
+      const cardH = 15;
+      const cardW = 64;
+      const cardGap = 4;
+
+      cards.forEach((card, i) => {
+        const cardX = 14 + i * (cardW + cardGap);
+
+        // Background card box
+        doc.setFillColor(248, 250, 252);
+        doc.setDrawColor(226, 232, 240);
+        doc.roundedRect(cardX, cardY, cardW, cardH, 2, 2, "FD");
+
+        // Stat Label
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7);
+        doc.setTextColor(100, 116, 139);
+        doc.text(card.label, cardX + 4, cardY + 5.5);
+
+        // Stat Value
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10.5);
+        doc.setTextColor(card.color[0], card.color[1], card.color[2]);
+        doc.text(card.value, cardX + 4, cardY + 11.5);
+      });
+
       const headers = [["Payment Date", "Student", "Service", "Counselor", "Amount", "C.C", "B.M", "Claimed Period", "Status"]];
       const rows = filteredEntries.map((e) => [
         e.date ? format(new Date(e.date), "dd MMM yyyy") : "-",
@@ -404,10 +438,26 @@ export default function CommissionsDashboardPage() {
         e.status
       ]);
 
+      const footers = [
+        [
+          "Total",
+          "",
+          "",
+          "",
+          `Rs. ${totalAmountCollected.toLocaleString()}`,
+          `Rs. ${totalCounselorCommission.toLocaleString()}`,
+          `Rs. ${totalBmCommission.toLocaleString()}`,
+          `${filteredEntries.length} Records`,
+          ""
+        ]
+      ];
+
       autoTable(doc, {
-        startY: 40,
+        startY: 58,
         head: headers,
         body: rows,
+        foot: footers,
+        showFoot: "lastPage",
         headStyles: {
           fillColor: [5, 150, 105],
           textColor: [255, 255, 255],
@@ -420,6 +470,12 @@ export default function CommissionsDashboardPage() {
         },
         alternateRowStyles: {
           fillColor: [248, 250, 252],
+        },
+        footStyles: {
+          fillColor: [241, 245, 249],
+          textColor: [15, 23, 42],
+          fontSize: 8.5,
+          fontStyle: "bold",
         },
         margin: { left: 14, right: 14 },
       });

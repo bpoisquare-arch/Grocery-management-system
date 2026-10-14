@@ -49,6 +49,7 @@ import {
 } from '@/components/attendance/AttendanceRequestModals'
 import { AttendanceRequestItem } from '@/lib/services/attendance-requests.service'
 import * as XLSX from 'xlsx'
+import type ExcelJS from 'exceljs'
 import { cn } from '@/lib/utils'
 import { DataTableViewOptions } from '@/components/ui/data-table-view-options'
 import { DataTableFacetedFilter } from '@/components/ui/data-table-faceted-filter'
@@ -917,56 +918,351 @@ export default function AttendanceRecordsPage() {
     }
   }, [filteredEmployees, dateColumns, recordMatrixMap, holidays, maxUploadedDate])
 
-  // Export to Excel (Full matrix)
-  const handleExportExcel = () => {
+
+// Format 12-hour lowercase time (e.g. "10:30 am", "6:58 pm")
+function formatExcelTime(timeStr?: string | null): string {
+  if (!timeStr || timeStr === '---' || timeStr === '--') return ''
+  const clean = timeStr.trim()
+  const match = clean.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM|am|pm)?$/i)
+  if (match) {
+    let [_, hStr, mStr, meridiem] = match
+    let h = parseInt(hStr, 10)
+    if (!meridiem) {
+      meridiem = h >= 12 ? 'pm' : 'am'
+      if (h > 12) h -= 12
+      if (h === 0) h = 12
+    } else {
+      meridiem = meridiem.toLowerCase()
+    }
+    return `${h}:${mStr} ${meridiem}`
+  }
+  return clean
+}
+
+// Format Worked Hours (e.g. "8:28", "7:52", "0:00")
+function formatExcelWorkedHours(minutes?: number | null, formattedStr?: string | null): string {
+  if (minutes !== undefined && minutes !== null && minutes > 0) {
+    const h = Math.floor(minutes / 60)
+    const m = minutes % 60
+    return `${h}:${String(m).padStart(2, '0')}`
+  }
+  if (formattedStr && formattedStr !== '00:00' && formattedStr !== '--') {
+    const match = formattedStr.match(/(\d+)[:h]\s*(\d+)?/)
+    if (match) {
+      const h = parseInt(match[1], 10)
+      const m = match[2] ? match[2].padStart(2, '0') : '00'
+      return `${h}:${m}`
+    }
+    return formattedStr
+  }
+  return '0:00'
+}
+
+  // Export to Excel (Styled exactly as MIS Attendance Sheet with Peach Headers, Borders, and Colors)
+  const handleExportExcel = async () => {
+    if (filteredEmployees.length === 0) {
+      alert('No employee records available to export.')
+      return
+    }
+
     try {
-      const rows: any[] = []
-      const exportDates = isAnyStatusFilterActive ? displayDateColumns : (visibleColumns.sundays ? dateColumns : dateColumns.filter((d) => getDayName(d) !== 'Sunday'))
+      const ExcelJS = (await import('exceljs')).default
+      const workbook = new ExcelJS.Workbook()
+      const worksheet = workbook.addWorksheet('Attendance Sheet')
 
-      filteredEmployees.forEach((emp) => {
-        const rowData: Record<string, any> = {}
-        if (visibleColumns.batchId) rowData['Batch ID'] = emp.employee_id
-        if (visibleColumns.employeeName) rowData['Employee Name'] = emp.name
-        if (visibleColumns.designation) rowData['Designation'] = emp.designation
-        if (visibleColumns.branch) rowData['Branch'] = emp.branch || 'Multan'
+      // Set column widths matching MIS
+      worksheet.columns = [
+        { key: 'date', width: 14 },
+        { key: 'day', width: 14 },
+        { key: 'employee', width: 24 },
+        { key: 'designation', width: 28 },
+        { key: 'branch', width: 14 },
+        { key: 'attendance', width: 14 },
+        { key: 'timeIn', width: 14 },
+        { key: 'timeOut', width: 14 },
+        { key: 'workedHours', width: 14 },
+        { key: 'status', width: 20 },
+      ]
 
-        exportDates.forEach((date) => {
-          const dayName = getDayName(date)
-          const isSunday = dayName === 'Sunday'
-          const isGazettedHoliday = Boolean(holidays[date]) && getPresentEmployeesCountOnDate(date) === 0
-          const rec = recordMatrixMap.get(`${emp.id}_${date}`) || recordMatrixMap.get(`${emp.employee_id}_${date}`)
+      const thinBorder: Partial<ExcelJS.Borders> = {
+        top: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+        left: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+        bottom: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+        right: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+      }
 
-          if (isSunday) {
-            rowData[date] = 'Holiday'
-          } else if (isGazettedHoliday) {
-            rowData[date] = `Holiday (${holidays[date] || 'Gazetted'})`
-          } else if (rec) {
-            const isLeave =
-              rec.arrival_status === 'Leave' ||
-              rec.departure_status?.includes('Leave') ||
-              ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Maternity Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.departure_status as any) ||
-              ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Maternity Leave', 'Probation Leave', 'Gazetted Leave'].includes(rec.arrival_status as any)
-            if (isLeave) {
-              rowData[date] = rec.departure_status || rec.arrival_status || 'Leave'
-            } else if (rec.in_time || rec.out_time) {
-              rowData[date] = `${rec.in_time || '--'} - ${rec.out_time || '--'}`
-            } else {
-              rowData[date] = (!maxUploadedDate || date <= maxUploadedDate) ? 'Absent' : '--'
-            }
-          } else {
-            rowData[date] = (!maxUploadedDate || date <= maxUploadedDate) ? 'Absent' : '--'
-          }
-        })
+      // Row 1: Merged Title "Attendance Sheet"
+      worksheet.mergeCells('A1:J1')
+      const titleCell = worksheet.getCell('A1')
+      titleCell.value = isAnyStatusFilterActive
+        ? `Attendance Sheet (${[
+            statusFilters.absent ? 'Absent' : '',
+            statusFilters.missingIn ? 'Missing In' : '',
+            statusFilters.missingOut ? 'Missing Out' : '',
+          ]
+            .filter(Boolean)
+            .join(' & ')})`
+        : 'Attendance Sheet'
+      titleCell.font = { name: 'Calibri', size: 14, bold: true, italic: true }
+      titleCell.alignment = { horizontal: 'center', vertical: 'middle' }
+      worksheet.getRow(1).height = 25
 
-        rows.push(rowData)
+      // Row 2: Merged Branch in Center (A2:I2) and Month-Year on Right (J2)
+      worksheet.mergeCells('A2:I2')
+      const branchCell = worksheet.getCell('A2')
+      branchCell.value = selectedBranch !== 'all' ? selectedBranch : 'Multan'
+      branchCell.font = { name: 'Calibri', size: 12, bold: true, italic: true }
+      branchCell.alignment = { horizontal: 'center', vertical: 'middle' }
+
+      const monthCell = worksheet.getCell('J2')
+      const sDateObj = new Date(startDate + 'T00:00:00')
+      const monthStr = !isNaN(sDateObj.getTime())
+        ? sDateObj.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', '-')
+        : ''
+      monthCell.value = monthStr
+      monthCell.font = { name: 'Calibri', size: 11, bold: true }
+      monthCell.alignment = { horizontal: 'center', vertical: 'middle' }
+      worksheet.getRow(2).height = 20
+
+      // Row 3: Headers with Peach Background (#FCE4D6)
+      const headerRow = worksheet.getRow(3)
+      headerRow.values = [
+        'Date',
+        'Day',
+        'Employee',
+        'Designation',
+        'Branch',
+        'Attendance',
+        'Time In',
+        'Time Out',
+        'Worked Hours',
+        'Status',
+      ]
+      headerRow.height = 23
+      headerRow.eachCell((cell) => {
+        cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF000000' } }
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFCE4D6' }, // Peach background
+        }
+        cell.alignment = { horizontal: 'center', vertical: 'middle' }
+        cell.border = thinBorder
       })
 
-      const worksheet = XLSX.utils.json_to_sheet(rows)
-      const workbook = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance Records')
-      XLSX.writeFile(workbook, `Attendance_Records_${selectedBranch}_${startDate}_to_${endDate}.xlsx`)
+      // Ensure border on Row 1 and Row 2 cells
+      const topCells = ['A1', 'B1', 'C1', 'D1', 'E1', 'F1', 'G1', 'H1', 'I1', 'J1', 'A2', 'B2', 'C2', 'D2', 'E2', 'F2', 'G2', 'H2', 'I2', 'J2']
+      topCells.forEach((addr) => {
+        worksheet.getCell(addr).border = thinBorder
+      })
+
+      // Fills matching MIS
+      const yellowFill: ExcelJS.Fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFFF00' }, // Bright Yellow
+      }
+
+      const redFill: ExcelJS.Fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFC7CE' }, // Soft Red fill
+      }
+
+      const greenFill: ExcelJS.Fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFC6EFCE' }, // Soft Green fill
+      }
+
+      const skyBlueFill: ExcelJS.Fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFBDD7EE' }, // Sky Blue fill
+      }
+
+      let rowIndex = 4
+
+      // Use displayDateColumns so when status filter is applied, only matching dates are evaluated
+      const exportDates = isAnyStatusFilterActive ? displayDateColumns : (visibleColumns.sundays ? dateColumns : dateColumns.filter((d) => getDayName(d) !== 'Sunday'))
+
+      exportDates.forEach((date) => {
+        const dayName = getDayName(date)
+        const isSunday = dayName === 'Sunday'
+        const isGazettedHoliday = Boolean(holidays[date]) && getPresentEmployeesCountOnDate(date) === 0
+        const [y, m, d] = date.split('-')
+        const formattedDate = `${d}/${m}/${y}` // DD/MM/YYYY
+
+        filteredEmployees.forEach((emp) => {
+          const rec = recordMatrixMap.get(`${emp.id}_${date}`) || recordMatrixMap.get(`${emp.employee_id}_${date}`)
+          const flags = getRecordStatusFlags(emp, date, recordMatrixMap, holidays, settings, maxUploadedDate)
+
+          // If status filter is active, strictly export only records that match the active filter!
+          if (isAnyStatusFilterActive) {
+            const matchAbsent = statusFilters.absent && flags.isAbsent
+            const matchMissingIn = statusFilters.missingIn && flags.isMissingIn
+            const matchMissingOut = statusFilters.missingOut && flags.isMissingOut
+            if (!matchAbsent && !matchMissingIn && !matchMissingOut) {
+              return // Skip this non-matching record
+            }
+          }
+
+          const row = worksheet.getRow(rowIndex)
+          row.height = 20
+
+          let attendanceVal = 'Present'
+          let timeInVal = ''
+          let timeOutVal = ''
+          let workedHoursVal = '0:00'
+          let statusVal = ''
+
+          if (flags.isBeforeJoining) {
+            attendanceVal = '--'
+            timeInVal = '--'
+            timeOutVal = '--'
+            workedHoursVal = '0:00'
+            statusVal = ''
+          } else if (isSunday) {
+            attendanceVal = 'Sunday'
+            timeInVal = 'Sunday'
+            timeOutVal = 'Sunday'
+            workedHoursVal = '0:00'
+            statusVal = ''
+          } else if (isGazettedHoliday) {
+            attendanceVal = 'Holiday'
+            timeInVal = 'Holiday'
+            timeOutVal = 'Holiday'
+            workedHoursVal = '0:00'
+            statusVal = holidays[date] || 'Gazetted Holiday'
+          } else if (flags.isLeave) {
+            attendanceVal = 'Leave'
+            timeInVal = 'Leave'
+            timeOutVal = 'Leave'
+            workedHoursVal = '0:00'
+            statusVal = flags.statusLabel || 'Leave'
+          } else if (flags.isAbsent) {
+            attendanceVal = 'Absent'
+            timeInVal = 'Absent'
+            timeOutVal = 'Absent'
+            workedHoursVal = '0:00'
+            statusVal = 'Absent'
+          } else {
+            attendanceVal = 'Present'
+            timeInVal = formatExcelTime(rec?.in_time)
+            timeOutVal = formatExcelTime(rec?.out_time)
+            workedHoursVal = formatExcelWorkedHours(rec?.total_working_minutes, (rec as any)?.total_working_hours_formatted)
+            statusVal = flags.statusLabel
+          }
+
+          row.values = [
+            formattedDate,
+            dayName,
+            emp.name,
+            emp.designation || '--',
+            emp.branch || 'Multan',
+            attendanceVal,
+            timeInVal,
+            timeOutVal,
+            workedHoursVal,
+            statusVal,
+          ]
+
+          // Apply default styling to all data cells
+          row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+            cell.font = { name: 'Calibri', size: 10, color: { argb: 'FF000000' } }
+            cell.alignment = {
+              horizontal: colNumber === 3 || colNumber === 4 || colNumber === 5 ? 'left' : 'center',
+              vertical: 'middle',
+            }
+            cell.border = thinBorder
+          })
+
+          const attCell = row.getCell(6)
+          const timeInCell = row.getCell(7)
+          const timeOutCell = row.getCell(8)
+          const statusCell = row.getCell(10)
+
+          // 1. Sunday / Off -> Blue bold font
+          if (isSunday || attendanceVal === 'Off') {
+            const blueFont: Partial<ExcelJS.Font> = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF002060' } }
+            attCell.font = blueFont
+            timeInCell.font = blueFont
+            timeOutCell.font = blueFont
+          }
+
+          // 2. Absent -> Red highlight
+          if (flags.isAbsent) {
+            const redFont: Partial<ExcelJS.Font> = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF9C0006' } }
+            attCell.fill = redFill
+            attCell.font = redFont
+            timeInCell.fill = redFill
+            timeInCell.font = redFont
+            timeOutCell.fill = redFill
+            timeOutCell.font = redFont
+            statusCell.fill = redFill
+            statusCell.font = redFont
+          }
+
+          // 3. Work From Home -> Sky Blue highlight
+          if (flags.isWfh) {
+            const skyBlueFont: Partial<ExcelJS.Font> = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF1F4E78' } }
+            attCell.fill = skyBlueFill
+            attCell.font = skyBlueFont
+            statusCell.fill = skyBlueFill
+            statusCell.font = skyBlueFont
+          }
+
+          // 4. Late Arrival -> Yellow on Time In & Status
+          if (flags.isLate) {
+            timeInCell.fill = yellowFill
+            statusCell.fill = yellowFill
+            statusCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF9C6500' } }
+          }
+
+          // 5. Early Departure / Half Day -> Yellow on Time Out & Red font on Status
+          if (flags.isEarlyLeave) {
+            timeOutCell.fill = yellowFill
+            statusCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFF0000' } }
+          }
+
+          // 6. Missing In -> Green highlight
+          if (flags.isMissingIn) {
+            timeInCell.fill = greenFill
+            statusCell.fill = greenFill
+            statusCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF006100' } }
+          }
+
+          // 7. Missing Out -> Green highlight
+          if (flags.isMissingOut) {
+            timeOutCell.fill = greenFill
+            statusCell.fill = greenFill
+            statusCell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF006100' } }
+          }
+
+          rowIndex++
+        })
+      })
+
+      if (rowIndex === 4) {
+        alert('No matching records found for the selected filter to export.')
+        return
+      }
+
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Attendance_Sheet_${selectedBranch}_${startDate}_to_${endDate}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
     } catch (err) {
       console.error('Error exporting to Excel:', err)
+      alert('Failed to export styled Excel sheet. Please try again.')
     }
   }
 
