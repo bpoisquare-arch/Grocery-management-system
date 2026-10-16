@@ -45,6 +45,7 @@ import {
   SearchIcon,
   FilterIcon,
   RotateCcwIcon,
+  RefreshCwIcon,
   FileSpreadsheetIcon,
   FileTextIcon,
   EyeIcon,
@@ -67,6 +68,7 @@ export default function GroceryPage() {
   const {
     currentUser,
     activeEntity,
+    refreshData,
     groceryEntries,
     categories,
     assignCategoryToGrocery,
@@ -78,6 +80,7 @@ export default function GroceryPage() {
     getEntityBudgetBreakdown,
   } = useStore();
   const isAdmin = currentUser?.role === "ADMIN";
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const currentRealMonth = format(new Date(), "MMMM");
   const currentRealYear = new Date().getFullYear();
@@ -312,14 +315,15 @@ export default function GroceryPage() {
     }
   };
 
-  const handleResetFilters = () => {
+  const handleResetFilters = async () => {
     setSearch("");
     setCategoryFilter("all");
     setFromDate("");
     setToDate("");
     setStatusFilter("all");
     setCurrentPage(1);
-    toast.success("Filters reset successfully.");
+    await refreshData();
+    toast.success("Filters reset and refreshed live from database.");
   };
 
   const handleAction = (entry: any, type: "view" | "edit" | "approve" | "delete") => {
@@ -553,6 +557,26 @@ export default function GroceryPage() {
           </div>
 
           <div className="flex items-center gap-2 w-full md:w-auto">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isRefreshing}
+              onClick={async () => {
+                setIsRefreshing(true);
+                try {
+                  await refreshData();
+                  toast.success("Synced live from database!");
+                } catch (e: any) {
+                  toast.error("Failed to sync: " + (e?.message || "Database connection error"));
+                } finally {
+                  setIsRefreshing(false);
+                }
+              }}
+              className="flex-1 md:flex-initial h-9 border-emerald-200 text-xs font-semibold hover:bg-emerald-50 text-emerald-700 gap-1.5 shadow-2xs"
+            >
+              <RefreshCwIcon className={cn("size-3.5 text-emerald-600", isRefreshing && "animate-spin")} />
+              {isRefreshing ? "Syncing..." : "Sync Live DB"}
+            </Button>
             <Button
               variant="outline"
               size="sm"

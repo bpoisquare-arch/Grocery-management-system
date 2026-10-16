@@ -76,76 +76,56 @@ export async function GET(request: NextRequest) {
   const year = searchParams.get('year');
 
   try {
-    let entries: any[] = [];
-
-    // Attempt 1: Standard Prisma query
-    try {
-      const whereClause: any = {};
-      if (entity) {
-        whereClause.entity = entity;
-      }
-      if (month) {
-        whereClause.budgetMonth = month;
-      }
-      if (year) {
-        whereClause.budgetYear = parseInt(year, 10);
-      }
-
-      entries = await (prisma as any).groceryEntry.findMany({
-        where: whereClause,
-        orderBy: [
-          { date: 'desc' },
-          { createdAt: 'desc' },
-        ],
-      });
-    } catch (prismaError: any) {
-      console.warn('Prisma findMany query failed, trying raw SQL query / auto-migration:', prismaError.message);
-
-      // Attempt auto-migration of columns if DB user has ALTER privilege
-      try {
-        await prisma.$executeRawUnsafe('ALTER TABLE `GroceryEntry` ADD COLUMN `category` VARCHAR(255) NULL');
-      } catch (e) {}
-      try {
-        await prisma.$executeRawUnsafe('ALTER TABLE `GroceryEntry` ADD COLUMN `slipUrls` LONGTEXT NULL');
-      } catch (e) {}
-      try {
-        await prisma.$executeRawUnsafe('ALTER TABLE `GroceryEntry` ADD COLUMN `budgetMonth` VARCHAR(50) NULL, ADD COLUMN `budgetYear` INT NULL');
-      } catch (e) {}
-
-      // Attempt 2: Direct raw SQL query (handles table with or without extra columns)
-      try {
-        if (entity) {
-          entries = await prisma.$queryRawUnsafe<any[]>(
-            'SELECT * FROM `GroceryEntry` WHERE `entity` = ? ORDER BY `date` DESC, `createdAt` DESC',
-            entity
-          );
-        } else {
-          entries = await prisma.$queryRawUnsafe<any[]>(
-            'SELECT * FROM `GroceryEntry` ORDER BY `date` DESC, `createdAt` DESC'
-          );
-        }
-      } catch (rawErr: any) {
-        console.warn('Raw SELECT * failed, trying explicit column list:', rawErr.message);
-        // Attempt 3: Query explicit original columns
-        if (entity) {
-          entries = await prisma.$queryRawUnsafe<any[]>(
-            'SELECT id, entity, date, details, category, amount, addedBy, status, slipUrl, slipType, approvedByAdmin, createdAt, updatedAt FROM `GroceryEntry` WHERE `entity` = ? ORDER BY `date` DESC, `createdAt` DESC',
-            entity
-          );
-        } else {
-          entries = await prisma.$queryRawUnsafe<any[]>(
-            'SELECT id, entity, date, details, category, amount, addedBy, status, slipUrl, slipType, approvedByAdmin, createdAt, updatedAt FROM `GroceryEntry` ORDER BY `date` DESC, `createdAt` DESC'
-          );
-        }
-      }
+    const whereClause: any = {};
+    if (entity) {
+      whereClause.entity = entity;
+    }
+    if (month) {
+      whereClause.budgetMonth = month;
+    }
+    if (year) {
+      whereClause.budgetYear = parseInt(year, 10);
     }
 
+    const entries = await (prisma as any).groceryEntry.findMany({
+      where: whereClause,
+      orderBy: [
+        { date: 'desc' },
+        { createdAt: 'desc' },
+      ],
+    });
+
     const formatted = entries.map(formatGroceryEntry);
-    return NextResponse.json({ success: true, data: formatted });
+    return NextResponse.json(
+      { success: true, data: formatted },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      }
+    );
   } catch (error: any) {
-    console.error('Final error in GET /api/groceries:', error);
-    const data = entity ? mockGroceryEntries.filter(e => e.entity === entity) : mockGroceryEntries;
-    return NextResponse.json({ success: true, data });
+    console.error('Database query error in GET /api/groceries:', error.message);
+    try {
+      let rawEntries: any[] = [];
+      if (entity) {
+        rawEntries = await prisma.$queryRawUnsafe<any[]>(
+          'SELECT * FROM `GroceryEntry` WHERE `entity` = ? ORDER BY `date` DESC, `createdAt` DESC',
+          entity
+        );
+      } else {
+        rawEntries = await prisma.$queryRawUnsafe<any[]>(
+          'SELECT * FROM `GroceryEntry` ORDER BY `date` DESC, `createdAt` DESC'
+        );
+      }
+      const formatted = rawEntries.map(formatGroceryEntry);
+      return NextResponse.json({ success: true, data: formatted });
+    } catch (rawErr: any) {
+      console.error('Final error in GET /api/groceries:', rawErr.message);
+      return NextResponse.json({ success: false, error: rawErr.message || 'Database error' }, { status: 500 });
+    }
   }
 }
 
@@ -221,36 +201,7 @@ export async function POST(request: NextRequest) {
     } catch (createErr: any) {
       console.warn('Prisma create failed, trying auto-alter or raw SQL insert:', createErr.message);
 
-      // Attempt auto-migration
-      try {
-        await prisma.$executeRawUnsafe('ALTER TABLE `GroceryEntry` ADD COLUMN `category` VARCHAR(255) NULL');
-      } catch (e) {}
-      try {
-        await prisma.$executeRawUnsafe('ALTER TABLE `GroceryEntry` ADD COLUMN `slipUrls` LONGTEXT NULL');
-      } catch (e) {}
-      try {
-        await prisma.$executeRawUnsafe('ALTER TABLE `GroceryEntry` ADD COLUMN `budgetMonth` VARCHAR(50) NULL, ADD COLUMN `budgetYear` INT NULL');
-      } catch (e) {}
-
-      try {
-        newEntry = await (prisma as any).groceryEntry.create({
-          data: {
-            entity,
-            date,
-            details,
-            category: category ? String(category).trim() : null,
-            amount: parseFloat(amount),
-            addedBy: addedBy || 'Unknown User',
-            status: computedStatus,
-            budgetMonth: finalBudgetMonth,
-            budgetYear: finalBudgetYear,
-            slipUrl: primarySlipUrl,
-            slipUrls: finalSlipUrls.length > 0 ? JSON.stringify(finalSlipUrls) : null,
-            slipType: computedSlipType,
-            approvedByAdmin: false,
-          },
-        });
-      } catch (e) {}
+      // Safe direct creation without table locks
 
       // Attempt raw insert if Prisma still failed
       if (!newEntry) {

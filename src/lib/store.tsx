@@ -187,40 +187,35 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const groceriesJson = await groceriesRes.json();
         if (groceriesJson.success && Array.isArray(groceriesJson.data)) {
           setGroceryEntries(groceriesJson.data);
-          safeSetLocalStorage('gem_grocery', JSON.stringify(groceriesJson.data));
-        }
+                  }
       }
 
       if (categoriesRes.ok) {
         const categoriesJson = await categoriesRes.json();
         if (categoriesJson.success && Array.isArray(categoriesJson.data) && categoriesJson.data.length > 0) {
           setCategories(categoriesJson.data);
-          safeSetLocalStorage('gem_categories', JSON.stringify(categoriesJson.data));
-        }
+                  }
       }
 
       if (budgetsRes.ok) {
         const budgetsJson = await budgetsRes.json();
         if (budgetsJson.success && Array.isArray(budgetsJson.data)) {
           setBudgets(budgetsJson.data);
-          safeSetLocalStorage('gem_budgets', JSON.stringify(budgetsJson.data));
-        }
+                  }
       }
 
       if (commissionsRes.ok) {
         const commissionsJson = await commissionsRes.json();
         if (commissionsJson.success && Array.isArray(commissionsJson.data)) {
           setCommissionEntries(commissionsJson.data);
-          safeSetLocalStorage('gem_commissions', JSON.stringify(commissionsJson.data));
-        }
+                  }
       }
 
       if (counselorsRes.ok) {
         const counselorsJson = await counselorsRes.json();
         if (counselorsJson.success && Array.isArray(counselorsJson.data)) {
           setCounselors(counselorsJson.data);
-          safeSetLocalStorage('gem_counselors', JSON.stringify(counselorsJson.data));
-        }
+                  }
       }
     } catch (error) {
       console.error('Error fetching live data from database:', error);
@@ -229,15 +224,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Initialize from LocalStorage and verify session from /api/auth/me
+  // Initialize pure live session and live database data (Zero localStorage caching of records)
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Clean up any old cached record data from localStorage to free memory and prevent stale reads
+      try {
+        localStorage.removeItem('gem_grocery');
+        localStorage.removeItem('gem_categories');
+        localStorage.removeItem('gem_budgets');
+        localStorage.removeItem('gem_commissions');
+        localStorage.removeItem('gem_counselors');
+      } catch (e) {}
+
       const storedEntity = localStorage.getItem('gem_entity');
-      const storedGrocery = localStorage.getItem('gem_grocery');
-      const storedCategories = localStorage.getItem('gem_categories');
-      const storedBudgets = localStorage.getItem('gem_budgets');
-      const storedCommissions = localStorage.getItem('gem_commissions');
-      const storedCounselors = localStorage.getItem('gem_counselors');
       const storedMonth = localStorage.getItem('gem_month');
       const storedYear = localStorage.getItem('gem_year');
 
@@ -245,130 +244,36 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (storedMonth) setCurrentMonthState(storedMonth);
       if (storedYear) setCurrentYearState(parseInt(storedYear, 10));
 
-      if (storedCategories) {
-        try {
-          const parsed: Category[] = JSON.parse(storedCategories);
-          // If stored categories contains legacy sample data like 'AAMI Fee', reset to the clean 10 categories
-          const hasLegacy = parsed.some((c) => c.name === 'AAMI Fee' || c.name === 'ASIC Fee' || c.name === 'BAS Expense');
-          if (Array.isArray(parsed) && parsed.length > 0 && !hasLegacy) {
-            setCategories(parsed);
-          } else {
-            setCategories(initialCategories);
-            safeSetLocalStorage('gem_categories', JSON.stringify(initialCategories));
-          }
-        } catch (e) {
-          setCategories(initialCategories);
-          safeSetLocalStorage('gem_categories', JSON.stringify(initialCategories));
-        }
-      } else {
-        setCategories(initialCategories);
-        safeSetLocalStorage('gem_categories', JSON.stringify(initialCategories));
-      }
-
-      if (storedGrocery) {
-        try {
-          setGroceryEntries(JSON.parse(storedGrocery));
-        } catch (e) {
-          setGroceryEntries(mockGroceryEntries);
-        }
-      } else {
-        setGroceryEntries(mockGroceryEntries);
-      }
-
-      if (storedBudgets) {
-        try {
-          setBudgets(JSON.parse(storedBudgets));
-        } catch (e) {
-          setBudgets(mockBudgets);
-        }
-      } else {
-        setBudgets(mockBudgets);
-      }
-
-      if (storedCommissions) {
-        try {
-          setCommissionEntries(JSON.parse(storedCommissions));
-        } catch (e) {
-          setCommissionEntries(mockCommissionEntries);
-        }
-      } else {
-        setCommissionEntries(mockCommissionEntries);
-      }
-
-      if (storedCounselors) {
-        try {
-          setCounselors(JSON.parse(storedCounselors));
-        } catch (e) {
-          setCounselors(initialCounselors);
-        }
-      } else {
-        setCounselors(initialCounselors);
-      }
-
-      // Check current session from /api/auth/me
+      // Verify current authenticated session
       fetch('/api/auth/me')
-        .then((res) => {
-          if (res.ok) return res.json();
-          return null;
-        })
+        .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (data?.authenticated && data.user) {
             setCurrentUser(data.user);
-            localStorage.setItem('gem_user', JSON.stringify(data.user));
+            try {
+              localStorage.setItem('gem_user', JSON.stringify(data.user));
+            } catch (e) {}
+
             if (data.user.role === 'LAHORE_USER') {
               const savedEntity = localStorage.getItem('gem_entity') as Entity | null;
               if (savedEntity === 'Miscellaneous' || savedEntity === 'Lahore') {
                 setActiveEntity(savedEntity);
               } else {
                 setActiveEntity('Lahore');
-                safeSetLocalStorage('gem_entity', 'Lahore');
               }
             } else if (data.user.role === 'MULTAN_USER') {
               setActiveEntity('Multan');
-              safeSetLocalStorage('gem_entity', 'Multan');
             } else if (data.user.role === 'ISQUAREBPO_USER') {
               setActiveEntity('ISquareBPO');
-              safeSetLocalStorage('gem_entity', 'ISquareBPO');
             }
-          } else {
-            const storedUser = localStorage.getItem('gem_user');
-            if (storedUser) {
-              try {
-                setCurrentUser(JSON.parse(storedUser));
-              } catch (e) {}
-            }
-          }
-        })
-        .catch(() => {
-          const storedUser = localStorage.getItem('gem_user');
-          if (storedUser) {
-            try {
-              setCurrentUser(JSON.parse(storedUser));
-            } catch (e) {}
           }
         })
         .finally(() => {
           setIsLoaded(true);
         });
 
-      // Fetch live updates from database
+      // Pure Live Database Fetch on load
       refreshData();
-
-      // Real-time Auto-Sync: Re-fetch live DB when tab comes into focus
-      const handleFocus = () => {
-        refreshData();
-      };
-      window.addEventListener('focus', handleFocus);
-
-      // Periodic Auto-Sync: Re-fetch every 30 seconds across laptops
-      const intervalId = setInterval(() => {
-        refreshData();
-      }, 30000);
-
-      return () => {
-        window.removeEventListener('focus', handleFocus);
-        clearInterval(intervalId);
-      };
     }
   }, [refreshData]);
 
@@ -565,8 +470,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (json.success && json.data) {
           const updated = [...categories.filter((c) => c.id !== json.data.id && c.name.toLowerCase() !== trimmed.toLowerCase()), json.data];
           setCategories(updated);
-          safeSetLocalStorage('gem_categories', JSON.stringify(updated));
-          return json.data;
+                    return json.data;
         }
       }
     } catch (e) {
@@ -575,8 +479,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = [...categories, newCat];
     setCategories(updated);
-    safeSetLocalStorage('gem_categories', JSON.stringify(updated));
-    return newCat;
+        return newCat;
   };
 
   const assignCategoryToGrocery = async (groceryId: string, categoryName: string) => {
@@ -592,8 +495,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return entry;
     });
     setGroceryEntries(updated);
-    safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
-
+    
     try {
       await fetch(`/api/groceries/${groceryId}`, {
         method: 'PUT',
@@ -701,8 +603,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = [json.data, ...groceryEntries];
     setGroceryEntries(updated);
-    safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
-  };
+      };
 
   const updateGroceryEntry = async (
     id: string,
@@ -784,8 +685,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = groceryEntries.map((entry) => (entry.id === id ? json.data : entry));
     setGroceryEntries(updated);
-    safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
-  };
+      };
 
   const deleteGroceryEntry = async (id: string) => {
     if (currentUser?.role !== 'ADMIN') {
@@ -803,8 +703,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = groceryEntries.filter((entry) => entry.id !== id);
     setGroceryEntries(updated);
-    safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
-  };
+      };
 
   const deleteGroceryEntries = async (ids: string[]) => {
     if (currentUser?.role !== 'ADMIN') {
@@ -827,8 +726,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = groceryEntries.filter((entry) => !ids.includes(entry.id));
     setGroceryEntries(updated);
-    safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
-  };
+      };
 
   const approveEntryWithoutSlip = async (id: string) => {
     if (currentUser?.role !== 'ADMIN') {
@@ -856,8 +754,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = groceryEntries.map((entry) => (entry.id === id ? json.data : entry));
     setGroceryEntries(updated);
-    safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
-  };
+      };
 
   // Upsert or update monthly budget for entity & month & year
   const setMonthlyBudget = async (entity: Entity, month: string, year: number, amount: number) => {
@@ -885,8 +782,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             updatedBudgets.push(json.data);
           }
           setBudgets(updatedBudgets);
-          safeSetLocalStorage('gem_budgets', JSON.stringify(updatedBudgets));
-          return;
+                    return;
         }
       }
     } catch (e) {
@@ -906,8 +802,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     setBudgets(updatedBudgets);
-    safeSetLocalStorage('gem_budgets', JSON.stringify(updatedBudgets));
-  };
+      };
 
   // Delete a specific monthly budget
   const deleteMonthlyBudget = async (entity: Entity, month: string, year: number) => {
@@ -925,8 +820,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       (b) => !(b.entity === entity && b.month.toLowerCase() === month.toLowerCase() && b.year === year)
     );
     setBudgets(updatedBudgets);
-    safeSetLocalStorage('gem_budgets', JSON.stringify(updatedBudgets));
-  };
+      };
 
   // Clear all budgets
   const clearAllBudgets = async () => {
@@ -941,8 +835,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     setBudgets([]);
-    safeSetLocalStorage('gem_budgets', JSON.stringify([]));
-  };
+      };
 
   const MONTHS_ORDER = [
     'january', 'february', 'march', 'april', 'may', 'june',
@@ -1182,8 +1075,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = [json.data, ...commissionEntries];
     setCommissionEntries(updated);
-    safeSetLocalStorage('gem_commissions', JSON.stringify(updated));
-  };
+      };
 
   const updateCommissionEntry = async (
     id: string,
@@ -1271,8 +1163,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = commissionEntries.map((entry) => (entry.id === id ? json.data : entry));
     setCommissionEntries(updated);
-    safeSetLocalStorage('gem_commissions', JSON.stringify(updated));
-  };
+      };
 
   const deleteCommissionEntry = async (id: string) => {
     const res = await fetch(`/api/commissions/${id}`, { method: 'DELETE' });
@@ -1286,8 +1177,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = commissionEntries.filter((entry) => entry.id !== id);
     setCommissionEntries(updated);
-    safeSetLocalStorage('gem_commissions', JSON.stringify(updated));
-  };
+      };
 
   const deleteCommissionEntries = async (ids: string[]) => {
     const res = await fetch('/api/commissions/bulk-delete', {
@@ -1306,8 +1196,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = commissionEntries.filter((entry) => !ids.includes(entry.id));
     setCommissionEntries(updated);
-    safeSetLocalStorage('gem_commissions', JSON.stringify(updated));
-  };
+      };
 
   const addCounselor = async (counselor: {
     name: string;
@@ -1342,8 +1231,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = [...counselors, json.data];
     setCounselors(updated);
-    safeSetLocalStorage('gem_counselors', JSON.stringify(updated));
-  };
+      };
 
   const updateCounselor = async (
     id: string,
@@ -1372,8 +1260,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = counselors.map((c) => (c.id === id ? json.data : c));
     setCounselors(updated);
-    safeSetLocalStorage('gem_counselors', JSON.stringify(updated));
-  };
+      };
 
   const deleteCounselor = async (id: string) => {
     const res = await fetch(`/api/counselors/${id}`, { method: 'DELETE' });
@@ -1387,8 +1274,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = counselors.filter((c) => c.id !== id);
     setCounselors(updated);
-    safeSetLocalStorage('gem_counselors', JSON.stringify(updated));
-  };
+      };
 
   // Clean Refresh / Sync helper (single source of truth from database)
   const syncLocalToDatabase = async (): Promise<{
