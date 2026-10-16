@@ -1,5 +1,6 @@
-import { Skeleton } from "@/components/ui/skeleton";
 "use client";
+
+import { Skeleton } from "@/components/ui/skeleton";
 
 import React, { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
