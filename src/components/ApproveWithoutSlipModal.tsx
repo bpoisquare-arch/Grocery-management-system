@@ -36,11 +36,11 @@ export function ApproveWithoutSlipModal({
   const handleApprove = async () => {
     setIsApproving(true);
     try {
-      approveEntryWithoutSlip(entry.id);
+      await approveEntryWithoutSlip(entry.id);
       toast.success("Grocery approved without slip.");
       onOpenChange(false);
     } catch (err) {
-      toast.error("Something went wrong. Unable to approve entry.");
+      toast.error(err?.message || "Something went wrong. Unable to approve entry.");
     } finally {
       setIsApproving(false);
     }

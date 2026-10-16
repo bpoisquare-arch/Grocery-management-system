@@ -300,11 +300,15 @@ export default function GroceryPage() {
     }
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     if (confirm(`Are you sure you want to delete ${selectedIds.length} selected expenses?`)) {
-      deleteGroceryEntries(selectedIds);
-      setSelectedIds([]);
-      toast.success("Selected expenses deleted successfully.");
+      try {
+        await deleteGroceryEntries(selectedIds);
+        setSelectedIds([]);
+        toast.success("Selected expenses deleted successfully.");
+      } catch (err: any) {
+        toast.error(err?.message || "Failed to delete selected expenses.");
+      }
     }
   };
 

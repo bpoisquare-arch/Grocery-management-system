@@ -32,11 +32,11 @@ export function DeleteGroceryModal({ open, onOpenChange, entry }: DeleteGroceryM
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      deleteGroceryEntry(entry.id);
+      await deleteGroceryEntry(entry.id);
       toast.success(`Grocery entry deleted successfully.`);
       onOpenChange(false);
     } catch (err) {
-      toast.error("Something went wrong. Unable to delete entry.");
+      toast.error(err?.message || "Something went wrong. Unable to delete entry.");
     } finally {
       setIsDeleting(false);
     }

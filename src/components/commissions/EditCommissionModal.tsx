@@ -330,7 +330,7 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
       toast.success(`Commission entry for ${studentName} updated successfully.`);
     } catch (err) {
       setIsLoading(false);
-      toast.error("Failed to update commission entry. Please try again.");
+      toast.error(err?.message || "Failed to update commission entry. Please try again.");
     }
   };
 

@@ -322,8 +322,8 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
         continue;
       }
 
-      if (isPdf && file.size > 30 * 1024 * 1024) {
-        toast.error(`"${file.name}" exceeds the 30MB limit for PDF files.`);
+      if (isPdf && file.size > 5 * 1024 * 1024) {
+        toast.error(`"${file.name}" exceeds the 5MB limit for PDF files.`);
         continue;
       }
 
@@ -440,7 +440,7 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
       onOpenChange(false);
     } catch (err) {
       console.error(err);
-      toast.error("Unable to update grocery.");
+      toast.error(err?.message || "Unable to update grocery in database.");
     } finally {
       setIsSubmitting(false);
     }

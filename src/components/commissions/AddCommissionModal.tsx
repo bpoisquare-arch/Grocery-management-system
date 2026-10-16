@@ -315,7 +315,7 @@ export function AddCommissionModal({ open, onOpenChange }: AddCommissionModalPro
       resetForm();
     } catch (err) {
       setIsLoading(false);
-      toast.error("Failed to add commission entry. Please try again.");
+      toast.error(err?.message || "Failed to add commission entry. Please try again.");
     }
   };
 

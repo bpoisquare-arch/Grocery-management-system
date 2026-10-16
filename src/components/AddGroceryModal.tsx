@@ -247,9 +247,9 @@ export function AddGroceryModal({ open, onOpenChange }: AddGroceryModalProps) {
       }
 
       // Max size: 30MB for PDF, 10MB for images
-      const maxSize = isPdf ? 30 * 1024 * 1024 : 10 * 1024 * 1024;
+      const maxSize = isPdf ? 5 * 1024 * 1024 : 10 * 1024 * 1024;
       if (file.size > maxSize) {
-        toast.error(`"${file.name}" exceeds the ${isPdf ? "30MB" : "10MB"} limit.`);
+        toast.error(`"${file.name}" exceeds the ${isPdf ? "5MB" : "10MB"} limit for documents.`);
         continue;
       }
 
@@ -344,7 +344,7 @@ export function AddGroceryModal({ open, onOpenChange }: AddGroceryModalProps) {
       resetForm();
     } catch (err) {
       console.error(err);
-      toast.error("Unable to save grocery.");
+      toast.error(err?.message || "Unable to save grocery to database.");
     } finally {
       setIsSubmitting(false);
     }

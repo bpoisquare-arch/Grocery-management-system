@@ -174,12 +174,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // Function to load live data from database API routes
   const refreshData = useCallback(async () => {
     try {
+      const ts = Date.now();
       const [groceriesRes, categoriesRes, budgetsRes, commissionsRes, counselorsRes] = await Promise.all([
-        fetch('/api/groceries'),
-        fetch('/api/categories'),
-        fetch('/api/budgets'),
-        fetch('/api/commissions'),
-        fetch('/api/counselors'),
+        fetch(`/api/groceries?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } }),
+        fetch(`/api/categories?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } }),
+        fetch(`/api/budgets?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } }),
+        fetch(`/api/commissions?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } }),
+        fetch(`/api/counselors?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } }),
       ]);
 
       if (groceriesRes.ok) {
@@ -352,6 +353,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
       // Fetch live updates from database
       refreshData();
+
+      // Real-time Auto-Sync: Re-fetch live DB when tab comes into focus
+      const handleFocus = () => {
+        refreshData();
+      };
+      window.addEventListener('focus', handleFocus);
+
+      // Periodic Auto-Sync: Re-fetch every 30 seconds across laptops
+      const intervalId = setInterval(() => {
+        refreshData();
+      }, 30000);
+
+      return () => {
+        window.removeEventListener('focus', handleFocus);
+        clearInterval(intervalId);
+      };
     }
   }, [refreshData]);
 
@@ -668,46 +685,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       slipType,
     };
 
-    try {
-      const res = await fetch('/api/groceries', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+    const res = await fetch('/api/groceries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
 
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data) {
-          const updated = [json.data, ...groceryEntries];
-          setGroceryEntries(updated);
-          safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
-          return;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to post grocery to API, saving locally:', e);
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok || !json?.success || !json?.data) {
+      const errMsg = json?.error || `Server responded with status ${res.status}: Failed to save grocery to database.`;
+      console.error('Failed to post grocery to API:', errMsg);
+      throw new Error(errMsg);
     }
 
-    // Local fallback
-    const newEntry: GroceryEntry = {
-      id: `grocery-${Date.now()}`,
-      entity: activeEntity,
-      date: entry.date,
-      budgetMonth: assignedBudgetMonth,
-      budgetYear: assignedBudgetYear,
-      details: entry.details,
-      category: entry.category,
-      amount: entry.amount,
-      addedBy: currentUser ? currentUser.name : 'Unknown User',
-      status: computedStatus,
-      slipUrl: primarySlipUrl,
-      slipUrls: finalSlipUrls.length > 0 ? finalSlipUrls : undefined,
-      slipType,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    const updated = [newEntry, ...groceryEntries];
+    const updated = [json.data, ...groceryEntries];
     setGroceryEntries(updated);
     safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
   };
@@ -776,53 +768,37 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       slipType,
     };
 
-    try {
-      const res = await fetch(`/api/groceries/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data) {
-          const updated = groceryEntries.map((entry) => (entry.id === id ? json.data : entry));
-          setGroceryEntries(updated);
-          safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
-          return;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to update grocery via API:', e);
-    }
-
-    // Local fallback
-    const updated = groceryEntries.map((entry) => {
-      if (entry.id === id) {
-        return {
-          ...entry,
-          ...updatedData,
-          status: newStatus,
-          slipUrl: primarySlipUrl,
-          slipUrls: hasSlips ? finalSlipUrls : [],
-          slipType,
-          updatedAt: new Date().toISOString(),
-        };
-      }
-      return entry;
+    const res = await fetch(`/api/groceries/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
     });
 
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok || !json?.success || !json?.data) {
+      const errMsg = json?.error || `Server responded with status ${res.status}: Failed to update grocery in database.`;
+      console.error('Failed to update grocery via API:', errMsg);
+      throw new Error(errMsg);
+    }
+
+    const updated = groceryEntries.map((entry) => (entry.id === id ? json.data : entry));
     setGroceryEntries(updated);
     safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
   };
 
   const deleteGroceryEntry = async (id: string) => {
-    if (currentUser?.role !== 'ADMIN') return;
+    if (currentUser?.role !== 'ADMIN') {
+      throw new Error('Only administrators can delete grocery expenses.');
+    }
 
-    try {
-      await fetch(`/api/groceries/${id}`, { method: 'DELETE' });
-    } catch (e) {
-      console.error('Failed to delete grocery via API:', e);
+    const res = await fetch(`/api/groceries/${id}`, { method: 'DELETE' });
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok || !json?.success) {
+      const errMsg = json?.error || `Server responded with status ${res.status}: Failed to delete grocery entry from database.`;
+      console.error('Failed to delete grocery via API:', errMsg);
+      throw new Error(errMsg);
     }
 
     const updated = groceryEntries.filter((entry) => entry.id !== id);
@@ -831,16 +807,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteGroceryEntries = async (ids: string[]) => {
-    if (currentUser?.role !== 'ADMIN') return;
+    if (currentUser?.role !== 'ADMIN') {
+      throw new Error('Only administrators can delete grocery expenses.');
+    }
 
-    try {
-      await fetch('/api/groceries/bulk-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids }),
-      });
-    } catch (e) {
-      console.error('Failed to bulk delete groceries via API:', e);
+    const res = await fetch('/api/groceries/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok || !json?.success) {
+      const errMsg = json?.error || `Server responded with status ${res.status}: Failed to delete selected expenses from database.`;
+      console.error('Failed to bulk delete groceries via API:', errMsg);
+      throw new Error(errMsg);
     }
 
     const updated = groceryEntries.filter((entry) => !ids.includes(entry.id));
@@ -849,44 +831,30 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const approveEntryWithoutSlip = async (id: string) => {
-    if (currentUser?.role !== 'ADMIN') return;
+    if (currentUser?.role !== 'ADMIN') {
+      throw new Error('Only administrators can approve expenses without slips.');
+    }
 
     const payload = {
       status: 'Approved Without Slip',
       approvedByAdmin: true,
     };
 
-    try {
-      const res = await fetch(`/api/groceries/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+    const res = await fetch(`/api/groceries/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
 
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data) {
-          const updated = groceryEntries.map((entry) => (entry.id === id ? json.data : entry));
-          setGroceryEntries(updated);
-          safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
-          return;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to approve without slip via API:', e);
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok || !json?.success || !json?.data) {
+      const errMsg = json?.error || `Server responded with status ${res.status}: Failed to approve entry in database.`;
+      console.error('Failed to approve without slip via API:', errMsg);
+      throw new Error(errMsg);
     }
 
-    const updated = groceryEntries.map((entry) => {
-      if (entry.id === id) {
-        return {
-          ...entry,
-          status: 'Approved Without Slip' as SlipStatus,
-          approvedByAdmin: true,
-          updatedAt: new Date().toISOString(),
-        };
-      }
-      return entry;
-    });
+    const updated = groceryEntries.map((entry) => (entry.id === id ? json.data : entry));
     setGroceryEntries(updated);
     safeSetLocalStorage('gem_grocery', JSON.stringify(updated));
   };
@@ -1198,52 +1166,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       slipType,
     };
 
-    try {
-      const res = await fetch('/api/commissions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+    const res = await fetch('/api/commissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
 
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data) {
-          const updated = [json.data, ...commissionEntries];
-          setCommissionEntries(updated);
-          safeSetLocalStorage('gem_commissions', JSON.stringify(updated));
-          return;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to post commission to API, saving locally:', e);
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok || !json?.success || !json?.data) {
+      const errMsg = json?.error || `Server responded with status ${res.status}: Failed to save commission entry to database.`;
+      console.error('Failed to post commission to API:', errMsg);
+      throw new Error(errMsg);
     }
 
-    // Local fallback
-    const newEntry: CommissionEntry = {
-      id: `comm-${Date.now()}`,
-      entity: activeEntity,
-      studentName: entry.studentName,
-      service: entry.service,
-      counselor: entry.counselor,
-      amount: entry.amount,
-      date: entry.date,
-      fullReceived: entry.fullReceived,
-      counselorCommission: entry.counselorCommission || 0,
-      bmCommission: entry.bmCommission || 0,
-      claimedMonth: finalClaimedMonth,
-      claimedYear: finalClaimedYear,
-      isClaimed: finalIsClaimed,
-      claimedAt: finalIsClaimed ? new Date().toISOString() : undefined,
-      notes: entry.notes,
-      status: finalSlipUrls.length > 0 ? 'Slip Uploaded' : 'Slip Missing',
-      slipUrl: primarySlipUrl,
-      slipUrls: finalSlipUrls.length > 0 ? finalSlipUrls : undefined,
-      slipType,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    const updated = [newEntry, ...commissionEntries];
+    const updated = [json.data, ...commissionEntries];
     setCommissionEntries(updated);
     safeSetLocalStorage('gem_commissions', JSON.stringify(updated));
   };
@@ -1318,50 +1255,33 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       slipType,
     };
 
-    try {
-      const res = await fetch(`/api/commissions/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data) {
-          const updated = commissionEntries.map((entry) => (entry.id === id ? json.data : entry));
-          setCommissionEntries(updated);
-          safeSetLocalStorage('gem_commissions', JSON.stringify(updated));
-          return;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to update commission via API:', e);
-    }
-
-    const updated = commissionEntries.map((entry) => {
-      if (entry.id === id) {
-        return {
-          ...entry,
-          ...updatedData,
-          status: newStatus,
-          slipUrl: primarySlipUrl,
-          slipUrls: hasSlips ? finalSlipUrls : [],
-          slipType,
-          updatedAt: new Date().toISOString(),
-        };
-      }
-      return entry;
+    const res = await fetch(`/api/commissions/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
     });
 
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok || !json?.success || !json?.data) {
+      const errMsg = json?.error || `Server responded with status ${res.status}: Failed to update commission entry in database.`;
+      console.error('Failed to update commission via API:', errMsg);
+      throw new Error(errMsg);
+    }
+
+    const updated = commissionEntries.map((entry) => (entry.id === id ? json.data : entry));
     setCommissionEntries(updated);
     safeSetLocalStorage('gem_commissions', JSON.stringify(updated));
   };
 
   const deleteCommissionEntry = async (id: string) => {
-    try {
-      await fetch(`/api/commissions/${id}`, { method: 'DELETE' });
-    } catch (e) {
-      console.error('Failed to delete commission via API:', e);
+    const res = await fetch(`/api/commissions/${id}`, { method: 'DELETE' });
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok || !json?.success) {
+      const errMsg = json?.error || `Server responded with status ${res.status}: Failed to delete commission from database.`;
+      console.error('Failed to delete commission via API:', errMsg);
+      throw new Error(errMsg);
     }
 
     const updated = commissionEntries.filter((entry) => entry.id !== id);
@@ -1370,14 +1290,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteCommissionEntries = async (ids: string[]) => {
-    try {
-      await fetch('/api/commissions/bulk-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids }),
-      });
-    } catch (e) {
-      console.error('Failed to bulk delete commissions via API:', e);
+    const res = await fetch('/api/commissions/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok || !json?.success) {
+      const errMsg = json?.error || `Server responded with status ${res.status}: Failed to bulk delete commissions from database.`;
+      console.error('Failed to bulk delete commissions via API:', errMsg);
+      throw new Error(errMsg);
     }
 
     const updated = commissionEntries.filter((entry) => !ids.includes(entry.id));
@@ -1402,38 +1326,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       bmServiceCommissions: counselor.bmServiceCommissions || { ...defaultBmServiceCommissions },
     };
 
-    try {
-      const res = await fetch('/api/counselors', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+    const res = await fetch('/api/counselors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
 
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data) {
-          const updated = [...counselors, json.data];
-          setCounselors(updated);
-          safeSetLocalStorage('gem_counselors', JSON.stringify(updated));
-          return;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to add counselor via API:', e);
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok || !json?.success || !json?.data) {
+      const errMsg = json?.error || `Server responded with status ${res.status}: Failed to save counselor to database.`;
+      console.error('Failed to add counselor via API:', errMsg);
+      throw new Error(errMsg);
     }
 
-    const newCounselor: Counselor = {
-      id: `coun-${Date.now()}`,
-      name: counselor.name,
-      entity: counselor.entity || 'All',
-      email: counselor.email,
-      phone: counselor.phone,
-      serviceCommissions: counselor.serviceCommissions || { ...defaultServiceCommissions },
-      bmServiceCommissions: counselor.bmServiceCommissions || { ...defaultBmServiceCommissions },
-      createdAt: new Date().toISOString(),
-    };
-
-    const updated = [...counselors, newCounselor];
+    const updated = [...counselors, json.data];
     setCounselors(updated);
     safeSetLocalStorage('gem_counselors', JSON.stringify(updated));
   };
@@ -1449,44 +1356,33 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       bmServiceCommissions?: CounselorServiceCommissions;
     }
   ) => {
-    try {
-      const res = await fetch(`/api/counselors/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
+    const res = await fetch(`/api/counselors/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
 
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data) {
-          const updated = counselors.map((c) => (c.id === id ? json.data : c));
-          setCounselors(updated);
-          safeSetLocalStorage('gem_counselors', JSON.stringify(updated));
-          return;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to update counselor via API:', e);
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok || !json?.success || !json?.data) {
+      const errMsg = json?.error || `Server responded with status ${res.status}: Failed to update counselor in database.`;
+      console.error('Failed to update counselor via API:', errMsg);
+      throw new Error(errMsg);
     }
 
-    const updated = counselors.map((c) => {
-      if (c.id === id) {
-        return {
-          ...c,
-          ...data,
-        };
-      }
-      return c;
-    });
+    const updated = counselors.map((c) => (c.id === id ? json.data : c));
     setCounselors(updated);
     safeSetLocalStorage('gem_counselors', JSON.stringify(updated));
   };
 
   const deleteCounselor = async (id: string) => {
-    try {
-      await fetch(`/api/counselors/${id}`, { method: 'DELETE' });
-    } catch (e) {
-      console.error('Failed to delete counselor via API:', e);
+    const res = await fetch(`/api/counselors/${id}`, { method: 'DELETE' });
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok || !json?.success) {
+      const errMsg = json?.error || `Server responded with status ${res.status}: Failed to delete counselor from database.`;
+      console.error('Failed to delete counselor via API:', errMsg);
+      throw new Error(errMsg);
     }
 
     const updated = counselors.filter((c) => c.id !== id);
