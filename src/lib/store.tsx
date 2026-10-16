@@ -173,6 +173,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Function to load live data from database API routes
   const refreshData = useCallback(async () => {
+    setIsLoading(true);
     try {
       const ts = Date.now();
       const [groceriesRes, categoriesRes, budgetsRes, commissionsRes, counselorsRes] = await Promise.all([

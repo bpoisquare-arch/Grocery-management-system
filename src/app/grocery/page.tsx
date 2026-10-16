@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -67,6 +68,7 @@ import autoTable from "jspdf-autotable";
 export default function GroceryPage() {
   const {
     currentUser,
+    isLoading,
     activeEntity,
     refreshData,
     groceryEntries,
@@ -614,9 +616,13 @@ export default function GroceryPage() {
                 <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                   Effective Budget
                 </p>
-                <p className="text-xl font-bold text-gray-900 mt-1">
-                  Rs. {totalBudget.toLocaleString()}
-                </p>
+                {isLoading ? (
+                  <Skeleton className="h-7 w-28 mt-1.5 rounded-md bg-slate-200" />
+                ) : (
+                  <p className="text-xl font-bold text-gray-900 mt-1">
+                    Rs. {totalBudget.toLocaleString()}
+                  </p>
+                )}
                 <div className="text-[10px] text-gray-500 font-medium mt-0.5">
                   <span>{getSelectedPeriodLabel()}</span>
                   {currentPeriodBreakdown.carryoverBalance !== 0 && (
@@ -639,9 +645,13 @@ export default function GroceryPage() {
                 <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                   Total Spent
                 </p>
-                <p className="text-xl font-bold text-emerald-700 mt-1">
-                  Rs. {totalSpent.toLocaleString()}
-                </p>
+                {isLoading ? (
+                  <Skeleton className="h-7 w-28 mt-1.5 rounded-md bg-slate-200" />
+                ) : (
+                  <p className="text-xl font-bold text-emerald-700 mt-1">
+                    Rs. {totalSpent.toLocaleString()}
+                  </p>
+                )}
                 <span className="text-[10px] text-emerald-600 font-medium">
                   Assigned to this budget
                 </span>
@@ -659,9 +669,13 @@ export default function GroceryPage() {
                 <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                   Remaining Balance
                 </p>
-                <p className={cn("text-xl font-bold mt-1", isOverBudget ? "text-red-600" : "text-emerald-700")}>
-                  Rs. {remainingBalance.toLocaleString()}
-                </p>
+                {isLoading ? (
+                  <Skeleton className="h-7 w-28 mt-1.5 rounded-md bg-slate-200" />
+                ) : (
+                  <p className={cn("text-xl font-bold mt-1", isOverBudget ? "text-red-600" : "text-emerald-700")}>
+                    Rs. {remainingBalance.toLocaleString()}
+                  </p>
+                )}
                 <span className={cn("text-[10px] font-medium", isOverBudget ? "text-red-500" : "text-gray-500")}>
                   {isOverBudget ? "Over budget limit" : "Available to spend"}
                 </span>
@@ -679,9 +693,13 @@ export default function GroceryPage() {
                 <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                   Total Entries
                 </p>
-                <p className="text-xl font-bold text-gray-900 mt-1">
-                  {totalEntriesCount}
-                </p>
+                {isLoading ? (
+                  <Skeleton className="h-7 w-16 mt-1.5 rounded-md bg-slate-200" />
+                ) : (
+                  <p className="text-xl font-bold text-gray-900 mt-1">
+                    {totalEntriesCount}
+                  </p>
+                )}
                 <span className="text-[10px] text-gray-500 font-medium">
                   Recorded in {getSelectedPeriodLabel()}
                 </span>
@@ -874,7 +892,41 @@ export default function GroceryPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedEntries.length === 0 ? (
+                  {isLoading ? (
+                    Array.from({ length: 6 }).map((_, idx) => (
+                      <TableRow key={`skeleton-${idx}`} className="border-b border-gray-100 h-14">
+                        {isAdmin && (
+                          <TableCell className="text-center">
+                            <Skeleton className="h-4 w-4 rounded mx-auto bg-slate-200" />
+                          </TableCell>
+                        )}
+                        <TableCell className="text-center">
+                          <Skeleton className="h-5 w-5 rounded-full mx-auto bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-20 bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-5 w-24 rounded-full bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-44 bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-8 w-36 rounded-md bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-20 bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-5 w-20 rounded-full bg-slate-200" />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Skeleton className="h-8 w-8 rounded-lg ml-auto bg-slate-200" />
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : paginatedEntries.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={isAdmin ? 9 : 8} className="h-64 text-center">
                         <div className="flex flex-col items-center justify-center gap-2 p-6 text-gray-400">
