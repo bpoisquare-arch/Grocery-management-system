@@ -438,9 +438,9 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
 
       toast.success("Grocery updated successfully.");
       onOpenChange(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast.error(err?.message || "Unable to update grocery in database.");
+      toast.error((err as any)?.message || "Unable to update grocery in database.");
     } finally {
       setIsSubmitting(false);
     }

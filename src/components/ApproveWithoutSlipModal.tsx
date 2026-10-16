@@ -39,8 +39,8 @@ export function ApproveWithoutSlipModal({
       await approveEntryWithoutSlip(entry.id);
       toast.success("Grocery approved without slip.");
       onOpenChange(false);
-    } catch (err) {
-      toast.error(err?.message || "Something went wrong. Unable to approve entry.");
+    } catch (err: any) {
+      toast.error((err as any)?.message || "Something went wrong. Unable to approve entry.");
     } finally {
       setIsApproving(false);
     }

@@ -313,9 +313,9 @@ export function AddCommissionModal({ open, onOpenChange }: AddCommissionModalPro
       onOpenChange(false);
       toast.success(`Commission entry for ${studentName} added with ${slipItems.length} slip(s).`);
       resetForm();
-    } catch (err) {
+    } catch (err: any) {
       setIsLoading(false);
-      toast.error(err?.message || "Failed to add commission entry. Please try again.");
+      toast.error((err as any)?.message || "Failed to add commission entry. Please try again.");
     }
   };
 

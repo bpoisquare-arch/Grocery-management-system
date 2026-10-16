@@ -342,9 +342,9 @@ export function AddGroceryModal({ open, onOpenChange }: AddGroceryModalProps) {
       toast.success(`Grocery expense of Rs. ${newAmount.toLocaleString()} added for ${assignedBudgetMonth} ${assignedBudgetYear} with ${slipItems.length} slip(s).`);
       onOpenChange(false);
       resetForm();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast.error(err?.message || "Unable to save grocery to database.");
+      toast.error((err as any)?.message || "Unable to save grocery to database.");
     } finally {
       setIsSubmitting(false);
     }
