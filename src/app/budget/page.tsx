@@ -40,8 +40,14 @@ export default function BudgetPage() {
     clearAllBudgets,
     calculateEntityBudgetChain,
     getEntityBudgetBreakdown,
+    isLoading,
+    loadGroceryData,
   } = useStore();
   const router = useRouter();
+
+  useEffect(() => {
+    loadGroceryData();
+  }, [loadGroceryData]);
 
   // Form States
   const [formEntity, setFormEntity] = useState<Entity>("Lahore");
@@ -383,7 +389,29 @@ export default function BudgetPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sortedHistory.length === 0 ? (
+                    {isLoading ? (
+                      Array.from({ length: 4 }).map((_, idx) => (
+                        <TableRow key={`budget-skeleton-${idx}`} className="border-b border-gray-100 h-16">
+                          <TableCell className="py-3 px-3">
+                            <Skeleton className="h-4 w-20 bg-slate-200" />
+                            <Skeleton className="h-3 w-16 bg-slate-200 mt-1" />
+                          </TableCell>
+                          <TableCell className="py-3 px-3">
+                            <Skeleton className="h-4 w-24 bg-slate-200" />
+                            <Skeleton className="h-3 w-32 bg-slate-200 mt-1" />
+                          </TableCell>
+                          <TableCell className="py-3 px-3">
+                            <Skeleton className="h-4 w-20 bg-slate-200" />
+                          </TableCell>
+                          <TableCell className="py-3 px-3">
+                            <Skeleton className="h-4 w-20 bg-slate-200" />
+                          </TableCell>
+                          <TableCell className="py-3 px-3 text-right">
+                            <Skeleton className="h-8 w-8 rounded-lg ml-auto bg-slate-200" />
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : sortedHistory.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={5} className="h-32 text-center text-gray-400 text-sm">
                           <div className="flex flex-col items-center justify-center gap-1.5">

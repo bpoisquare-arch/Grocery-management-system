@@ -70,6 +70,7 @@ export default function GroceryPage() {
   const {
     currentUser,
     isLoading,
+    loadGroceryData,
     activeEntity,
     refreshData,
     groceryEntries,
@@ -84,6 +85,10 @@ export default function GroceryPage() {
   } = useStore();
   const isAdmin = currentUser?.role === "ADMIN";
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    loadGroceryData();
+  }, [loadGroceryData]);
 
   const currentRealMonth = format(new Date(), "MMMM");
   const currentRealYear = new Date().getFullYear();

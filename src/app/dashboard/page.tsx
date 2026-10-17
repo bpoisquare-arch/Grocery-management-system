@@ -11,6 +11,7 @@ import { ViewGroceryModal } from "@/components/ViewGroceryModal";
 import { EditGroceryModal } from "@/components/EditGroceryModal";
 import { ApproveWithoutSlipModal } from "@/components/ApproveWithoutSlipModal";
 import { DeleteGroceryModal } from "@/components/DeleteGroceryModal";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,7 +62,13 @@ export default function DashboardPage() {
     groceryEntries,
     getEntityBudget,
     getEntityBudgetBreakdown,
+    isLoading,
+    loadGroceryData,
   } = useStore();
+
+  React.useEffect(() => {
+    loadGroceryData();
+  }, [loadGroceryData]);
 
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [viewModalOpen, setViewModalOpen] = useState(false);
@@ -298,9 +305,13 @@ export default function DashboardPage() {
                 <CoinsIcon className="size-4 text-emerald-600" />
               </div>
               <div>
-                <div className="text-2xl font-black text-gray-900">
-                  Rs. {totalBudget.toLocaleString()}
-                </div>
+                {isLoading ? (
+                  <Skeleton className="h-8 w-28 mt-1 rounded-md bg-slate-200" />
+                ) : (
+                  <div className="text-2xl font-black text-gray-900">
+                    Rs. {totalBudget.toLocaleString()}
+                  </div>
+                )}
                 <div className="text-[10px] text-gray-500 font-semibold mt-1">
                   <span>{selectedPeriod === "all" ? "Allocated Monthly Budget" : `Effective for ${getPeriodLabel()}`}</span>
                   {dashboardBreakdown.carryoverBalance !== 0 && (
@@ -321,9 +332,13 @@ export default function DashboardPage() {
                 <TrendingUpIcon className="size-4 text-emerald-600" />
               </div>
               <div>
-                <div className="text-2xl font-black text-emerald-600">
-                  Rs. {totalSpent.toLocaleString()}
-                </div>
+                {isLoading ? (
+                  <Skeleton className="h-8 w-28 mt-1 rounded-md bg-slate-200" />
+                ) : (
+                  <div className="text-2xl font-black text-emerald-600">
+                    Rs. {totalSpent.toLocaleString()}
+                  </div>
+                )}
                 <div className="text-[10px] text-gray-500 font-semibold mt-1">
                   {usagePercentage}% of monthly budget used
                 </div>
@@ -339,14 +354,18 @@ export default function DashboardPage() {
                 <CreditCardIcon className={cn("size-4", isOverBudget ? "text-red-500" : "text-emerald-600")} />
               </div>
               <div>
-                <div className={cn("text-2xl font-black flex items-center gap-1.5", isOverBudget ? "text-red-600" : "text-gray-900")}>
-                  {remainingBalance < 0 ? "-" : ""}Rs. {Math.abs(remainingBalance).toLocaleString()}
-                  {isOverBudget && (
-                    <Badge variant="destructive" className="text-[8px] bg-red-100 text-red-700 font-bold border-none px-1 rounded hover:bg-red-100 uppercase h-fit py-0">
-                      Over Budget
-                    </Badge>
-                  )}
-                </div>
+                {isLoading ? (
+                  <Skeleton className="h-8 w-28 mt-1 rounded-md bg-slate-200" />
+                ) : (
+                  <div className={cn("text-2xl font-black flex items-center gap-1.5", isOverBudget ? "text-red-600" : "text-gray-900")}>
+                    {remainingBalance < 0 ? "-" : ""}Rs. {Math.abs(remainingBalance).toLocaleString()}
+                    {isOverBudget && (
+                      <Badge variant="destructive" className="text-[8px] bg-red-100 text-red-700 font-bold border-none px-1 rounded hover:bg-red-100 uppercase h-fit py-0">
+                        Over Budget
+                      </Badge>
+                    )}
+                  </div>
+                )}
                 <div className="text-[10px] text-gray-500 font-semibold mt-1">
                   {isOverBudget ? "Allocated budget exceeded" : "Available to spend"}
                 </div>
@@ -362,9 +381,13 @@ export default function DashboardPage() {
                 <ShoppingBagIcon className="size-4 text-emerald-600" />
               </div>
               <div>
-                <div className="text-2xl font-black text-gray-900">
-                  {totalEntriesCount}
-                </div>
+                {isLoading ? (
+                  <Skeleton className="h-8 w-16 mt-1 rounded-md bg-slate-200" />
+                ) : (
+                  <div className="text-2xl font-black text-gray-900">
+                    {totalEntriesCount}
+                  </div>
+                )}
                 <div className="text-[10px] text-gray-500 font-semibold mt-1">
                   {selectedPeriod === "all" ? `Total entries for ${activeEntity}` : `Entries in ${getPeriodLabel()}`}
                 </div>
@@ -401,7 +424,30 @@ export default function DashboardPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {recentEntries.length === 0 ? (
+                  {isLoading ? (
+                    Array.from({ length: 5 }).map((_, idx) => (
+                      <TableRow key={`dash-skeleton-${idx}`} className="border-b border-gray-100 h-14">
+                        <TableCell className="text-center">
+                          <Skeleton className="h-5 w-5 rounded-full mx-auto bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-24 bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-44 bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-20 bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-5 w-20 rounded-full bg-slate-200" />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Skeleton className="h-8 w-8 rounded-lg ml-auto bg-slate-200" />
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : recentEntries.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="h-32 text-center text-gray-400 text-sm">
                         No Grocery Entries Yet. Add grocery expenses.

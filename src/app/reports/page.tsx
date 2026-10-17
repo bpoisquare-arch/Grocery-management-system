@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -39,8 +40,12 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export default function ReportsPage() {
-  const { currentUser, activeEntity, groceryEntries, categories, currentMonth, currentYear, getEntityBudget } = useStore();
+  const { currentUser, activeEntity, groceryEntries, categories, currentMonth, currentYear, getEntityBudget, isLoading, loadGroceryData } = useStore();
   const isAdmin = currentUser?.role === "ADMIN";
+
+  React.useEffect(() => {
+    loadGroceryData();
+  }, [loadGroceryData]);
 
   const isLahoreUser = currentUser?.role === "LAHORE_USER";
 
@@ -497,26 +502,42 @@ export default function ReportsPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50/50 p-4 rounded-xl border border-gray-100/50">
               <div className="space-y-1">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Total Monthly Budget</span>
-                <div className="text-base font-bold text-gray-900">Rs. {totalBudget.toLocaleString()}</div>
+                {isLoading ? (
+                  <Skeleton className="h-6 w-24 bg-slate-200 mt-1" />
+                ) : (
+                  <div className="text-base font-bold text-gray-900">Rs. {totalBudget.toLocaleString()}</div>
+                )}
               </div>
               <div className="space-y-1">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Total Spent</span>
-                <div className="text-base font-bold text-emerald-600">Rs. {totalSpent.toLocaleString()}</div>
+                {isLoading ? (
+                  <Skeleton className="h-6 w-24 bg-slate-200 mt-1" />
+                ) : (
+                  <div className="text-base font-bold text-emerald-600">Rs. {totalSpent.toLocaleString()}</div>
+                )}
               </div>
               <div className="space-y-1">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Remaining Balance</span>
-                <div className={cn("text-base font-bold flex items-center gap-1.5", isOverBudget ? "text-red-600" : "text-gray-900")}>
-                  {remainingBalance < 0 ? "-" : ""}Rs. {Math.abs(remainingBalance).toLocaleString()}
-                  {isOverBudget && (
-                    <Badge variant="destructive" className="text-[8px] bg-red-100 text-red-700 font-bold border-none px-1 rounded hover:bg-red-100 uppercase h-fit py-0">
-                      Over Budget
-                    </Badge>
-                  )}
-                </div>
+                {isLoading ? (
+                  <Skeleton className="h-6 w-24 bg-slate-200 mt-1" />
+                ) : (
+                  <div className={cn("text-base font-bold flex items-center gap-1.5", isOverBudget ? "text-red-600" : "text-gray-900")}>
+                    {remainingBalance < 0 ? "-" : ""}Rs. {Math.abs(remainingBalance).toLocaleString()}
+                    {isOverBudget && (
+                      <Badge variant="destructive" className="text-[8px] bg-red-100 text-red-700 font-bold border-none px-1 rounded hover:bg-red-100 uppercase h-fit py-0">
+                        Over Budget
+                      </Badge>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="space-y-1">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Total Grocery Entries</span>
-                <div className="text-base font-bold text-gray-900">{totalEntriesCount}</div>
+                {isLoading ? (
+                  <Skeleton className="h-6 w-12 bg-slate-200 mt-1" />
+                ) : (
+                  <div className="text-base font-bold text-gray-900">{totalEntriesCount}</div>
+                )}
               </div>
             </div>
 
@@ -534,7 +555,30 @@ export default function ReportsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredEntries.length === 0 ? (
+                  {isLoading ? (
+                    Array.from({ length: 5 }).map((_, idx) => (
+                      <TableRow key={`rep-skeleton-${idx}`} className="border-b border-gray-100 h-14">
+                        <TableCell className="text-center">
+                          <Skeleton className="h-5 w-5 rounded-full mx-auto bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-20 bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-48 bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-5 w-20 rounded-full bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-16 bg-slate-200" />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Skeleton className="h-5 w-20 rounded-full ml-auto bg-slate-200" />
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : filteredEntries.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="h-48 text-center text-gray-400 text-sm">
                         No transactions found in this date range matching the search parameters.

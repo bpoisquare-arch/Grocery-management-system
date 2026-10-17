@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   User,
   GroceryEntry,
@@ -42,6 +42,10 @@ interface StoreContextType {
   currentMonth: string;
   currentYear: number;
   isLoading: boolean;
+  isGroceryLoading: boolean;
+  isCommissionLoading: boolean;
+  loadGroceryData: (force?: boolean) => Promise<void>;
+  loadCommissionData: (force?: boolean) => Promise<void>;
   login: (email: string, password?: string) => Promise<{ success: boolean; error?: string; user?: User }>;
   logout: () => Promise<void>;
   switchEntity: (entity: Entity) => void;
@@ -169,61 +173,100 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [currentMonth, setCurrentMonthState] = useState<string>('August');
   const [currentYear, setCurrentYearState] = useState<number>(2026);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isGroceryLoading, setIsGroceryLoading] = useState<boolean>(true);
+  const [isCommissionLoading, setIsCommissionLoading] = useState<boolean>(false);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Function to load live data from database API routes
-  const refreshData = useCallback(async () => {
-    setIsLoading(true);
+  const groceryLoadedRef = useRef(false);
+  const commissionLoadedRef = useRef(false);
+
+  // Lazy load Grocery data (Groceries, Categories, Budgets) independently without blocking
+  const loadGroceryData = useCallback(async (force = false) => {
+    if (groceryLoadedRef.current && !force) {
+      setIsGroceryLoading(false);
+      return;
+    }
+    setIsGroceryLoading(true);
     try {
       const ts = Date.now();
-      const [groceriesRes, categoriesRes, budgetsRes, commissionsRes, counselorsRes] = await Promise.all([
-        fetch(`/api/groceries?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } }),
-        fetch(`/api/categories?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } }),
-        fetch(`/api/budgets?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } }),
-        fetch(`/api/commissions?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } }),
-        fetch(`/api/counselors?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } }),
-      ]);
+      const pGroceries = fetch(`/api/groceries?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((json) => {
+          if (json?.success && Array.isArray(json.data)) {
+            setGroceryEntries(json.data);
+          }
+        })
+        .catch((err) => console.error('Error fetching groceries:', err));
 
-      if (groceriesRes.ok) {
-        const groceriesJson = await groceriesRes.json();
-        if (groceriesJson.success && Array.isArray(groceriesJson.data)) {
-          setGroceryEntries(groceriesJson.data);
-                  }
-      }
+      const pCategories = fetch(`/api/categories?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((json) => {
+          if (json?.success && Array.isArray(json.data) && json.data.length > 0) {
+            setCategories(json.data);
+          }
+        })
+        .catch((err) => console.error('Error fetching categories:', err));
 
-      if (categoriesRes.ok) {
-        const categoriesJson = await categoriesRes.json();
-        if (categoriesJson.success && Array.isArray(categoriesJson.data) && categoriesJson.data.length > 0) {
-          setCategories(categoriesJson.data);
-                  }
-      }
+      const pBudgets = fetch(`/api/budgets?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((json) => {
+          if (json?.success && Array.isArray(json.data)) {
+            setBudgets(json.data);
+          }
+        })
+        .catch((err) => console.error('Error fetching budgets:', err));
 
-      if (budgetsRes.ok) {
-        const budgetsJson = await budgetsRes.json();
-        if (budgetsJson.success && Array.isArray(budgetsJson.data)) {
-          setBudgets(budgetsJson.data);
-                  }
-      }
-
-      if (commissionsRes.ok) {
-        const commissionsJson = await commissionsRes.json();
-        if (commissionsJson.success && Array.isArray(commissionsJson.data)) {
-          setCommissionEntries(commissionsJson.data);
-                  }
-      }
-
-      if (counselorsRes.ok) {
-        const counselorsJson = await counselorsRes.json();
-        if (counselorsJson.success && Array.isArray(counselorsJson.data)) {
-          setCounselors(counselorsJson.data);
-                  }
-      }
+      await Promise.allSettled([pGroceries, pCategories, pBudgets]);
+      groceryLoadedRef.current = true;
     } catch (error) {
-      console.error('Error fetching live data from database:', error);
+      console.error('Error fetching grocery live data:', error);
     } finally {
-      setIsLoading(false);
+      setIsGroceryLoading(false);
     }
   }, []);
+
+  // Lazy load Commission data (Commissions, Counselors) independently without blocking
+  const loadCommissionData = useCallback(async (force = false) => {
+    if (commissionLoadedRef.current && !force) {
+      setIsCommissionLoading(false);
+      return;
+    }
+    setIsCommissionLoading(true);
+    try {
+      const ts = Date.now();
+      const pCommissions = fetch(`/api/commissions?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((json) => {
+          if (json?.success && Array.isArray(json.data)) {
+            setCommissionEntries(json.data);
+          }
+        })
+        .catch((err) => console.error('Error fetching commissions:', err));
+
+      const pCounselors = fetch(`/api/counselors?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((json) => {
+          if (json?.success && Array.isArray(json.data)) {
+            setCounselors(json.data);
+          }
+        })
+        .catch((err) => console.error('Error fetching counselors:', err));
+
+      await Promise.allSettled([pCommissions, pCounselors]);
+      commissionLoadedRef.current = true;
+    } catch (error) {
+      console.error('Error fetching commission live data:', error);
+    } finally {
+      setIsCommissionLoading(false);
+    }
+  }, []);
+
+  // Function to refresh live data from database API routes
+  const refreshData = useCallback(async () => {
+    setIsLoading(true);
+    await Promise.allSettled([loadGroceryData(true), loadCommissionData(true)]);
+    setIsLoading(false);
+  }, [loadGroceryData, loadCommissionData]);
 
   // Initialize pure live session and live database data (Zero localStorage caching of records)
   useEffect(() => {
@@ -273,10 +316,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           setIsLoaded(true);
         });
 
-      // Pure Live Database Fetch on load
-      refreshData();
+      // Smart Lazy Fetch on initial load: only fetch the module the user is actually visiting
+      const currentPath = window.location.pathname;
+      if (currentPath.startsWith('/commissions')) {
+        loadCommissionData(true);
+      } else {
+        loadGroceryData(true);
+      }
     }
-  }, [refreshData]);
+  }, [loadGroceryData, loadCommissionData]);
 
   // Sync state changes to localStorage
   const saveUser = (user: User | null) => {
@@ -1317,7 +1365,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         counselors,
         currentMonth,
         currentYear,
-        isLoading,
+        isLoading: isGroceryLoading,
+        isGroceryLoading,
+        isCommissionLoading,
+        loadGroceryData,
+        loadCommissionData,
         login,
         logout,
         switchEntity,

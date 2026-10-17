@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -77,8 +78,14 @@ export default function CommissionsDashboardPage() {
     deleteCommissionEntries,
     currentMonth,
     currentYear,
+    isCommissionLoading,
+    loadCommissionData,
   } = useStore();
   const router = useRouter();
+
+  useEffect(() => {
+    loadCommissionData();
+  }, [loadCommissionData]);
 
   const isAdmin = currentUser?.role === "ADMIN";
 
@@ -548,9 +555,13 @@ export default function CommissionsDashboardPage() {
                 <CoinsIcon className="size-4 text-emerald-600" />
               </div>
               <div>
-                <div className="text-2xl font-black text-gray-900">
-                  Rs. {totalAmountCollected.toLocaleString()}
-                </div>
+                {isCommissionLoading ? (
+                  <Skeleton className="h-8 w-28 bg-slate-200 mt-1" />
+                ) : (
+                  <div className="text-2xl font-black text-gray-900">
+                    Rs. {totalAmountCollected.toLocaleString()}
+                  </div>
+                )}
                 <div className="text-[10px] text-gray-500 font-semibold mt-1">
                   Student fees collected for {activeEntity}
                 </div>
@@ -566,9 +577,13 @@ export default function CommissionsDashboardPage() {
                 <BadgePercentIcon className="size-4 text-emerald-600" />
               </div>
               <div>
-                <div className="text-2xl font-black text-emerald-600">
-                  Rs. {totalCounselorCommission.toLocaleString()}
-                </div>
+                {isCommissionLoading ? (
+                  <Skeleton className="h-8 w-28 bg-slate-200 mt-1" />
+                ) : (
+                  <div className="text-2xl font-black text-emerald-600">
+                    Rs. {totalCounselorCommission.toLocaleString()}
+                  </div>
+                )}
                 <div className="text-[10px] text-gray-500 font-semibold mt-1">
                   Payable to {activeEntity} counselors
                 </div>
@@ -584,9 +599,13 @@ export default function CommissionsDashboardPage() {
                 <TrendingUpIcon className="size-4 text-emerald-600" />
               </div>
               <div>
-                <div className="text-2xl font-black text-gray-900">
-                  Rs. {totalBmCommission.toLocaleString()}
-                </div>
+                {isCommissionLoading ? (
+                  <Skeleton className="h-8 w-28 bg-slate-200 mt-1" />
+                ) : (
+                  <div className="text-2xl font-black text-gray-900">
+                    Rs. {totalBmCommission.toLocaleString()}
+                  </div>
+                )}
                 <div className="text-[10px] text-gray-500 font-semibold mt-1">
                   Branch manager commission share
                 </div>
@@ -602,9 +621,13 @@ export default function CommissionsDashboardPage() {
                 <GraduationCapIcon className="size-4 text-emerald-600" />
               </div>
               <div>
-                <div className="text-2xl font-black text-gray-900">
-                  {filteredEntries.length}
-                </div>
+                {isCommissionLoading ? (
+                  <Skeleton className="h-8 w-16 bg-slate-200 mt-1" />
+                ) : (
+                  <div className="text-2xl font-black text-gray-900">
+                    {filteredEntries.length}
+                  </div>
+                )}
                 <div className="text-[10px] text-gray-500 font-semibold mt-1">
                   Total commission entries generated for {activeEntity}
                 </div>
@@ -851,7 +874,47 @@ export default function CommissionsDashboardPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedEntries.length === 0 ? (
+                  {isCommissionLoading ? (
+                    Array.from({ length: 5 }).map((_, idx) => (
+                      <TableRow key={`comm-skeleton-${idx}`} className="border-b border-gray-100 h-14">
+                        {isAdmin && (
+                          <TableCell className="text-center">
+                            <Skeleton className="h-4 w-4 rounded mx-auto bg-slate-200" />
+                          </TableCell>
+                        )}
+                        <TableCell className="text-center">
+                          <Skeleton className="h-5 w-5 rounded-full mx-auto bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-20 bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-32 bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-24 bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-24 bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-16 bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-16 bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-4 w-16 bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="h-5 w-20 rounded-full bg-slate-200" />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Skeleton className="h-8 w-8 rounded-lg ml-auto bg-slate-200" />
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : paginatedEntries.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={isAdmin ? 11 : 10} className="h-64 text-center">
                         <div className="flex flex-col items-center justify-center gap-2 p-6 text-gray-400">
