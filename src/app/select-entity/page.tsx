@@ -28,8 +28,14 @@ export default function SelectEntityPage() {
     switchEntity,
     logout,
     getEntityBudgetBreakdown,
+    isGroceryLoading,
+    loadGroceryData,
   } = useStore();
   const router = useRouter();
+
+  useEffect(() => {
+    loadGroceryData();
+  }, [loadGroceryData]);
 
   const isLahoreUser = currentUser?.role === "LAHORE_USER";
   const isAdmin = currentUser?.role === "ADMIN";
@@ -185,10 +191,14 @@ export default function SelectEntityPage() {
                   <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-semibold text-[10px]">
                     Main Branch
                   </Badge>
-                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md flex items-center gap-1">
-                    <CalendarIcon className="size-3 text-emerald-600" />
-                    {lahoreInfo.month} {lahoreInfo.year}
-                  </span>
+                  {isGroceryLoading && !lahoreInfo.hasAllocatedBudget ? (
+                    <Skeleton className="h-5 w-24 rounded-md bg-slate-200" />
+                  ) : (
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md flex items-center gap-1">
+                      <CalendarIcon className="size-3 text-emerald-600" />
+                      {lahoreInfo.month} {lahoreInfo.year}
+                    </span>
+                  )}
                 </div>
               </div>
               <CardTitle className="text-lg font-bold text-gray-900 mt-3">MAIN LAHORE</CardTitle>
@@ -198,17 +208,29 @@ export default function SelectEntityPage() {
               <div className="grid grid-cols-3 gap-1.5 border-y border-gray-100 py-3 text-center">
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Budget</span>
-                  <span className="text-xs font-bold text-gray-900">Rs. {lahoreInfo.budget.toLocaleString()}</span>
+                  {isGroceryLoading && !lahoreInfo.hasAllocatedBudget ? (
+                    <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
+                  ) : (
+                    <span className="text-xs font-bold text-gray-900">Rs. {lahoreInfo.budget.toLocaleString()}</span>
+                  )}
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Spent</span>
-                  <span className="text-xs font-bold text-emerald-600">Rs. {lahoreInfo.spent.toLocaleString()}</span>
+                  {isGroceryLoading && !lahoreInfo.hasAllocatedBudget ? (
+                    <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
+                  ) : (
+                    <span className="text-xs font-bold text-emerald-600">Rs. {lahoreInfo.spent.toLocaleString()}</span>
+                  )}
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Balance</span>
-                  <span className={`text-xs font-bold ${lahoreInfo.remaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                    Rs. {lahoreInfo.remaining.toLocaleString()}
-                  </span>
+                  {isGroceryLoading && !lahoreInfo.hasAllocatedBudget ? (
+                    <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
+                  ) : (
+                    <span className={`text-xs font-bold ${lahoreInfo.remaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                      Rs. {lahoreInfo.remaining.toLocaleString()}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -216,13 +238,21 @@ export default function SelectEntityPage() {
               <div className="space-y-1">
                 <div className="flex justify-between text-xs font-semibold text-gray-500">
                   <span>Usage</span>
-                  <span>{lahoreInfo.pct}%</span>
+                  {isGroceryLoading && !lahoreInfo.hasAllocatedBudget ? (
+                    <Skeleton className="h-3 w-8 bg-slate-200" />
+                  ) : (
+                    <span>{lahoreInfo.pct}%</span>
+                  )}
                 </div>
                 <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-emerald-600 rounded-full transition-all duration-300"
-                    style={{ width: `${lahoreInfo.pct}%` }}
-                  />
+                  {isGroceryLoading && !lahoreInfo.hasAllocatedBudget ? (
+                    <Skeleton className="h-full w-full bg-slate-200" />
+                  ) : (
+                    <div
+                      className="h-full bg-emerald-600 rounded-full transition-all duration-300"
+                      style={{ width: `${lahoreInfo.pct}%` }}
+                    />
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -248,10 +278,14 @@ export default function SelectEntityPage() {
                   <Badge className="bg-purple-50 text-purple-700 hover:bg-purple-50 border border-purple-100 font-semibold text-[10px]">
                     Misc Entity
                   </Badge>
-                  <span className="text-[10px] font-bold text-purple-800 bg-purple-100/70 px-2 py-0.5 rounded-md flex items-center gap-1">
-                    <CalendarIcon className="size-3 text-purple-600" />
-                    {miscInfo.month} {miscInfo.year}
-                  </span>
+                  {isGroceryLoading && !miscInfo.hasAllocatedBudget ? (
+                    <Skeleton className="h-5 w-24 rounded-md bg-slate-200" />
+                  ) : (
+                    <span className="text-[10px] font-bold text-purple-800 bg-purple-100/70 px-2 py-0.5 rounded-md flex items-center gap-1">
+                      <CalendarIcon className="size-3 text-purple-600" />
+                      {miscInfo.month} {miscInfo.year}
+                    </span>
+                  )}
                 </div>
               </div>
               <CardTitle className="text-lg font-bold text-gray-900 mt-3">MISCELLANEOUS</CardTitle>
@@ -261,17 +295,29 @@ export default function SelectEntityPage() {
               <div className="grid grid-cols-3 gap-1.5 border-y border-gray-100 py-3 text-center">
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Budget</span>
-                  <span className="text-xs font-bold text-gray-900">Rs. {miscInfo.budget.toLocaleString()}</span>
+                  {isGroceryLoading && !miscInfo.hasAllocatedBudget ? (
+                    <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
+                  ) : (
+                    <span className="text-xs font-bold text-gray-900">Rs. {miscInfo.budget.toLocaleString()}</span>
+                  )}
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Spent</span>
-                  <span className="text-xs font-bold text-purple-600">Rs. {miscInfo.spent.toLocaleString()}</span>
+                  {isGroceryLoading && !miscInfo.hasAllocatedBudget ? (
+                    <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
+                  ) : (
+                    <span className="text-xs font-bold text-purple-600">Rs. {miscInfo.spent.toLocaleString()}</span>
+                  )}
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Balance</span>
-                  <span className={`text-xs font-bold ${miscInfo.remaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                    Rs. {miscInfo.remaining.toLocaleString()}
-                  </span>
+                  {isGroceryLoading && !miscInfo.hasAllocatedBudget ? (
+                    <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
+                  ) : (
+                    <span className={`text-xs font-bold ${miscInfo.remaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                      Rs. {miscInfo.remaining.toLocaleString()}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -279,13 +325,21 @@ export default function SelectEntityPage() {
               <div className="space-y-1">
                 <div className="flex justify-between text-xs font-semibold text-gray-500">
                   <span>Usage</span>
-                  <span>{miscInfo.pct}%</span>
+                  {isGroceryLoading && !miscInfo.hasAllocatedBudget ? (
+                    <Skeleton className="h-3 w-8 bg-slate-200" />
+                  ) : (
+                    <span>{miscInfo.pct}%</span>
+                  )}
                 </div>
                 <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-purple-600 rounded-full transition-all duration-300"
-                    style={{ width: `${miscInfo.pct}%` }}
-                  />
+                  {isGroceryLoading && !miscInfo.hasAllocatedBudget ? (
+                    <Skeleton className="h-full w-full bg-slate-200" />
+                  ) : (
+                    <div
+                      className="h-full bg-purple-600 rounded-full transition-all duration-300"
+                      style={{ width: `${miscInfo.pct}%` }}
+                    />
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -312,10 +366,14 @@ export default function SelectEntityPage() {
                     <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-semibold text-[10px]">
                       Multan Office
                     </Badge>
-                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md flex items-center gap-1">
-                      <CalendarIcon className="size-3 text-emerald-600" />
-                      {multanInfo.month} {multanInfo.year}
-                    </span>
+                    {isGroceryLoading && !multanInfo.hasAllocatedBudget ? (
+                      <Skeleton className="h-5 w-24 rounded-md bg-slate-200" />
+                    ) : (
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md flex items-center gap-1">
+                        <CalendarIcon className="size-3 text-emerald-600" />
+                        {multanInfo.month} {multanInfo.year}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <CardTitle className="text-lg font-bold text-gray-900 mt-3">MULTAN</CardTitle>
@@ -325,17 +383,29 @@ export default function SelectEntityPage() {
                 <div className="grid grid-cols-3 gap-1.5 border-y border-gray-100 py-3 text-center">
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Budget</span>
-                    <span className="text-xs font-bold text-gray-900">Rs. {multanInfo.budget.toLocaleString()}</span>
+                    {isGroceryLoading && !multanInfo.hasAllocatedBudget ? (
+                      <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
+                    ) : (
+                      <span className="text-xs font-bold text-gray-900">Rs. {multanInfo.budget.toLocaleString()}</span>
+                    )}
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Spent</span>
-                    <span className="text-xs font-bold text-emerald-600">Rs. {multanInfo.spent.toLocaleString()}</span>
+                    {isGroceryLoading && !multanInfo.hasAllocatedBudget ? (
+                      <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
+                    ) : (
+                      <span className="text-xs font-bold text-emerald-600">Rs. {multanInfo.spent.toLocaleString()}</span>
+                    )}
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Balance</span>
-                    <span className={`text-xs font-bold ${multanInfo.remaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                      Rs. {multanInfo.remaining.toLocaleString()}
-                    </span>
+                    {isGroceryLoading && !multanInfo.hasAllocatedBudget ? (
+                      <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
+                    ) : (
+                      <span className={`text-xs font-bold ${multanInfo.remaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                        Rs. {multanInfo.remaining.toLocaleString()}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -343,13 +413,21 @@ export default function SelectEntityPage() {
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs font-semibold text-gray-500">
                     <span>Usage</span>
-                    <span>{multanInfo.pct}%</span>
+                    {isGroceryLoading && !multanInfo.hasAllocatedBudget ? (
+                      <Skeleton className="h-3 w-8 bg-slate-200" />
+                    ) : (
+                      <span>{multanInfo.pct}%</span>
+                    )}
                   </div>
                   <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-emerald-600 rounded-full transition-all duration-300"
-                      style={{ width: `${multanInfo.pct}%` }}
-                    />
+                    {isGroceryLoading && !multanInfo.hasAllocatedBudget ? (
+                      <Skeleton className="h-full w-full bg-slate-200" />
+                    ) : (
+                      <div
+                        className="h-full bg-emerald-600 rounded-full transition-all duration-300"
+                        style={{ width: `${multanInfo.pct}%` }}
+                      />
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -377,10 +455,14 @@ export default function SelectEntityPage() {
                     <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-semibold text-[10px]">
                       ISquareBPO Office
                     </Badge>
-                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md flex items-center gap-1">
-                      <CalendarIcon className="size-3 text-emerald-600" />
-                      {isquareInfo.month} {isquareInfo.year}
-                    </span>
+                    {isGroceryLoading && !isquareInfo.hasAllocatedBudget ? (
+                      <Skeleton className="h-5 w-24 rounded-md bg-slate-200" />
+                    ) : (
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md flex items-center gap-1">
+                        <CalendarIcon className="size-3 text-emerald-600" />
+                        {isquareInfo.month} {isquareInfo.year}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <CardTitle className="text-lg font-bold text-gray-900 mt-3">ISQUAREBPO</CardTitle>
@@ -390,17 +472,29 @@ export default function SelectEntityPage() {
                 <div className="grid grid-cols-3 gap-1.5 border-y border-gray-100 py-3 text-center">
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Budget</span>
-                    <span className="text-xs font-bold text-gray-900">Rs. {isquareInfo.budget.toLocaleString()}</span>
+                    {isGroceryLoading && !isquareInfo.hasAllocatedBudget ? (
+                      <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
+                    ) : (
+                      <span className="text-xs font-bold text-gray-900">Rs. {isquareInfo.budget.toLocaleString()}</span>
+                    )}
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Spent</span>
-                    <span className="text-xs font-bold text-emerald-600">Rs. {isquareInfo.spent.toLocaleString()}</span>
+                    {isGroceryLoading && !isquareInfo.hasAllocatedBudget ? (
+                      <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
+                    ) : (
+                      <span className="text-xs font-bold text-emerald-600">Rs. {isquareInfo.spent.toLocaleString()}</span>
+                    )}
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Balance</span>
-                    <span className={`text-xs font-bold ${isquareInfo.remaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                      Rs. {isquareInfo.remaining.toLocaleString()}
-                    </span>
+                    {isGroceryLoading && !isquareInfo.hasAllocatedBudget ? (
+                      <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
+                    ) : (
+                      <span className={`text-xs font-bold ${isquareInfo.remaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                        Rs. {isquareInfo.remaining.toLocaleString()}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -408,13 +502,21 @@ export default function SelectEntityPage() {
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs font-semibold text-gray-500">
                     <span>Usage</span>
-                    <span>{isquareInfo.pct}%</span>
+                    {isGroceryLoading && !isquareInfo.hasAllocatedBudget ? (
+                      <Skeleton className="h-3 w-8 bg-slate-200" />
+                    ) : (
+                      <span>{isquareInfo.pct}%</span>
+                    )}
                   </div>
                   <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-emerald-600 rounded-full transition-all duration-300"
-                      style={{ width: `${isquareInfo.pct}%` }}
-                    />
+                    {isGroceryLoading && !isquareInfo.hasAllocatedBudget ? (
+                      <Skeleton className="h-full w-full bg-slate-200" />
+                    ) : (
+                      <div
+                        className="h-full bg-emerald-600 rounded-full transition-all duration-300"
+                        style={{ width: `${isquareInfo.pct}%` }}
+                      />
+                    )}
                   </div>
                 </div>
               </CardContent>

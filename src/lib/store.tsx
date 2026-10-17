@@ -177,88 +177,100 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [isCommissionLoading, setIsCommissionLoading] = useState<boolean>(false);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  const groceryLoadedRef = useRef(false);
-  const commissionLoadedRef = useRef(false);
+  const groceryInFlightRef = useRef<Promise<void> | null>(null);
+  const commissionInFlightRef = useRef<Promise<void> | null>(null);
 
-  // Lazy load Grocery data (Groceries, Categories, Budgets) independently without blocking
-  const loadGroceryData = useCallback(async (force = false) => {
-    if (groceryLoadedRef.current && !force) {
-      setIsGroceryLoading(false);
-      return;
+  // Priority load Grocery data (Budgets, Groceries, Categories) independently without blocking
+  const loadGroceryData = useCallback(async (force?: boolean) => {
+    if (groceryInFlightRef.current) {
+      return groceryInFlightRef.current;
     }
+
     setIsGroceryLoading(true);
-    try {
-      const ts = Date.now();
-      const pGroceries = fetch(`/api/groceries?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((json) => {
-          if (json?.success && Array.isArray(json.data)) {
-            setGroceryEntries(json.data);
-          }
-        })
-        .catch((err) => console.error('Error fetching groceries:', err));
+    const promise = (async () => {
+      try {
+        const ts = Date.now();
+        // Priority 1: Budgets (Fastest & needed for overview cards)
+        const pBudgets = fetch(`/api/budgets?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((json) => {
+            if (json?.success && Array.isArray(json.data)) {
+              setBudgets(json.data);
+            }
+          })
+          .catch((err) => console.error('Error fetching budgets:', err));
 
-      const pCategories = fetch(`/api/categories?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((json) => {
-          if (json?.success && Array.isArray(json.data) && json.data.length > 0) {
-            setCategories(json.data);
-          }
-        })
-        .catch((err) => console.error('Error fetching categories:', err));
+        // Priority 2: Groceries & Categories in parallel
+        const pGroceries = fetch(`/api/groceries?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((json) => {
+            if (json?.success && Array.isArray(json.data)) {
+              setGroceryEntries(json.data);
+            }
+          })
+          .catch((err) => console.error('Error fetching groceries:', err));
 
-      const pBudgets = fetch(`/api/budgets?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((json) => {
-          if (json?.success && Array.isArray(json.data)) {
-            setBudgets(json.data);
-          }
-        })
-        .catch((err) => console.error('Error fetching budgets:', err));
+        const pCategories = fetch(`/api/categories?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((json) => {
+            if (json?.success && Array.isArray(json.data) && json.data.length > 0) {
+              setCategories(json.data);
+            }
+          })
+          .catch((err) => console.error('Error fetching categories:', err));
 
-      await Promise.allSettled([pGroceries, pCategories, pBudgets]);
-      groceryLoadedRef.current = true;
-    } catch (error) {
-      console.error('Error fetching grocery live data:', error);
-    } finally {
-      setIsGroceryLoading(false);
-    }
+        await Promise.allSettled([pBudgets, pGroceries, pCategories]);
+      } catch (error) {
+        console.error('Error fetching grocery live data:', error);
+      } finally {
+        setIsGroceryLoading(false);
+        groceryInFlightRef.current = null;
+      }
+    })();
+
+    groceryInFlightRef.current = promise;
+    return promise;
   }, []);
 
-  // Lazy load Commission data (Commissions, Counselors) independently without blocking
-  const loadCommissionData = useCallback(async (force = false) => {
-    if (commissionLoadedRef.current && !force) {
-      setIsCommissionLoading(false);
-      return;
+  // Priority load Commission data (Commissions, Counselors) independently without blocking
+  const loadCommissionData = useCallback(async (force?: boolean) => {
+    if (commissionInFlightRef.current) {
+      return commissionInFlightRef.current;
     }
+
     setIsCommissionLoading(true);
-    try {
-      const ts = Date.now();
-      const pCommissions = fetch(`/api/commissions?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((json) => {
-          if (json?.success && Array.isArray(json.data)) {
-            setCommissionEntries(json.data);
-          }
-        })
-        .catch((err) => console.error('Error fetching commissions:', err));
+    const promise = (async () => {
+      try {
+        const ts = Date.now();
+        const pCommissions = fetch(`/api/commissions?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((json) => {
+            if (json?.success && Array.isArray(json.data)) {
+              setCommissionEntries(json.data);
+            }
+          })
+          .catch((err) => console.error('Error fetching commissions:', err));
 
-      const pCounselors = fetch(`/api/counselors?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((json) => {
-          if (json?.success && Array.isArray(json.data)) {
-            setCounselors(json.data);
-          }
-        })
-        .catch((err) => console.error('Error fetching counselors:', err));
+        const pCounselors = fetch(`/api/counselors?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((json) => {
+            if (json?.success && Array.isArray(json.data)) {
+              setCounselors(json.data);
+            }
+          })
+          .catch((err) => console.error('Error fetching counselors:', err));
 
-      await Promise.allSettled([pCommissions, pCounselors]);
-      commissionLoadedRef.current = true;
-    } catch (error) {
-      console.error('Error fetching commission live data:', error);
-    } finally {
-      setIsCommissionLoading(false);
-    }
+        await Promise.allSettled([pCommissions, pCounselors]);
+      } catch (error) {
+        console.error('Error fetching commission live data:', error);
+      } finally {
+        setIsCommissionLoading(false);
+        commissionInFlightRef.current = null;
+      }
+    })();
+
+    commissionInFlightRef.current = promise;
+    return promise;
   }, []);
 
   // Function to refresh live data from database API routes
@@ -310,19 +322,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             } else if (data.user.role === 'ISQUAREBPO_USER') {
               setActiveEntity('ISquareBPO');
             }
+
+            // User session authenticated! Load priority data for active page
+            const currentPath = window.location.pathname;
+            if (currentPath.startsWith('/commissions')) {
+              loadCommissionData();
+            } else {
+              loadGroceryData();
+            }
           }
         })
         .finally(() => {
           setIsLoaded(true);
         });
-
-      // Smart Lazy Fetch on initial load: only fetch the module the user is actually visiting
-      const currentPath = window.location.pathname;
-      if (currentPath.startsWith('/commissions')) {
-        loadCommissionData(true);
-      } else {
-        loadGroceryData(true);
-      }
     }
   }, [loadGroceryData, loadCommissionData]);
 
@@ -388,6 +400,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           setActiveEntity('ISquareBPO');
           safeSetLocalStorage('gem_entity', 'ISquareBPO');
         }
+        // Fetch priority data immediately upon login
+        loadGroceryData();
         return { success: true, user: data.user };
       }
 
