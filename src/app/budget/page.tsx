@@ -67,6 +67,9 @@ export default function BudgetPage() {
   const [amountStr, setAmountStr] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // State to filter history by specific entity ("all" | "Lahore" | "Multan" | "ISquareBPO" | "Miscellaneous")
+  const [selectedHistoryEntity, setSelectedHistoryEntity] = useState<string>("all");
+
   // Role Access Check
   useEffect(() => {
     if (currentUser && currentUser.role !== "ADMIN") {
@@ -89,16 +92,51 @@ export default function BudgetPage() {
     }
   }, [formEntity, formMonth, formYear, existingBudget]);
 
-  if (!currentUser || currentUser.role !== "ADMIN") {
-    return (
-      <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-50 p-6">
-        <div className="w-full max-w-md space-y-4">
-          <Skeleton className="h-12 w-12 rounded-lg bg-gray-200" />
-          <Skeleton className="h-6 w-3/4 bg-gray-200" />
-        </div>
-      </div>
-    );
-  }
+  // Compile history items separately per entity with full sequential rollover calculations
+  const allEntities: Entity[] = ["Lahore", "Multan", "ISquareBPO", "Miscellaneous"];
+
+  // Calculate full sequential rollover chain separately per entity (sorted newest first)
+  const entityChainsMap = useMemo(() => {
+    const map: Record<Entity, ReturnType<typeof calculateEntityBudgetChain>> = {
+      Lahore: [],
+      Multan: [],
+      ISquareBPO: [],
+      Miscellaneous: [],
+    };
+
+    const months = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"
+    ];
+
+    allEntities.forEach((ent) => {
+      const chain = calculateEntityBudgetChain(ent);
+      const sorted = [...chain].sort((x, y) => {
+        if (x.year !== y.year) return y.year - x.year;
+        return months.indexOf(y.month) - months.indexOf(x.month);
+      });
+      map[ent] = sorted;
+    });
+
+    return map;
+  }, [budgets, groceryEntries, calculateEntityBudgetChain]);
+
+  const totalPeriodsCount = useMemo(() => {
+    return Object.values(entityChainsMap).reduce((sum, list) => sum + list.length, 0);
+  }, [entityChainsMap]);
+
+  const displayedEntities = useMemo(() => {
+    if (selectedHistoryEntity === "all") {
+      return allEntities;
+    }
+    return [selectedHistoryEntity as Entity];
+  }, [selectedHistoryEntity]);
+
+  // Live Rollover Preview for Form
+  const parsedFormYear = parseInt(formYear, 10) || 2026;
+  const formBreakdown = getEntityBudgetBreakdown(formEntity, formMonth, parsedFormYear);
+  const inputBaseAmount = parseFloat(amountStr) || 0;
+  const liveEffectiveBudget = inputBaseAmount + formBreakdown.carryoverBalance;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,54 +191,17 @@ export default function BudgetPage() {
     }
   };
 
-  // State to filter history by specific entity ("all" | "Lahore" | "Multan" | "ISquareBPO" | "Miscellaneous")
-  const [selectedHistoryEntity, setSelectedHistoryEntity] = useState<string>("all");
-
-  // Compile history items separately per entity with full sequential rollover calculations
-  const allEntities: Entity[] = ["Lahore", "Multan", "ISquareBPO", "Miscellaneous"];
-
-  // Calculate full sequential rollover chain separately per entity (sorted newest first)
-  const entityChainsMap = useMemo(() => {
-    const map: Record<Entity, ReturnType<typeof calculateEntityBudgetChain>> = {
-      Lahore: [],
-      Multan: [],
-      ISquareBPO: [],
-      Miscellaneous: [],
-    };
-
-    const months = [
-      "January", "February", "March", "April", "May", "June",
-      "July", "August", "September", "October", "November", "December"
-    ];
-
-    allEntities.forEach((ent) => {
-      const chain = calculateEntityBudgetChain(ent);
-      const sorted = [...chain].sort((x, y) => {
-        if (x.year !== y.year) return y.year - x.year;
-        return months.indexOf(y.month) - months.indexOf(x.month);
-      });
-      map[ent] = sorted;
-    });
-
-    return map;
-  }, [budgets, groceryEntries, calculateEntityBudgetChain]);
-
-  const totalPeriodsCount = useMemo(() => {
-    return Object.values(entityChainsMap).reduce((sum, list) => sum + list.length, 0);
-  }, [entityChainsMap]);
-
-  const displayedEntities = useMemo(() => {
-    if (selectedHistoryEntity === "all") {
-      return allEntities;
-    }
-    return [selectedHistoryEntity as Entity];
-  }, [selectedHistoryEntity]);
-
-  // Live Rollover Preview for Form
-  const parsedFormYear = parseInt(formYear, 10) || 2026;
-  const formBreakdown = getEntityBudgetBreakdown(formEntity, formMonth, parsedFormYear);
-  const inputBaseAmount = parseFloat(amountStr) || 0;
-  const liveEffectiveBudget = inputBaseAmount + formBreakdown.carryoverBalance;
+  // Auth / Role Guard early return
+  if (!currentUser || currentUser.role !== "ADMIN") {
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-50 p-6">
+        <div className="w-full max-w-md space-y-4">
+          <Skeleton className="h-12 w-12 rounded-lg bg-gray-200" />
+          <Skeleton className="h-6 w-3/4 bg-gray-200" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <DashboardLayout>
