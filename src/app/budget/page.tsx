@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -28,7 +28,18 @@ import {
 import { toast } from "sonner";
 import { Entity } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
-import { CoinsIcon, HistoryIcon, PencilIcon, Trash2Icon, RefreshCwIcon, PlusCircleIcon, CheckCircle2Icon, TrendingDownIcon, TrendingUpIcon } from "lucide-react";
+import {
+  CoinsIcon,
+  HistoryIcon,
+  PencilIcon,
+  Trash2Icon,
+  RefreshCwIcon,
+  PlusCircleIcon,
+  CheckCircle2Icon,
+  TrendingDownIcon,
+  TrendingUpIcon,
+  Building2Icon,
+} from "lucide-react";
 
 export default function BudgetPage() {
   const {
@@ -120,6 +131,7 @@ export default function BudgetPage() {
     setFormMonth(month);
     setFormYear(year.toString());
     setAmountStr(baseAmount.toString());
+    setSelectedHistoryEntity(entity);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -141,21 +153,48 @@ export default function BudgetPage() {
     }
   };
 
-  // Compile history items across all entities with full sequential rollover calculations
-  const allEntities: Entity[] = ["Lahore", "Multan", "ISquareBPO", "Miscellaneous"];
-  const allChains = allEntities.flatMap((ent) => calculateEntityBudgetChain(ent));
+  // State to filter history by specific entity ("all" | "Lahore" | "Multan" | "ISquareBPO" | "Miscellaneous")
+  const [selectedHistoryEntity, setSelectedHistoryEntity] = useState<string>("all");
 
-  // Sort history items: year desc, month desc, entity
-  const sortedHistory = [...allChains].sort((x, y) => {
-    if (x.year !== y.year) return y.year - x.year;
+  // Compile history items separately per entity with full sequential rollover calculations
+  const allEntities: Entity[] = ["Lahore", "Multan", "ISquareBPO", "Miscellaneous"];
+
+  // Calculate full sequential rollover chain separately per entity (sorted newest first)
+  const entityChainsMap = useMemo(() => {
+    const map: Record<Entity, ReturnType<typeof calculateEntityBudgetChain>> = {
+      Lahore: [],
+      Multan: [],
+      ISquareBPO: [],
+      Miscellaneous: [],
+    };
+
     const months = [
       "January", "February", "March", "April", "May", "June",
       "July", "August", "September", "October", "November", "December"
     ];
-    const monthDiff = months.indexOf(y.month) - months.indexOf(x.month);
-    if (monthDiff !== 0) return monthDiff;
-    return x.entity.localeCompare(y.entity);
-  });
+
+    allEntities.forEach((ent) => {
+      const chain = calculateEntityBudgetChain(ent);
+      const sorted = [...chain].sort((x, y) => {
+        if (x.year !== y.year) return y.year - x.year;
+        return months.indexOf(y.month) - months.indexOf(x.month);
+      });
+      map[ent] = sorted;
+    });
+
+    return map;
+  }, [budgets, groceryEntries, calculateEntityBudgetChain]);
+
+  const totalPeriodsCount = useMemo(() => {
+    return Object.values(entityChainsMap).reduce((sum, list) => sum + list.length, 0);
+  }, [entityChainsMap]);
+
+  const displayedEntities = useMemo(() => {
+    if (selectedHistoryEntity === "all") {
+      return allEntities;
+    }
+    return [selectedHistoryEntity as Entity];
+  }, [selectedHistoryEntity]);
 
   // Live Rollover Preview for Form
   const parsedFormYear = parseInt(formYear, 10) || 2026;
@@ -369,15 +408,68 @@ export default function BudgetPage() {
                     Live summary of allocated budgets, rollover adjustments, expenses, and net remaining.
                   </CardDescription>
                 </div>
-                {sortedHistory.length > 0 && (
+                {totalPeriodsCount > 0 && (
                   <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 text-[10px] font-semibold">
-                    {sortedHistory.length} {sortedHistory.length === 1 ? "Period" : "Periods"}
+                    {totalPeriodsCount} {totalPeriodsCount === 1 ? "Period" : "Periods"}
                   </Badge>
                 )}
               </div>
             </CardHeader>
+
+            {/* Entity Tab Filter Bar */}
+            <div className="flex items-center gap-1.5 overflow-x-auto p-2.5 bg-slate-50/80 border-b border-gray-100">
+              <button
+                type="button"
+                onClick={() => setSelectedHistoryEntity("all")}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0",
+                  selectedHistoryEntity === "all"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "bg-white text-gray-700 hover:bg-slate-100 border border-gray-200"
+                )}
+              >
+                <span>All Entities</span>
+                <span
+                  className={cn(
+                    "text-[10px] px-1.5 py-0.2 rounded-full font-semibold",
+                    selectedHistoryEntity === "all" ? "bg-white/20 text-white" : "bg-slate-100 text-gray-700"
+                  )}
+                >
+                  {totalPeriodsCount}
+                </span>
+              </button>
+
+              {allEntities.map((ent) => {
+                const count = (entityChainsMap[ent] || []).length;
+                const isSelected = selectedHistoryEntity === ent;
+                return (
+                  <button
+                    key={ent}
+                    type="button"
+                    onClick={() => setSelectedHistoryEntity(ent)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0",
+                      isSelected
+                        ? "bg-emerald-600 text-white shadow-xs"
+                        : "bg-white text-gray-700 hover:bg-slate-100 border border-gray-200"
+                    )}
+                  >
+                    <span>{ent}</span>
+                    <span
+                      className={cn(
+                        "text-[10px] px-1.5 py-0.2 rounded-full font-semibold",
+                        isSelected ? "bg-white/20 text-white" : "bg-slate-100 text-gray-700"
+                      )}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
             <CardContent className="p-0">
-              <div className="w-full">
+              <div className="w-full overflow-x-auto">
                 <Table>
                   <TableHeader className="bg-slate-50/75">
                     <TableRow className="border-b border-gray-200">
@@ -411,7 +503,7 @@ export default function BudgetPage() {
                           </TableCell>
                         </TableRow>
                       ))
-                    ) : sortedHistory.length === 0 ? (
+                    ) : totalPeriodsCount === 0 ? (
                       <TableRow>
                         <TableCell colSpan={5} className="h-32 text-center text-gray-400 text-sm">
                           <div className="flex flex-col items-center justify-center gap-1.5">
@@ -422,94 +514,157 @@ export default function BudgetPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      sortedHistory.map((item, idx) => (
-                        <TableRow key={idx} className="border-b border-gray-100 hover:bg-slate-50/50">
-                          {/* Branch & Month */}
-                          <TableCell className="py-3 px-3 align-top">
-                            <span className="font-bold text-gray-900 block text-xs">
-                              {item.entity}
-                            </span>
-                            <span className="text-[11px] text-gray-500 font-medium">
-                              {item.month} {item.year}
-                            </span>
-                          </TableCell>
+                      displayedEntities.map((ent) => {
+                        const items = entityChainsMap[ent] || [];
+                        if (items.length === 0) {
+                          if (selectedHistoryEntity !== "all") {
+                            return (
+                              <TableRow key={`empty-${ent}`}>
+                                <TableCell colSpan={5} className="h-28 text-center text-gray-400 text-xs">
+                                  <div className="flex flex-col items-center justify-center gap-1">
+                                    <Building2Icon className="size-5 text-gray-300" />
+                                    <span>No budget allocations recorded for {ent} entity yet.</span>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          }
+                          return null;
+                        }
 
-                          {/* Allocated & Rollover Details */}
-                          <TableCell className="py-3 px-3 align-top">
-                            <span className="font-extrabold text-gray-900 text-xs block">
-                              Rs. {item.effectiveBudget.toLocaleString()}
-                            </span>
-                            {item.carryoverBalance !== 0 ? (
-                              <div className="text-[10px] mt-0.5 leading-tight">
-                                <span className="text-gray-400">Base: Rs. {item.baseBudget.toLocaleString()}</span>
-                                <span className={cn("block font-bold mt-0.5", item.carryoverBalance < 0 ? "text-red-600" : "text-emerald-600")}>
-                                  {item.carryoverBalance < 0 ? "-Rs. " : "+Rs. "}{Math.abs(item.carryoverBalance).toLocaleString()} ({item.carryoverBalance < 0 ? "Deficit" : "Surplus"})
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-[10px] text-gray-400 block mt-0.5">
-                                Base: Rs. {item.baseBudget.toLocaleString()}
-                              </span>
-                            )}
-                          </TableCell>
+                        return (
+                          <React.Fragment key={ent}>
+                            {/* Entity Group Header Row */}
+                            <TableRow className="bg-slate-100/90 border-y border-slate-200">
+                              <TableCell colSpan={5} className="py-2.5 px-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <Building2Icon className="size-4 text-emerald-600" />
+                                    <span className="font-extrabold text-xs text-gray-900 tracking-wide uppercase">
+                                      {ent} Entity Budget History
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] font-bold text-gray-600 bg-white px-2 py-0.5 rounded-full border border-gray-200">
+                                    {items.length} {items.length === 1 ? "Period" : "Periods"}
+                                  </span>
+                                </div>
+                              </TableCell>
+                            </TableRow>
 
-                          {/* Total Spent */}
-                          <TableCell className="py-3 px-3 align-top">
-                            <span className="font-bold text-emerald-700 text-xs block">
-                              Rs. {item.totalSpent.toLocaleString()}
-                            </span>
-                            <span className="text-[10px] text-gray-400 font-medium block mt-0.5">
-                              {item.effectiveBudget > 0 ? `${Math.round((item.totalSpent / item.effectiveBudget) * 100)}% used` : "0% used"}
-                            </span>
-                          </TableCell>
-
-                          {/* Net Remaining & Status */}
-                          <TableCell className="py-3 px-3 align-top">
-                            <span className={cn("font-black text-xs block", item.isOverspent ? "text-red-600" : "text-emerald-800")}>
-                              {item.isOverspent ? "-" : ""}Rs. {Math.abs(item.remainingBalance).toLocaleString()}
-                            </span>
-                            <div className="mt-1">
-                              {item.isOverspent ? (
-                                <Badge className="bg-red-50 text-red-700 hover:bg-red-50 border border-red-100 font-bold text-[9px] px-1.5 py-0 h-4 uppercase">
-                                  Over Budget
-                                </Badge>
-                              ) : item.carryoverBalance < 0 ? (
-                                <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border border-amber-200 font-bold text-[9px] px-1.5 py-0 h-4 uppercase">
-                                  Adjusted
-                                </Badge>
-                              ) : (
-                                <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-bold text-[9px] px-1.5 py-0 h-4 uppercase">
-                                  Healthy
-                                </Badge>
-                              )}
-                            </div>
-                          </TableCell>
-
-                          {/* Actions */}
-                          <TableCell className="py-3 px-3 text-right align-top">
-                            <div className="flex items-center justify-end gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon-xs"
-                                onClick={() => handleQuickEdit(item.entity, item.month, item.year, item.baseBudget)}
-                                className="h-7 w-7 text-emerald-700 hover:bg-emerald-50 rounded"
-                                title="Edit / Update base budget"
+                            {/* Entity Periods Rows */}
+                            {items.map((item, idx) => (
+                              <TableRow
+                                key={`${item.entity}-${item.month}-${item.year}-${idx}`}
+                                className="border-b border-gray-100 hover:bg-slate-50/50"
                               >
-                                <PencilIcon className="size-3.5" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon-xs"
-                                onClick={() => handleDeleteBudget(item.entity, item.month, item.year)}
-                                className="h-7 w-7 text-red-600 hover:bg-red-50 rounded"
-                                title="Delete this budget"
-                              >
-                                <Trash2Icon className="size-3.5" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                                {/* Branch & Month */}
+                                <TableCell className="py-3 px-3 align-top">
+                                  <span className="font-bold text-gray-900 block text-xs">
+                                    {item.entity}
+                                  </span>
+                                  <span className="text-[11px] text-gray-500 font-medium">
+                                    {item.month} {item.year}
+                                  </span>
+                                </TableCell>
+
+                                {/* Allocated & Rollover Details */}
+                                <TableCell className="py-3 px-3 align-top">
+                                  <span className="font-extrabold text-gray-900 text-xs block">
+                                    Rs. {item.effectiveBudget.toLocaleString()}
+                                  </span>
+                                  {item.carryoverBalance !== 0 ? (
+                                    <div className="text-[10px] mt-0.5 leading-tight">
+                                      <span className="text-gray-400">
+                                        Base: Rs. {item.baseBudget.toLocaleString()}
+                                      </span>
+                                      <span
+                                        className={cn(
+                                          "block font-bold mt-0.5",
+                                          item.carryoverBalance < 0 ? "text-red-600" : "text-emerald-600"
+                                        )}
+                                      >
+                                        {item.carryoverBalance < 0 ? "-Rs. " : "+Rs. "}
+                                        {Math.abs(item.carryoverBalance).toLocaleString()}{" "}
+                                        ({item.carryoverBalance < 0 ? "Deficit" : "Surplus"})
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-gray-400 block mt-0.5">
+                                      Base: Rs. {item.baseBudget.toLocaleString()}
+                                    </span>
+                                  )}
+                                </TableCell>
+
+                                {/* Total Spent */}
+                                <TableCell className="py-3 px-3 align-top">
+                                  <span className="font-bold text-emerald-700 text-xs block">
+                                    Rs. {item.totalSpent.toLocaleString()}
+                                  </span>
+                                  <span className="text-[10px] text-gray-400 font-medium block mt-0.5">
+                                    {item.effectiveBudget > 0
+                                      ? `${Math.round((item.totalSpent / item.effectiveBudget) * 100)}% used`
+                                      : "0% used"}
+                                  </span>
+                                </TableCell>
+
+                                {/* Net Remaining & Status */}
+                                <TableCell className="py-3 px-3 align-top">
+                                  <span
+                                    className={cn(
+                                      "font-black text-xs block",
+                                      item.isOverspent ? "text-red-600" : "text-emerald-800"
+                                    )}
+                                  >
+                                    {item.isOverspent ? "-" : ""}Rs.{" "}
+                                    {Math.abs(item.remainingBalance).toLocaleString()}
+                                  </span>
+                                  <div className="mt-1">
+                                    {item.isOverspent ? (
+                                      <Badge className="bg-red-50 text-red-700 hover:bg-red-50 border border-red-100 font-bold text-[9px] px-1.5 py-0 h-4 uppercase">
+                                        Over Budget
+                                      </Badge>
+                                    ) : item.carryoverBalance < 0 ? (
+                                      <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border border-amber-200 font-bold text-[9px] px-1.5 py-0 h-4 uppercase">
+                                        Adjusted
+                                      </Badge>
+                                    ) : (
+                                      <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-bold text-[9px] px-1.5 py-0 h-4 uppercase">
+                                        Healthy
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </TableCell>
+
+                                {/* Actions */}
+                                <TableCell className="py-3 px-3 text-right align-top">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon-xs"
+                                      onClick={() =>
+                                        handleQuickEdit(item.entity, item.month, item.year, item.baseBudget)
+                                      }
+                                      className="h-7 w-7 text-emerald-700 hover:bg-emerald-50 rounded cursor-pointer"
+                                      title="Edit / Update base budget"
+                                    >
+                                      <PencilIcon className="size-3.5" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon-xs"
+                                      onClick={() => handleDeleteBudget(item.entity, item.month, item.year)}
+                                      className="h-7 w-7 text-red-600 hover:bg-red-50 rounded cursor-pointer"
+                                      title="Delete this budget"
+                                    >
+                                      <Trash2Icon className="size-3.5" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </React.Fragment>
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>
