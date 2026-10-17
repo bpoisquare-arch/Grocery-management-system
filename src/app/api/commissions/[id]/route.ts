@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { eventBus } from '@/lib/eventBus';
 
 // Helper to format DB commission entry into client-side CommissionEntry
 function formatCommissionEntry(comm: any) {
@@ -43,6 +44,32 @@ function formatCommissionEntry(comm: any) {
     createdAt: comm.createdAt ? new Date(comm.createdAt).toISOString() : new Date().toISOString(),
     updatedAt: comm.updatedAt ? new Date(comm.updatedAt).toISOString() : new Date().toISOString(),
   };
+}
+
+// GET /api/commissions/[id] - Fetch single commission entry with full slips
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await context.params;
+    let entry = await (prisma as any).commissionEntry.findUnique({
+      where: { id },
+    });
+    if (!entry) {
+      const rows = await prisma.$queryRawUnsafe<any[]>(
+        'SELECT * FROM `CommissionEntry` WHERE `id` = ? LIMIT 1',
+        id
+      );
+      entry = rows[0] || null;
+    }
+    if (!entry) {
+      return NextResponse.json({ success: false, error: 'Entry not found' }, { status: 404 });
+    }
+    return NextResponse.json({ success: true, data: formatCommissionEntry(entry) });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
 }
 
 // PUT /api/commissions/[id] - Update a commission entry
@@ -156,6 +183,10 @@ export async function PUT(
       }
     }
 
+    try {
+      eventBus.emit('sync', { type: 'commission', action: 'update', id });
+    } catch {}
+
     return NextResponse.json({ success: true, data: formatCommissionEntry(updated) });
   } catch (error: any) {
     console.error(`Failed to update commission entry:`, error);
@@ -182,6 +213,10 @@ export async function DELETE(
       console.warn(`Prisma delete failed for commission ${id}, falling back to raw SQL:`, prismaErr.message);
       await prisma.$executeRawUnsafe('DELETE FROM `CommissionEntry` WHERE `id` = ?', id);
     }
+
+    try {
+      eventBus.emit('sync', { type: 'commission', action: 'delete', id });
+    } catch {}
 
     return NextResponse.json({ success: true, message: 'Deleted successfully' });
   } catch (error: any) {

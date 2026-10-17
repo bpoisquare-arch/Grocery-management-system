@@ -5,6 +5,7 @@ import { AUTH_COOKIE_NAME, verifyToken } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { mockGroceryEntries } from '@/lib/mockData';
+import { eventBus } from '@/lib/eventBus';
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -267,6 +268,10 @@ export async function POST(request: NextRequest) {
         };
       }
     }
+
+    try {
+      eventBus.emit('sync', { type: 'grocery', action: 'create', entity });
+    } catch {}
 
     return NextResponse.json({ success: true, data: formatGroceryEntry(newEntry) }, { status: 201 });
   } catch (error: any) {

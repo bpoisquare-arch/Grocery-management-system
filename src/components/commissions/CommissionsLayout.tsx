@@ -9,15 +9,15 @@ import { CommissionsHeader } from "@/components/commissions/commissions-header";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function CommissionsLayout({ children }: { children: React.ReactNode }) {
-  const { currentUser } = useStore();
+  const { currentUser, isLoaded } = useStore();
   const router = useRouter();
 
   useEffect(() => {
-    // If not logged in, redirect to login
-    if (!currentUser) {
+    // Only redirect to login AFTER local session is hydrated from cache/storage
+    if (isLoaded && !currentUser) {
       router.push("/login");
     }
-  }, [currentUser, router]);
+  }, [currentUser, isLoaded, router]);
 
   if (!currentUser) {
     return (

@@ -4,6 +4,7 @@ export const revalidate = 0;
 import { AUTH_COOKIE_NAME, verifyToken } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { eventBus } from '@/lib/eventBus';
 
 function deriveMonthYearFromDate(dateStr: string) {
   try {
@@ -60,6 +61,37 @@ function formatGroceryEntry(entry: any) {
     createdAt: entry.createdAt ? new Date(entry.createdAt).toISOString() : new Date().toISOString(),
     updatedAt: entry.updatedAt ? new Date(entry.updatedAt).toISOString() : new Date().toISOString(),
   };
+}
+
+// GET /api/groceries/[id] - Fetch single grocery entry with full slips
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const session = token ? await verifyToken(token) : null;
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
+  try {
+    const { id } = await context.params;
+    let entry = await (prisma as any).groceryEntry.findUnique({
+      where: { id },
+    });
+    if (!entry) {
+      const rows = await prisma.$queryRawUnsafe<any[]>(
+        'SELECT * FROM `GroceryEntry` WHERE `id` = ? LIMIT 1',
+        id
+      );
+      entry = rows[0] || null;
+    }
+    if (!entry) {
+      return NextResponse.json({ success: false, error: 'Entry not found' }, { status: 404 });
+    }
+    return NextResponse.json({ success: true, data: formatGroceryEntry(entry) });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
 }
 
 // PUT /api/groceries/[id] - Update a grocery entry (supporting up to 10 slips and budget assignment)
@@ -155,6 +187,10 @@ export async function PUT(
       }
     }
 
+    try {
+      eventBus.emit('sync', { type: 'grocery', action: 'update', id });
+    } catch {}
+
     return NextResponse.json({ success: true, data: formatGroceryEntry(updated) });
   } catch (error: any) {
     console.error(`Failed to update grocery entry:`, error);
@@ -186,6 +222,10 @@ export async function DELETE(
       console.warn(`Prisma delete failed for ${id}, falling back to raw SQL:`, prismaErr.message);
       await prisma.$executeRawUnsafe('DELETE FROM `GroceryEntry` WHERE `id` = ?', id);
     }
+
+    try {
+      eventBus.emit('sync', { type: 'grocery', action: 'delete', id });
+    } catch {}
 
     return NextResponse.json({ success: true, message: 'Deleted successfully' });
   } catch (error: any) {

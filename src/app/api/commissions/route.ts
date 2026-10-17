@@ -5,6 +5,7 @@ import { AUTH_COOKIE_NAME, verifyToken } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { mockCommissionEntries } from '@/lib/mockData';
+import { eventBus } from '@/lib/eventBus';
 
 // Helper to format DB commission entry into client-side CommissionEntry
 function formatCommissionEntry(comm: any) {
@@ -355,6 +356,10 @@ export async function POST(request: NextRequest) {
         };
       }
     }
+
+    try {
+      eventBus.emit('sync', { type: 'commission', action: 'create', entity });
+    } catch {}
 
     return NextResponse.json({ success: true, data: formatCommissionEntry(newEntry) }, { status: 201 });
   } catch (error: any) {

@@ -63,12 +63,12 @@ export default function DashboardPage() {
     getEntityBudget,
     getEntityBudgetBreakdown,
     isLoading,
-    loadGroceryData,
+    loadDashboardData,
   } = useStore();
 
   React.useEffect(() => {
-    loadGroceryData();
-  }, [loadGroceryData]);
+    loadDashboardData();
+  }, [loadDashboardData]);
 
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [viewModalOpen, setViewModalOpen] = useState(false);

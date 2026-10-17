@@ -5,6 +5,7 @@ import { AUTH_COOKIE_NAME, verifyToken } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { mockBudgets } from '@/lib/mockData';
+import { eventBus } from '@/lib/eventBus';
 
 // GET /api/budgets - Fetch all budgets
 export async function GET(request: NextRequest) {
@@ -91,6 +92,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    try {
+      eventBus.emit('sync', { type: 'grocery', action: 'budget', entity });
+    } catch {}
+
     return NextResponse.json({ success: true, data: budget });
   } catch (error: any) {
     console.error('Failed to upsert budget:', error);
@@ -134,6 +139,10 @@ export async function DELETE(request: NextRequest) {
           year: parseInt(year, 10),
         },
       });
+      try {
+        eventBus.emit('sync', { type: 'grocery', action: 'budget' });
+      } catch {}
+
       return NextResponse.json({ success: true, message: 'Budget deleted successfully.' });
     }
 

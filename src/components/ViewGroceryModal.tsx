@@ -11,6 +11,7 @@ import {
   ExternalLinkIcon,
   DownloadIcon,
   XIcon,
+  Loader2Icon,
 } from "lucide-react";
 import {
   Dialog,
@@ -34,15 +35,46 @@ export function ViewGroceryModal({ open, onOpenChange, entry }: ViewGroceryModal
   const [selectedSlipIndex, setSelectedSlipIndex] = useState(0);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [fetchedSlips, setFetchedSlips] = useState<string[] | null>(null);
+  const [isFetchingSlip, setIsFetchingSlip] = useState(false);
 
+  // Compute all slips from entry or on-demand fetch
   const allSlips: string[] = React.useMemo(() => {
+    if (fetchedSlips && fetchedSlips.length > 0) return fetchedSlips;
     if (!entry) return [];
     if (entry.slipUrls && Array.isArray(entry.slipUrls) && entry.slipUrls.length > 0) {
       return entry.slipUrls;
     }
     if (entry.slipUrl) return [entry.slipUrl];
     return [];
-  }, [entry]);
+  }, [entry, fetchedSlips]);
+
+  // If entry status is 'Slip Uploaded' but slips aren't in memory, fetch on-demand
+  useEffect(() => {
+    if (!open || !entry) {
+      setFetchedSlips(null);
+      setIsFetchingSlip(false);
+      return;
+    }
+
+    const hasSlips = (entry.slipUrls && entry.slipUrls.length > 0) || !!entry.slipUrl;
+    if (entry.status === 'Slip Uploaded' && !hasSlips) {
+      setIsFetchingSlip(true);
+      fetch(`/api/groceries/${entry.id}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.success && data.data) {
+            const slips = data.data.slipUrls || (data.data.slipUrl ? [data.data.slipUrl] : []);
+            setFetchedSlips(slips);
+          }
+        })
+        .catch((err) => console.error("Error fetching slip on-demand:", err))
+        .finally(() => setIsFetchingSlip(false));
+    } else {
+      setFetchedSlips(null);
+      setIsFetchingSlip(false);
+    }
+  }, [open, entry]);
 
   const currentSlip = allSlips[selectedSlipIndex] || null;
   const isCurrentPdf = currentSlip
@@ -272,7 +304,13 @@ export function ViewGroceryModal({ open, onOpenChange, entry }: ViewGroceryModal
                 )}
               </div>
 
-              {allSlips.length > 0 ? (
+              {isFetchingSlip || (entry?.status === "Slip Uploaded" && allSlips.length === 0) ? (
+                <div className="flex flex-col items-center justify-center gap-3 text-center p-8 bg-slate-50 border border-gray-200 rounded-xl min-h-[260px]">
+                  <Loader2Icon className="size-8 text-emerald-600 animate-spin" />
+                  <span className="text-xs font-bold text-gray-800">Loading High-Resolution Slip...</span>
+                  <span className="text-[11px] text-gray-500">Retrieving original document from database</span>
+                </div>
+              ) : allSlips.length > 0 ? (
                 <div className="border border-gray-200 rounded-xl overflow-hidden bg-slate-50 p-3 space-y-3">
                   {/* Main Active Viewer */}
                   <div className="relative rounded-lg overflow-hidden bg-white border border-gray-200 flex flex-col items-center justify-center min-h-[280px] max-h-[350px]">
@@ -417,29 +455,19 @@ export function ViewGroceryModal({ open, onOpenChange, entry }: ViewGroceryModal
       {/* High-Resolution Fullscreen Lightbox Modal */}
       {lightboxUrl && (
         <Dialog open={!!lightboxUrl} onOpenChange={(v) => !v && setLightboxUrl(null)}>
-          <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[94vh] bg-black/95 text-white border-none p-3 sm:p-4 rounded-2xl flex flex-col justify-between">
+          <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[94vh] bg-black/95 text-white border-none p-3 sm:p-4 rounded-2xl flex flex-col justify-between [&>button:last-child]:hidden">
             <div className="flex items-center justify-between pb-2 border-b border-white/10">
               <span className="text-xs font-semibold text-gray-300">
                 Receipt Slip #{selectedSlipIndex + 1} of {allSlips.length} • {entry.details}
               </span>
-              <div className="flex items-center gap-2">
-                <a
-                  href={lightboxUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-white/90 hover:text-white px-2.5 py-1 rounded bg-white/10 hover:bg-white/20 transition-colors"
-                >
-                  <ExternalLinkIcon className="size-3" />
-                  Open in New Tab
-                </a>
-                <button
-                  type="button"
-                  onClick={() => setLightboxUrl(null)}
-                  className="p-1 rounded-md text-white/70 hover:text-white hover:bg-white/10"
-                >
-                  <XIcon className="size-5" />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setLightboxUrl(null)}
+                className="p-1 rounded-md text-white/70 hover:text-white hover:bg-white/10 cursor-pointer transition-colors"
+                title="Close fullscreen preview"
+              >
+                <XIcon className="size-5" />
+              </button>
             </div>
 
             <div className="flex-1 flex items-center justify-center p-2 min-h-[60vh] max-h-[78vh] overflow-auto">

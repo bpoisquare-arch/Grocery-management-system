@@ -119,31 +119,18 @@ export function SiteHeader() {
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Live Sync Status Pill */}
-        <button
-          type="button"
-          onClick={() => {
-            refreshData();
-            toast.info("Syncing latest live data...");
-          }}
-          title="Real-Time Auto Sync active (every 20s and on tab focus). Click to sync now."
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-200 cursor-pointer select-none text-xs"
+        {/* Live Status Pill */}
+        <div
+          title="Live System Connected"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50/70 border border-emerald-200/70 select-none text-xs"
         >
           <span className="relative flex h-2 w-2">
-            {isSyncing && (
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            )}
-            <span
-              className={cn(
-                "relative inline-flex rounded-full h-2 w-2 transition-colors",
-                isSyncing ? "bg-amber-500" : "bg-emerald-500"
-              )}
-            ></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
           </span>
-          <span className="text-[11px] font-semibold text-slate-700 hidden sm:inline">
-            {isSyncing ? "Syncing..." : "Live"}
+          <span className="text-[11px] font-semibold text-emerald-800 hidden sm:inline">
+            Live
           </span>
-        </button>
+        </div>
 
         {/* Quick Entity Switcher for Lahore User & Admin */}
         {(currentUser?.role === "LAHORE_USER" || currentUser?.role === "ADMIN") && (

@@ -46,7 +46,9 @@ interface StoreContextType {
   isCommissionLoading: boolean;
   isSyncing: boolean;
   lastSyncedAt: Date | null;
+  isLoaded: boolean;
   loadGroceryData: (force?: boolean) => Promise<void>;
+  loadDashboardData: () => Promise<void>;
   loadCommissionData: (force?: boolean) => Promise<void>;
   login: (email: string, password?: string) => Promise<{ success: boolean; error?: string; user?: User }>;
   logout: () => Promise<void>;
@@ -236,131 +238,166 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     counselorsRef.current = counselors;
   }, [counselors]);
 
-  const groceryInFlightRef = useRef<Promise<void> | null>(null);
-  const commissionInFlightRef = useRef<Promise<void> | null>(null);
+  const budgetsInFlightRef = useRef<Promise<void> | null>(null);
+  const groceriesInFlightRef = useRef<Promise<void> | null>(null);
+  const categoriesInFlightRef = useRef<Promise<void> | null>(null);
+  const commissionsInFlightRef = useRef<Promise<void> | null>(null);
+  const counselorsInFlightRef = useRef<Promise<void> | null>(null);
 
-  // Priority load Grocery data (Budgets, Groceries, Categories) with SWR Cache & silent sync
-  const loadGroceryData = useCallback(async (force?: boolean) => {
-    if (groceryInFlightRef.current) {
-      return groceryInFlightRef.current;
-    }
+  const lastGroceryMutationTimeRef = useRef<number>(0);
+  const lastCommissionMutationTimeRef = useRef<number>(0);
 
-    // SWR Pattern: If data already exists in memory or cache, don't show blank/skeletons, just mark subtle syncing
-    if (groceryEntriesRef.current.length > 0 || budgetsRef.current.length > 0) {
-      setIsSyncing(true);
-    } else {
-      setIsGroceryLoading(true);
-    }
-
+  // Modular lazy-fetch: Budgets only
+  const fetchBudgets = useCallback(async () => {
+    if (budgetsInFlightRef.current) return budgetsInFlightRef.current;
     const promise = (async () => {
       try {
         const ts = Date.now();
-        // Priority 1: Budgets (Fastest & needed for overview cards)
-        const pBudgets = fetch(`/api/budgets?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } })
-          .then((res) => (res.ok ? res.json() : null))
-          .then((json) => {
-            if (json?.success && Array.isArray(json.data)) {
-              setBudgets(json.data);
-              budgetsRef.current = json.data;
-              saveSafeCache('gem_budgets_cache', json.data);
-            }
-          })
-          .catch((err) => console.error('Error fetching budgets:', err));
+        const res = await fetch(`/api/budgets?_t=${ts}`, { cache: 'no-store' });
+        const json = await res.json().catch(() => null);
+        if (json?.success && Array.isArray(json.data)) {
+          setBudgets(json.data);
+          budgetsRef.current = json.data;
+          saveSafeCache('gem_budgets_cache', json.data);
+        }
+      } catch (e) {
+        console.error('Error fetching budgets:', e);
+      } finally {
+        budgetsInFlightRef.current = null;
+      }
+    })();
+    budgetsInFlightRef.current = promise;
+    return promise;
+  }, []);
 
-        // Priority 2: Groceries & Categories in parallel
-        const pGroceries = fetch(`/api/groceries?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } })
-          .then((res) => (res.ok ? res.json() : null))
-          .then((json) => {
-            if (json?.success && Array.isArray(json.data)) {
-              setGroceryEntries(json.data);
-              groceryEntriesRef.current = json.data;
-              saveSafeCache('gem_grocery_cache', json.data);
-            }
-          })
-          .catch((err) => console.error('Error fetching groceries:', err));
-
-        const pCategories = fetch(`/api/categories?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } })
-          .then((res) => (res.ok ? res.json() : null))
-          .then((json) => {
-            if (json?.success && Array.isArray(json.data) && json.data.length > 0) {
-              setCategories(json.data);
-              saveSafeCache('gem_categories_cache', json.data);
-            }
-          })
-          .catch((err) => console.error('Error fetching categories:', err));
-
-        await Promise.allSettled([pBudgets, pGroceries, pCategories]);
-        setLastSyncedAt(new Date());
-      } catch (error) {
-        console.error('Error fetching grocery live data:', error);
+  // Modular lazy-fetch: Groceries only
+  const fetchGroceries = useCallback(async () => {
+    if (groceriesInFlightRef.current) return groceriesInFlightRef.current;
+    if (groceryEntriesRef.current.length === 0) setIsGroceryLoading(true);
+    const promise = (async () => {
+      try {
+        const ts = Date.now();
+        const res = await fetch(`/api/groceries?_t=${ts}`, { cache: 'no-store' });
+        const json = await res.json().catch(() => null);
+        if (json?.success && Array.isArray(json.data)) {
+          if (lastGroceryMutationTimeRef.current <= ts) {
+            setGroceryEntries(json.data);
+            groceryEntriesRef.current = json.data;
+            saveSafeCache('gem_grocery_cache', json.data);
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching groceries:', e);
       } finally {
         setIsGroceryLoading(false);
-        setIsSyncing(false);
-        groceryInFlightRef.current = null;
+        groceriesInFlightRef.current = null;
       }
     })();
-
-    groceryInFlightRef.current = promise;
+    groceriesInFlightRef.current = promise;
     return promise;
   }, []);
 
-  // Priority load Commission data (Commissions, Counselors) with SWR Cache & silent sync
-  const loadCommissionData = useCallback(async (force?: boolean) => {
-    if (commissionInFlightRef.current) {
-      return commissionInFlightRef.current;
-    }
-
-    if (commissionEntriesRef.current.length > 0 || counselorsRef.current.length > 0) {
-      setIsSyncing(true);
-    } else {
-      setIsCommissionLoading(true);
-    }
-
+  // Modular lazy-fetch: Categories only
+  const fetchCategories = useCallback(async () => {
+    if (categoriesInFlightRef.current) return categoriesInFlightRef.current;
     const promise = (async () => {
       try {
         const ts = Date.now();
-        const pCommissions = fetch(`/api/commissions?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } })
-          .then((res) => (res.ok ? res.json() : null))
-          .then((json) => {
-            if (json?.success && Array.isArray(json.data)) {
-              setCommissionEntries(json.data);
-              commissionEntriesRef.current = json.data;
-              saveSafeCache('gem_commissions_cache', json.data);
-            }
-          })
-          .catch((err) => console.error('Error fetching commissions:', err));
-
-        const pCounselors = fetch(`/api/counselors?_t=${ts}`, { cache: 'no-store', headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' } })
-          .then((res) => (res.ok ? res.json() : null))
-          .then((json) => {
-            if (json?.success && Array.isArray(json.data)) {
-              setCounselors(json.data);
-              counselorsRef.current = json.data;
-              saveSafeCache('gem_counselors_cache', json.data);
-            }
-          })
-          .catch((err) => console.error('Error fetching counselors:', err));
-
-        await Promise.allSettled([pCommissions, pCounselors]);
-        setLastSyncedAt(new Date());
-      } catch (error) {
-        console.error('Error fetching commission live data:', error);
+        const res = await fetch(`/api/categories?_t=${ts}`, { cache: 'no-store' });
+        const json = await res.json().catch(() => null);
+        if (json?.success && Array.isArray(json.data) && json.data.length > 0) {
+          setCategories(json.data);
+          saveSafeCache('gem_categories_cache', json.data);
+        }
+      } catch (e) {
+        console.error('Error fetching categories:', e);
       } finally {
-        setIsCommissionLoading(false);
-        setIsSyncing(false);
-        commissionInFlightRef.current = null;
+        categoriesInFlightRef.current = null;
       }
     })();
-
-    commissionInFlightRef.current = promise;
+    categoriesInFlightRef.current = promise;
     return promise;
   }, []);
 
-  // Function to refresh live data from database API routes
+  // Modular lazy-fetch: Commissions only
+  const fetchCommissions = useCallback(async () => {
+    if (commissionsInFlightRef.current) return commissionsInFlightRef.current;
+    if (commissionEntriesRef.current.length === 0) setIsCommissionLoading(true);
+    const promise = (async () => {
+      try {
+        const ts = Date.now();
+        const res = await fetch(`/api/commissions?_t=${ts}`, { cache: 'no-store' });
+        const json = await res.json().catch(() => null);
+        if (json?.success && Array.isArray(json.data)) {
+          if (lastCommissionMutationTimeRef.current <= ts) {
+            setCommissionEntries(json.data);
+            commissionEntriesRef.current = json.data;
+            saveSafeCache('gem_commissions_cache', json.data);
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching commissions:', e);
+      } finally {
+        setIsCommissionLoading(false);
+        commissionsInFlightRef.current = null;
+      }
+    })();
+    commissionsInFlightRef.current = promise;
+    return promise;
+  }, []);
+
+  // Modular lazy-fetch: Counselors only
+  const fetchCounselors = useCallback(async () => {
+    if (counselorsInFlightRef.current) return counselorsInFlightRef.current;
+    const promise = (async () => {
+      try {
+        const ts = Date.now();
+        const res = await fetch(`/api/counselors?_t=${ts}`, { cache: 'no-store' });
+        const json = await res.json().catch(() => null);
+        if (json?.success && Array.isArray(json.data)) {
+          setCounselors(json.data);
+          counselorsRef.current = json.data;
+          saveSafeCache('gem_counselors_cache', json.data);
+        }
+      } catch (e) {
+        console.error('Error fetching counselors:', e);
+      } finally {
+        counselorsInFlightRef.current = null;
+      }
+    })();
+    counselorsInFlightRef.current = promise;
+    return promise;
+  }, []);
+
+  // Page-specific lazy loaders:
+  // 1. Dashboard: Budgets + Groceries only (no categories, no commissions)
+  const loadDashboardData = useCallback(async () => {
+    await Promise.allSettled([fetchBudgets(), fetchGroceries()]);
+    setLastSyncedAt(new Date());
+  }, [fetchBudgets, fetchGroceries]);
+
+  // 2. Grocery Management: Groceries + Categories + Budgets (no commissions)
+  const loadGroceryData = useCallback(async (force?: boolean) => {
+    await Promise.allSettled([fetchGroceries(), fetchCategories(), fetchBudgets()]);
+    setLastSyncedAt(new Date());
+  }, [fetchGroceries, fetchCategories, fetchBudgets]);
+
+  // 3. Commissions: Commissions + Counselors only (no groceries, no budgets)
+  const loadCommissionData = useCallback(async (force?: boolean) => {
+    await Promise.allSettled([fetchCommissions(), fetchCounselors()]);
+    setLastSyncedAt(new Date());
+  }, [fetchCommissions, fetchCounselors]);
+
+  // 4. On-demand page refresh
   const refreshData = useCallback(async () => {
-    setIsLoading(true);
-    await Promise.allSettled([loadGroceryData(true), loadCommissionData(true)]);
-    setIsLoading(false);
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      if (path.startsWith('/commissions')) {
+        await loadCommissionData();
+      } else {
+        await loadGroceryData();
+      }
+    }
   }, [loadGroceryData, loadCommissionData]);
 
   // 1. Mount Hydration: Instant SWR Cache Hydration (0ms delay) + Session Verification
@@ -438,46 +475,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               setActiveEntity('ISquareBPO');
             }
 
-            // User session authenticated! Silently load fresh data in background
-            const currentPath = window.location.pathname;
-            if (currentPath.startsWith('/commissions')) {
-              loadCommissionData();
-            } else {
-              loadGroceryData();
-            }
           }
         });
     }
-  }, [loadGroceryData, loadCommissionData]);
+  }, []);
 
-  // 2. Real-Time Auto-Sync:
-  // - Window Focus: When tab is switched back to, auto-sync silently
-  // - Visibility Change: When user views the page, auto-sync silently
-  // - Heartbeat (every 20s): Automatically pulls new entries added by other users
-  // - Multi-tab storage event: Cross-tab instant communication
+  // 2. Real-Time Multi-Tab & SSE Live Listener (Zero Polling, Route-Scoped Only)
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const performAutoSync = () => {
-      if (document.visibilityState !== 'visible') return;
-      const path = window.location.pathname;
-      if (path.startsWith('/commissions')) {
-        loadCommissionData();
-      } else {
-        loadGroceryData();
-      }
-    };
-
-    const handleFocus = () => {
-      performAutoSync();
-    };
-
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        performAutoSync();
-      }
-    };
-
+    // Cross-tab synchronization via localStorage
     const handleStorage = (e: StorageEvent) => {
       if (e.key === 'gem_grocery_cache' && e.newValue) {
         try {
@@ -506,20 +513,59 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('storage', handleStorage);
 
-    // Heartbeat every 20s for real-time live updates from other users
-    const timer = setInterval(() => {
-      performAutoSync();
-    }, 20000);
+    // Real-Time EventSource (SSE) - Route-scoped: only updates what the user is currently viewing
+    let eventSource: EventSource | null = null;
+    if ('EventSource' in window) {
+      try {
+        eventSource = new EventSource('/api/events');
+        eventSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data?.type === 'connected') return;
+
+            const currentPath = window.location.pathname;
+
+            // Only fetch if currently on the active module page!
+            if (data?.module === 'grocery' || data?.module === 'budget' || data?.module === 'category') {
+              if (
+                !currentPath.startsWith('/commissions') &&
+                currentPath !== '/select-module' &&
+                currentPath !== '/select-entity' &&
+                currentPath !== '/login'
+              ) {
+                const timeSinceLocalMutation = Date.now() - lastGroceryMutationTimeRef.current;
+                if (timeSinceLocalMutation > 2500) {
+                  loadGroceryData();
+                }
+              }
+            } else if (data?.module === 'commission' || data?.module === 'counselor') {
+              if (currentPath.startsWith('/commissions')) {
+                const timeSinceLocalMutation = Date.now() - lastCommissionMutationTimeRef.current;
+                if (timeSinceLocalMutation > 2500) {
+                  loadCommissionData();
+                }
+              }
+            }
+          } catch (e) {
+            console.error('Error handling SSE live event:', e);
+          }
+        };
+
+        eventSource.onerror = () => {
+          // Native EventSource auto-reconnects
+        };
+      } catch (err) {
+        console.warn('Could not establish real-time SSE stream:', err);
+      }
+    }
 
     return () => {
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('storage', handleStorage);
-      clearInterval(timer);
+      if (eventSource) {
+        eventSource.close();
+      }
     };
   }, [loadGroceryData, loadCommissionData]);
 
@@ -569,6 +615,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const data = await res.json();
 
       if (res.ok && data.success && data.user) {
+        if (typeof window !== 'undefined') {
+          const prevUserStr = localStorage.getItem('gem_user');
+          if (prevUserStr) {
+            try {
+              const prevUser = JSON.parse(prevUserStr);
+              if (prevUser?.id !== data.user.id) {
+                localStorage.removeItem('gem_grocery_cache');
+                localStorage.removeItem('gem_budgets_cache');
+                localStorage.removeItem('gem_categories_cache');
+                localStorage.removeItem('gem_commissions_cache');
+                localStorage.removeItem('gem_counselors_cache');
+              }
+            } catch {}
+          }
+        }
         saveUser(data.user);
         if (data.user.role === 'LAHORE_USER') {
           const savedEntity = localStorage.getItem('gem_entity') as Entity | null;
@@ -846,23 +907,72 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       slipType,
     };
 
-    const res = await fetch('/api/groceries', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const optimisticEntry: GroceryEntry = {
+      id: tempId,
+      entity: activeEntity,
+      date: entry.date,
+      budgetMonth: assignedBudgetMonth,
+      budgetYear: assignedBudgetYear,
+      details: entry.details,
+      category: entry.category,
+      amount: entry.amount,
+      addedBy: currentUser ? currentUser.name : 'Unknown User',
+      status: computedStatus,
+      slipUrl: primarySlipUrl,
+      slipUrls: finalSlipUrls.length > 0 ? finalSlipUrls : undefined,
+      slipType,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // 0ms Optimistic UI update: Visible immediately without waiting for server network!
+    lastGroceryMutationTimeRef.current = Date.now();
+    setGroceryEntries((prev) => {
+      const next = [optimisticEntry, ...prev];
+      groceryEntriesRef.current = next;
+      saveSafeCache('gem_grocery_cache', next);
+      return next;
     });
 
-    const json = await res.json().catch(() => null);
+    try {
+      const res = await fetch('/api/groceries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-    if (!res.ok || !json?.success || !json?.data) {
-      const errMsg = json?.error || `Server responded with status ${res.status}: Failed to save grocery to database.`;
-      console.error('Failed to post grocery to API:', errMsg);
-      throw new Error(errMsg);
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok || !json?.success || !json?.data) {
+        // Rollback optimistic update
+        setGroceryEntries((prev) => {
+          const rolledBack = prev.filter((e) => e.id !== tempId);
+          groceryEntriesRef.current = rolledBack;
+          saveSafeCache('gem_grocery_cache', rolledBack);
+          return rolledBack;
+        });
+        const errMsg = json?.error || `Server responded with status ${res.status}: Failed to save grocery to database.`;
+        console.error('Failed to post grocery to API:', errMsg);
+        throw new Error(errMsg);
+      }
+
+      // Reconcile optimistic temporary id with persistent database record
+      setGroceryEntries((prev) => {
+        const reconciled = prev.map((e) => (e.id === tempId ? json.data : e));
+        groceryEntriesRef.current = reconciled;
+        saveSafeCache('gem_grocery_cache', reconciled);
+        return reconciled;
+      });
+    } catch (err) {
+      setGroceryEntries((prev) => {
+        const rolledBack = prev.filter((e) => e.id !== tempId);
+        groceryEntriesRef.current = rolledBack;
+        saveSafeCache('gem_grocery_cache', rolledBack);
+        return rolledBack;
+      });
+      throw err;
     }
-
-    const updated = [json.data, ...groceryEntries];
-    setGroceryEntries(updated);
-    saveSafeCache('gem_grocery_cache', updated);
   };
 
   const updateGroceryEntry = async (
@@ -944,6 +1054,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     const updated = groceryEntries.map((entry) => (entry.id === id ? json.data : entry));
+    lastGroceryMutationTimeRef.current = Date.now();
     setGroceryEntries(updated);
     saveSafeCache('gem_grocery_cache', updated);
   };
@@ -953,18 +1064,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Only administrators can delete grocery expenses.');
     }
 
-    const res = await fetch(`/api/groceries/${id}`, { method: 'DELETE' });
-    const json = await res.json().catch(() => null);
-
-    if (!res.ok || !json?.success) {
-      const errMsg = json?.error || `Server responded with status ${res.status}: Failed to delete grocery entry from database.`;
-      console.error('Failed to delete grocery via API:', errMsg);
-      throw new Error(errMsg);
-    }
-
-    const updated = groceryEntries.filter((entry) => entry.id !== id);
+    const previousEntries = groceryEntriesRef.current;
+    const updated = previousEntries.filter((entry) => entry.id !== id);
+    lastGroceryMutationTimeRef.current = Date.now();
     setGroceryEntries(updated);
+    groceryEntriesRef.current = updated;
     saveSafeCache('gem_grocery_cache', updated);
+
+    try {
+      const res = await fetch(`/api/groceries/${id}`, { method: 'DELETE' });
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok || !json?.success) {
+        // Rollback
+        setGroceryEntries(previousEntries);
+        groceryEntriesRef.current = previousEntries;
+        saveSafeCache('gem_grocery_cache', previousEntries);
+        const errMsg = json?.error || `Server responded with status ${res.status}: Failed to delete grocery entry from database.`;
+        console.error('Failed to delete grocery via API:', errMsg);
+        throw new Error(errMsg);
+      }
+    } catch (err) {
+      setGroceryEntries(previousEntries);
+      groceryEntriesRef.current = previousEntries;
+      saveSafeCache('gem_grocery_cache', previousEntries);
+      throw err;
+    }
   };
 
   const deleteGroceryEntries = async (ids: string[]) => {
@@ -987,6 +1112,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     const updated = groceryEntries.filter((entry) => !ids.includes(entry.id));
+    lastGroceryMutationTimeRef.current = Date.now();
     setGroceryEntries(updated);
     saveSafeCache('gem_grocery_cache', updated);
   };
@@ -1016,6 +1142,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     const updated = groceryEntries.map((entry) => (entry.id === id ? json.data : entry));
+    lastGroceryMutationTimeRef.current = Date.now();
     setGroceryEntries(updated);
     saveSafeCache('gem_grocery_cache', updated);
   };
@@ -1327,23 +1454,77 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       slipType,
     };
 
-    const res = await fetch('/api/commissions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const optimisticEntry: CommissionEntry = {
+      id: tempId,
+      entity: activeEntity,
+      studentName: entry.studentName,
+      service: entry.service,
+      counselor: entry.counselor,
+      amount: entry.amount,
+      date: entry.date,
+      fullReceived: entry.fullReceived,
+      counselorCommission: entry.counselorCommission || 0,
+      bmCommission: entry.bmCommission || 0,
+      claimedMonth: finalClaimedMonth,
+      claimedYear: finalClaimedYear,
+      isClaimed: finalIsClaimed,
+      notes: entry.notes,
+      status: finalSlipUrls.length > 0 ? 'Slip Uploaded' : 'Slip Missing',
+      slipUrl: primarySlipUrl,
+      slipUrls: finalSlipUrls.length > 0 ? finalSlipUrls : undefined,
+      slipType,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // 0ms Optimistic UI update: Visible immediately without waiting for server network!
+    lastCommissionMutationTimeRef.current = Date.now();
+    setCommissionEntries((prev) => {
+      const next = [optimisticEntry, ...prev];
+      commissionEntriesRef.current = next;
+      saveSafeCache('gem_commissions_cache', next);
+      return next;
     });
 
-    const json = await res.json().catch(() => null);
+    try {
+      const res = await fetch('/api/commissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-    if (!res.ok || !json?.success || !json?.data) {
-      const errMsg = json?.error || `Server responded with status ${res.status}: Failed to save commission entry to database.`;
-      console.error('Failed to post commission to API:', errMsg);
-      throw new Error(errMsg);
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok || !json?.success || !json?.data) {
+        // Rollback optimistic update
+        setCommissionEntries((prev) => {
+          const rolledBack = prev.filter((e) => e.id !== tempId);
+          commissionEntriesRef.current = rolledBack;
+          saveSafeCache('gem_commissions_cache', rolledBack);
+          return rolledBack;
+        });
+        const errMsg = json?.error || `Server responded with status ${res.status}: Failed to save commission entry to database.`;
+        console.error('Failed to post commission to API:', errMsg);
+        throw new Error(errMsg);
+      }
+
+      // Reconcile optimistic temporary id with persistent database record
+      setCommissionEntries((prev) => {
+        const reconciled = prev.map((e) => (e.id === tempId ? json.data : e));
+        commissionEntriesRef.current = reconciled;
+        saveSafeCache('gem_commissions_cache', reconciled);
+        return reconciled;
+      });
+    } catch (err) {
+      setCommissionEntries((prev) => {
+        const rolledBack = prev.filter((e) => e.id !== tempId);
+        commissionEntriesRef.current = rolledBack;
+        saveSafeCache('gem_commissions_cache', rolledBack);
+        return rolledBack;
+      });
+      throw err;
     }
-
-    const updated = [json.data, ...commissionEntries];
-    setCommissionEntries(updated);
-    saveSafeCache('gem_commissions_cache', updated);
   };
 
   const updateCommissionEntry = async (
@@ -1431,23 +1612,38 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     const updated = commissionEntries.map((entry) => (entry.id === id ? json.data : entry));
+    lastCommissionMutationTimeRef.current = Date.now();
     setCommissionEntries(updated);
     saveSafeCache('gem_commissions_cache', updated);
   };
 
   const deleteCommissionEntry = async (id: string) => {
-    const res = await fetch(`/api/commissions/${id}`, { method: 'DELETE' });
-    const json = await res.json().catch(() => null);
-
-    if (!res.ok || !json?.success) {
-      const errMsg = json?.error || `Server responded with status ${res.status}: Failed to delete commission from database.`;
-      console.error('Failed to delete commission via API:', errMsg);
-      throw new Error(errMsg);
-    }
-
-    const updated = commissionEntries.filter((entry) => entry.id !== id);
+    const previousEntries = commissionEntriesRef.current;
+    const updated = previousEntries.filter((entry) => entry.id !== id);
+    lastCommissionMutationTimeRef.current = Date.now();
     setCommissionEntries(updated);
+    commissionEntriesRef.current = updated;
     saveSafeCache('gem_commissions_cache', updated);
+
+    try {
+      const res = await fetch(`/api/commissions/${id}`, { method: 'DELETE' });
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok || !json?.success) {
+        // Rollback
+        setCommissionEntries(previousEntries);
+        commissionEntriesRef.current = previousEntries;
+        saveSafeCache('gem_commissions_cache', previousEntries);
+        const errMsg = json?.error || `Server responded with status ${res.status}: Failed to delete commission from database.`;
+        console.error('Failed to delete commission via API:', errMsg);
+        throw new Error(errMsg);
+      }
+    } catch (err) {
+      setCommissionEntries(previousEntries);
+      commissionEntriesRef.current = previousEntries;
+      saveSafeCache('gem_commissions_cache', previousEntries);
+      throw err;
+    }
   };
 
   const deleteCommissionEntries = async (ids: string[]) => {
@@ -1466,6 +1662,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     const updated = commissionEntries.filter((entry) => !ids.includes(entry.id));
+    lastCommissionMutationTimeRef.current = Date.now();
     setCommissionEntries(updated);
     saveSafeCache('gem_commissions_cache', updated);
   };
@@ -1596,7 +1793,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         isCommissionLoading,
         isSyncing,
         lastSyncedAt,
+        isLoaded,
         loadGroceryData,
+        loadDashboardData,
         loadCommissionData,
         login,
         logout,
@@ -1627,7 +1826,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         syncLocalToDatabase,
       }}
     >
-      {isLoaded && children}
+      {children}
     </StoreContext.Provider>
   );
 }

@@ -16,6 +16,7 @@ import {
   ExternalLinkIcon,
   DownloadIcon,
   XIcon,
+  Loader2Icon,
 } from "lucide-react";
 import {
   Dialog,
@@ -38,13 +39,43 @@ export function ViewCommissionModal({ open, onOpenChange, entry }: ViewCommissio
   const [selectedSlipIndex, setSelectedSlipIndex] = useState(0);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [fetchedSlips, setFetchedSlips] = useState<string[] | null>(null);
+  const [isFetchingSlip, setIsFetchingSlip] = useState(false);
 
   const allSlips: string[] = React.useMemo(() => {
+    if (fetchedSlips && fetchedSlips.length > 0) return fetchedSlips;
     if (!entry) return [];
     if (entry.slipUrls && entry.slipUrls.length > 0) return entry.slipUrls;
     if (entry.slipUrl) return [entry.slipUrl];
     return [];
-  }, [entry]);
+  }, [entry, fetchedSlips]);
+
+  // If entry status is 'Slip Uploaded' but slips aren't in memory, fetch on-demand
+  useEffect(() => {
+    if (!open || !entry) {
+      setFetchedSlips(null);
+      setIsFetchingSlip(false);
+      return;
+    }
+
+    const hasSlips = (entry.slipUrls && entry.slipUrls.length > 0) || !!entry.slipUrl;
+    if (entry.status === "Slip Uploaded" && !hasSlips) {
+      setIsFetchingSlip(true);
+      fetch(`/api/commissions/${entry.id}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.success && data.data) {
+            const slips = data.data.slipUrls || (data.data.slipUrl ? [data.data.slipUrl] : []);
+            setFetchedSlips(slips);
+          }
+        })
+        .catch((err) => console.error("Error fetching commission slip on-demand:", err))
+        .finally(() => setIsFetchingSlip(false));
+    } else {
+      setFetchedSlips(null);
+      setIsFetchingSlip(false);
+    }
+  }, [open, entry]);
 
   const currentSlip = allSlips[selectedSlipIndex] || null;
   const isCurrentPdf = currentSlip
@@ -253,7 +284,13 @@ export function ViewCommissionModal({ open, onOpenChange, entry }: ViewCommissio
                   )}
                 </div>
 
-                {allSlips.length > 0 ? (
+                {isFetchingSlip || (entry?.status === "Slip Uploaded" && allSlips.length === 0) ? (
+                  <div className="p-8 rounded-xl border border-gray-200 bg-slate-50 text-center text-xs text-gray-700 font-medium flex flex-col items-center justify-center gap-2 min-h-[220px]">
+                    <Loader2Icon className="size-7 text-emerald-600 animate-spin" />
+                    <span className="font-bold text-gray-800">Loading High-Resolution Slip...</span>
+                    <span className="text-[11px] text-gray-500">Retrieving original document from database</span>
+                  </div>
+                ) : allSlips.length > 0 ? (
                   <div className="border border-gray-200 rounded-xl overflow-hidden bg-slate-50 p-2 space-y-2">
                     {/* Active Main Preview */}
                     <div className="relative rounded-lg overflow-hidden bg-white border border-gray-200 flex flex-col items-center justify-center min-h-[220px] max-h-[300px]">
@@ -385,7 +422,7 @@ export function ViewCommissionModal({ open, onOpenChange, entry }: ViewCommissio
       {/* Lightbox Modal */}
       {lightboxUrl && (
         <Dialog open={!!lightboxUrl} onOpenChange={() => setLightboxUrl(null)}>
-          <DialogContent className="sm:max-w-[760px] max-h-[90vh] bg-black/95 text-white p-4 rounded-2xl border-none">
+          <DialogContent className="sm:max-w-[760px] max-h-[90vh] bg-black/95 text-white p-4 rounded-2xl border-none [&>button:last-child]:hidden">
             <div className="flex justify-between items-center pb-2 border-b border-white/10">
               <span className="text-xs font-bold text-gray-200">
                 Deposit Slip Full View #{selectedSlipIndex + 1}
