@@ -44,6 +44,8 @@ interface StoreContextType {
   isLoading: boolean;
   isGroceryLoading: boolean;
   isCommissionLoading: boolean;
+  isSyncing: boolean;
+  lastSyncedAt: Date | null;
   loadGroceryData: (force?: boolean) => Promise<void>;
   loadCommissionData: (force?: boolean) => Promise<void>;
   login: (email: string, password?: string) => Promise<{ success: boolean; error?: string; user?: User }>;
@@ -160,6 +162,40 @@ interface StoreContextType {
   }>;
 }
 
+// Safe Cache Helpers for SWR Local Caching
+function getSafeCache<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const item = localStorage.getItem(key);
+    if (!item) return fallback;
+    const parsed = JSON.parse(item);
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveSafeCache(key: string, data: any) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (key === 'gem_grocery_cache' || key === 'gem_commissions_cache') {
+      const lightweight = Array.isArray(data)
+        ? data.map((item: any) => {
+            const { slipUrl, slipUrls, ...rest } = item;
+            // Strip large base64 data to preserve 5MB browser quota
+            const safeSlipUrl = slipUrl && slipUrl.startsWith('data:') && slipUrl.length > 500 ? undefined : slipUrl;
+            return { ...rest, slipUrl: safeSlipUrl };
+          })
+        : data;
+      localStorage.setItem(key, JSON.stringify(lightweight));
+      return;
+    }
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (err) {
+    console.warn(`[Cache] Storage quota warning for key '${key}':`, err);
+  }
+}
+
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
@@ -175,18 +211,47 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isGroceryLoading, setIsGroceryLoading] = useState<boolean>(true);
   const [isCommissionLoading, setIsCommissionLoading] = useState<boolean>(false);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+
+  const groceryEntriesRef = useRef<GroceryEntry[]>([]);
+  const budgetsRef = useRef<Budget[]>([]);
+  const commissionEntriesRef = useRef<CommissionEntry[]>([]);
+  const counselorsRef = useRef<Counselor[]>([]);
+
+  useEffect(() => {
+    groceryEntriesRef.current = groceryEntries;
+  }, [groceryEntries]);
+
+  useEffect(() => {
+    budgetsRef.current = budgets;
+  }, [budgets]);
+
+  useEffect(() => {
+    commissionEntriesRef.current = commissionEntries;
+  }, [commissionEntries]);
+
+  useEffect(() => {
+    counselorsRef.current = counselors;
+  }, [counselors]);
 
   const groceryInFlightRef = useRef<Promise<void> | null>(null);
   const commissionInFlightRef = useRef<Promise<void> | null>(null);
 
-  // Priority load Grocery data (Budgets, Groceries, Categories) independently without blocking
+  // Priority load Grocery data (Budgets, Groceries, Categories) with SWR Cache & silent sync
   const loadGroceryData = useCallback(async (force?: boolean) => {
     if (groceryInFlightRef.current) {
       return groceryInFlightRef.current;
     }
 
-    setIsGroceryLoading(true);
+    // SWR Pattern: If data already exists in memory or cache, don't show blank/skeletons, just mark subtle syncing
+    if (groceryEntriesRef.current.length > 0 || budgetsRef.current.length > 0) {
+      setIsSyncing(true);
+    } else {
+      setIsGroceryLoading(true);
+    }
+
     const promise = (async () => {
       try {
         const ts = Date.now();
@@ -196,6 +261,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           .then((json) => {
             if (json?.success && Array.isArray(json.data)) {
               setBudgets(json.data);
+              budgetsRef.current = json.data;
+              saveSafeCache('gem_budgets_cache', json.data);
             }
           })
           .catch((err) => console.error('Error fetching budgets:', err));
@@ -206,6 +273,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           .then((json) => {
             if (json?.success && Array.isArray(json.data)) {
               setGroceryEntries(json.data);
+              groceryEntriesRef.current = json.data;
+              saveSafeCache('gem_grocery_cache', json.data);
             }
           })
           .catch((err) => console.error('Error fetching groceries:', err));
@@ -215,15 +284,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           .then((json) => {
             if (json?.success && Array.isArray(json.data) && json.data.length > 0) {
               setCategories(json.data);
+              saveSafeCache('gem_categories_cache', json.data);
             }
           })
           .catch((err) => console.error('Error fetching categories:', err));
 
         await Promise.allSettled([pBudgets, pGroceries, pCategories]);
+        setLastSyncedAt(new Date());
       } catch (error) {
         console.error('Error fetching grocery live data:', error);
       } finally {
         setIsGroceryLoading(false);
+        setIsSyncing(false);
         groceryInFlightRef.current = null;
       }
     })();
@@ -232,13 +304,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return promise;
   }, []);
 
-  // Priority load Commission data (Commissions, Counselors) independently without blocking
+  // Priority load Commission data (Commissions, Counselors) with SWR Cache & silent sync
   const loadCommissionData = useCallback(async (force?: boolean) => {
     if (commissionInFlightRef.current) {
       return commissionInFlightRef.current;
     }
 
-    setIsCommissionLoading(true);
+    if (commissionEntriesRef.current.length > 0 || counselorsRef.current.length > 0) {
+      setIsSyncing(true);
+    } else {
+      setIsCommissionLoading(true);
+    }
+
     const promise = (async () => {
       try {
         const ts = Date.now();
@@ -247,6 +324,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           .then((json) => {
             if (json?.success && Array.isArray(json.data)) {
               setCommissionEntries(json.data);
+              commissionEntriesRef.current = json.data;
+              saveSafeCache('gem_commissions_cache', json.data);
             }
           })
           .catch((err) => console.error('Error fetching commissions:', err));
@@ -256,15 +335,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           .then((json) => {
             if (json?.success && Array.isArray(json.data)) {
               setCounselors(json.data);
+              counselorsRef.current = json.data;
+              saveSafeCache('gem_counselors_cache', json.data);
             }
           })
           .catch((err) => console.error('Error fetching counselors:', err));
 
         await Promise.allSettled([pCommissions, pCounselors]);
+        setLastSyncedAt(new Date());
       } catch (error) {
         console.error('Error fetching commission live data:', error);
       } finally {
         setIsCommissionLoading(false);
+        setIsSyncing(false);
         commissionInFlightRef.current = null;
       }
     })();
@@ -280,17 +363,37 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false);
   }, [loadGroceryData, loadCommissionData]);
 
-  // Initialize pure live session and live database data (Zero localStorage caching of records)
+  // 1. Mount Hydration: Instant SWR Cache Hydration (0ms delay) + Session Verification
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Clean up any old cached record data from localStorage to free memory and prevent stale reads
-      try {
-        localStorage.removeItem('gem_grocery');
-        localStorage.removeItem('gem_categories');
-        localStorage.removeItem('gem_budgets');
-        localStorage.removeItem('gem_commissions');
-        localStorage.removeItem('gem_counselors');
-      } catch (e) {}
+      // Hydrate all cached data immediately so UI renders instantaneously without blank screens
+      const cachedGroceries = getSafeCache<GroceryEntry[]>('gem_grocery_cache', []);
+      const cachedBudgets = getSafeCache<Budget[]>('gem_budgets_cache', []);
+      const cachedCategories = getSafeCache<Category[]>('gem_categories_cache', []);
+      const cachedCommissions = getSafeCache<CommissionEntry[]>('gem_commissions_cache', []);
+      const cachedCounselors = getSafeCache<Counselor[]>('gem_counselors_cache', []);
+
+      if (cachedGroceries.length > 0) {
+        setGroceryEntries(cachedGroceries);
+        groceryEntriesRef.current = cachedGroceries;
+        setIsGroceryLoading(false);
+      }
+      if (cachedBudgets.length > 0) {
+        setBudgets(cachedBudgets);
+        budgetsRef.current = cachedBudgets;
+      }
+      if (cachedCategories.length > 0) {
+        setCategories(cachedCategories);
+      }
+      if (cachedCommissions.length > 0) {
+        setCommissionEntries(cachedCommissions);
+        commissionEntriesRef.current = cachedCommissions;
+        setIsCommissionLoading(false);
+      }
+      if (cachedCounselors.length > 0) {
+        setCounselors(cachedCounselors);
+        counselorsRef.current = cachedCounselors;
+      }
 
       const storedEntity = localStorage.getItem('gem_entity');
       const storedMonth = localStorage.getItem('gem_month');
@@ -300,7 +403,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (storedMonth) setCurrentMonthState(storedMonth);
       if (storedYear) setCurrentYearState(parseInt(storedYear, 10));
 
-      // Verify current authenticated session
+      // Restore user if present to prevent login redirect flicker
+      const storedUser = localStorage.getItem('gem_user');
+      if (storedUser) {
+        try {
+          const u = JSON.parse(storedUser);
+          if (u?.id) setCurrentUser(u);
+        } catch {}
+      }
+
+      // Immediately render children with available cache (no 5-10s block!)
+      setIsLoaded(true);
+
+      // Verify authenticated session in background
       fetch('/api/auth/me')
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
@@ -323,7 +438,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               setActiveEntity('ISquareBPO');
             }
 
-            // User session authenticated! Load priority data for active page
+            // User session authenticated! Silently load fresh data in background
             const currentPath = window.location.pathname;
             if (currentPath.startsWith('/commissions')) {
               loadCommissionData();
@@ -331,11 +446,81 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               loadGroceryData();
             }
           }
-        })
-        .finally(() => {
-          setIsLoaded(true);
         });
     }
+  }, [loadGroceryData, loadCommissionData]);
+
+  // 2. Real-Time Auto-Sync:
+  // - Window Focus: When tab is switched back to, auto-sync silently
+  // - Visibility Change: When user views the page, auto-sync silently
+  // - Heartbeat (every 20s): Automatically pulls new entries added by other users
+  // - Multi-tab storage event: Cross-tab instant communication
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const performAutoSync = () => {
+      if (document.visibilityState !== 'visible') return;
+      const path = window.location.pathname;
+      if (path.startsWith('/commissions')) {
+        loadCommissionData();
+      } else {
+        loadGroceryData();
+      }
+    };
+
+    const handleFocus = () => {
+      performAutoSync();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        performAutoSync();
+      }
+    };
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'gem_grocery_cache' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            setGroceryEntries(parsed);
+            groceryEntriesRef.current = parsed;
+          }
+        } catch {}
+      } else if (e.key === 'gem_budgets_cache' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            setBudgets(parsed);
+            budgetsRef.current = parsed;
+          }
+        } catch {}
+      } else if (e.key === 'gem_commissions_cache' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            setCommissionEntries(parsed);
+            commissionEntriesRef.current = parsed;
+          }
+        } catch {}
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('storage', handleStorage);
+
+    // Heartbeat every 20s for real-time live updates from other users
+    const timer = setInterval(() => {
+      performAutoSync();
+    }, 20000);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('storage', handleStorage);
+      clearInterval(timer);
+    };
   }, [loadGroceryData, loadCommissionData]);
 
   // Sync state changes to localStorage
@@ -421,6 +606,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
     saveUser(null);
     if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('gem_user');
+        localStorage.removeItem('gem_grocery_cache');
+        localStorage.removeItem('gem_budgets_cache');
+        localStorage.removeItem('gem_categories_cache');
+        localStorage.removeItem('gem_commissions_cache');
+        localStorage.removeItem('gem_counselors_cache');
+      } catch (e) {}
       window.location.href = '/login';
     }
   };
@@ -533,7 +726,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (json.success && json.data) {
           const updated = [...categories.filter((c) => c.id !== json.data.id && c.name.toLowerCase() !== trimmed.toLowerCase()), json.data];
           setCategories(updated);
-                    return json.data;
+          saveSafeCache('gem_categories_cache', updated);
+          return json.data;
         }
       }
     } catch (e) {
@@ -542,7 +736,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = [...categories, newCat];
     setCategories(updated);
-        return newCat;
+    saveSafeCache('gem_categories_cache', updated);
+    return newCat;
   };
 
   const assignCategoryToGrocery = async (groceryId: string, categoryName: string) => {
@@ -558,6 +753,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return entry;
     });
     setGroceryEntries(updated);
+    saveSafeCache('gem_grocery_cache', updated);
     
     try {
       await fetch(`/api/groceries/${groceryId}`, {
@@ -666,7 +862,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = [json.data, ...groceryEntries];
     setGroceryEntries(updated);
-      };
+    saveSafeCache('gem_grocery_cache', updated);
+  };
 
   const updateGroceryEntry = async (
     id: string,
@@ -748,7 +945,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = groceryEntries.map((entry) => (entry.id === id ? json.data : entry));
     setGroceryEntries(updated);
-      };
+    saveSafeCache('gem_grocery_cache', updated);
+  };
 
   const deleteGroceryEntry = async (id: string) => {
     if (currentUser?.role !== 'ADMIN') {
@@ -766,7 +964,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = groceryEntries.filter((entry) => entry.id !== id);
     setGroceryEntries(updated);
-      };
+    saveSafeCache('gem_grocery_cache', updated);
+  };
 
   const deleteGroceryEntries = async (ids: string[]) => {
     if (currentUser?.role !== 'ADMIN') {
@@ -789,7 +988,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = groceryEntries.filter((entry) => !ids.includes(entry.id));
     setGroceryEntries(updated);
-      };
+    saveSafeCache('gem_grocery_cache', updated);
+  };
 
   const approveEntryWithoutSlip = async (id: string) => {
     if (currentUser?.role !== 'ADMIN') {
@@ -817,7 +1017,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = groceryEntries.map((entry) => (entry.id === id ? json.data : entry));
     setGroceryEntries(updated);
-      };
+    saveSafeCache('gem_grocery_cache', updated);
+  };
 
   // Upsert or update monthly budget for entity & month & year
   const setMonthlyBudget = async (entity: Entity, month: string, year: number, amount: number) => {
@@ -845,7 +1046,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             updatedBudgets.push(json.data);
           }
           setBudgets(updatedBudgets);
-                    return;
+          saveSafeCache('gem_budgets_cache', updatedBudgets);
+          return;
         }
       }
     } catch (e) {
@@ -865,7 +1067,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     setBudgets(updatedBudgets);
-      };
+    saveSafeCache('gem_budgets_cache', updatedBudgets);
+  };
 
   // Delete a specific monthly budget
   const deleteMonthlyBudget = async (entity: Entity, month: string, year: number) => {
@@ -883,7 +1086,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       (b) => !(b.entity === entity && b.month.toLowerCase() === month.toLowerCase() && b.year === year)
     );
     setBudgets(updatedBudgets);
-      };
+    saveSafeCache('gem_budgets_cache', updatedBudgets);
+  };
 
   // Clear all budgets
   const clearAllBudgets = async () => {
@@ -898,7 +1102,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     setBudgets([]);
-      };
+    saveSafeCache('gem_budgets_cache', []);
+  };
 
   const MONTHS_ORDER = [
     'january', 'february', 'march', 'april', 'may', 'june',
@@ -1138,7 +1343,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = [json.data, ...commissionEntries];
     setCommissionEntries(updated);
-      };
+    saveSafeCache('gem_commissions_cache', updated);
+  };
 
   const updateCommissionEntry = async (
     id: string,
@@ -1226,7 +1432,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = commissionEntries.map((entry) => (entry.id === id ? json.data : entry));
     setCommissionEntries(updated);
-      };
+    saveSafeCache('gem_commissions_cache', updated);
+  };
 
   const deleteCommissionEntry = async (id: string) => {
     const res = await fetch(`/api/commissions/${id}`, { method: 'DELETE' });
@@ -1240,7 +1447,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = commissionEntries.filter((entry) => entry.id !== id);
     setCommissionEntries(updated);
-      };
+    saveSafeCache('gem_commissions_cache', updated);
+  };
 
   const deleteCommissionEntries = async (ids: string[]) => {
     const res = await fetch('/api/commissions/bulk-delete', {
@@ -1259,7 +1467,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = commissionEntries.filter((entry) => !ids.includes(entry.id));
     setCommissionEntries(updated);
-      };
+    saveSafeCache('gem_commissions_cache', updated);
+  };
 
   const addCounselor = async (counselor: {
     name: string;
@@ -1294,7 +1503,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = [...counselors, json.data];
     setCounselors(updated);
-      };
+    saveSafeCache('gem_counselors_cache', updated);
+  };
 
   const updateCounselor = async (
     id: string,
@@ -1323,7 +1533,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = counselors.map((c) => (c.id === id ? json.data : c));
     setCounselors(updated);
-      };
+    saveSafeCache('gem_counselors_cache', updated);
+  };
 
   const deleteCounselor = async (id: string) => {
     const res = await fetch(`/api/counselors/${id}`, { method: 'DELETE' });
@@ -1337,7 +1548,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const updated = counselors.filter((c) => c.id !== id);
     setCounselors(updated);
-      };
+    saveSafeCache('gem_counselors_cache', updated);
+  };
 
   // Clean Refresh / Sync helper (single source of truth from database)
   const syncLocalToDatabase = async (): Promise<{
@@ -1382,6 +1594,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         isLoading: isGroceryLoading,
         isGroceryLoading,
         isCommissionLoading,
+        isSyncing,
+        lastSyncedAt,
         loadGroceryData,
         loadCommissionData,
         login,

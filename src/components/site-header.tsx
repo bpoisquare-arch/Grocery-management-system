@@ -33,6 +33,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ShieldCheckIcon, UserIcon, ArrowLeftRightIcon, Building2Icon, LayersIcon } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export function SiteHeader() {
   const pathname = usePathname();
@@ -45,6 +46,8 @@ export function SiteHeader() {
     setCurrentMonth,
     currentYear,
     login,
+    isSyncing,
+    refreshData,
   } = useStore();
 
   const getPageTitle = () => {
@@ -116,6 +119,32 @@ export function SiteHeader() {
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Live Sync Status Pill */}
+        <button
+          type="button"
+          onClick={() => {
+            refreshData();
+            toast.info("Syncing latest live data...");
+          }}
+          title="Real-Time Auto Sync active (every 20s and on tab focus). Click to sync now."
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-200 cursor-pointer select-none text-xs"
+        >
+          <span className="relative flex h-2 w-2">
+            {isSyncing && (
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            )}
+            <span
+              className={cn(
+                "relative inline-flex rounded-full h-2 w-2 transition-colors",
+                isSyncing ? "bg-amber-500" : "bg-emerald-500"
+              )}
+            ></span>
+          </span>
+          <span className="text-[11px] font-semibold text-slate-700 hidden sm:inline">
+            {isSyncing ? "Syncing..." : "Live"}
+          </span>
+        </button>
+
         {/* Quick Entity Switcher for Lahore User & Admin */}
         {(currentUser?.role === "LAHORE_USER" || currentUser?.role === "ADMIN") && (
           <DropdownMenu>
