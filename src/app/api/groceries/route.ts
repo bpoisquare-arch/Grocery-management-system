@@ -270,7 +270,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      eventBus.emit('sync', { type: 'grocery', action: 'create', entity });
+      eventBus.emit('sync', { module: 'grocery', type: 'grocery', action: 'create', entity });
     } catch {}
 
     return NextResponse.json({ success: true, data: formatGroceryEntry(newEntry) }, { status: 201 });

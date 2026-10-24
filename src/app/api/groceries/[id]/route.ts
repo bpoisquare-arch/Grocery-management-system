@@ -6,21 +6,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { eventBus } from '@/lib/eventBus';
 
-function deriveMonthYearFromDate(dateStr: string) {
-  try {
-    const d = new Date(dateStr);
-    if (!isNaN(d.getTime())) {
-      const monthNames = [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'
-      ];
-      return {
-        month: monthNames[d.getMonth()],
-        year: d.getFullYear(),
-      };
-    }
-  } catch (e) {
-    // ignore
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+function deriveMonthYearFromDate(dateStr?: string) {
+  if (!dateStr) return { month: 'August', year: 2026 };
+  const parts = dateStr.split('-');
+  if (parts.length >= 2) {
+    const year = parseInt(parts[0], 10) || 2026;
+    const monthIndex = parseInt(parts[1], 10) - 1;
+    const month = MONTH_NAMES[monthIndex] || 'August';
+    return { month, year };
   }
   return { month: 'August', year: 2026 };
 }
@@ -188,7 +186,7 @@ export async function PUT(
     }
 
     try {
-      eventBus.emit('sync', { type: 'grocery', action: 'update', id });
+      eventBus.emit('sync', { module: 'grocery', type: 'grocery', action: 'update', id });
     } catch {}
 
     return NextResponse.json({ success: true, data: formatGroceryEntry(updated) });
@@ -224,7 +222,7 @@ export async function DELETE(
     }
 
     try {
-      eventBus.emit('sync', { type: 'grocery', action: 'delete', id });
+      eventBus.emit('sync', { module: 'grocery', type: 'grocery', action: 'delete', id });
     } catch {}
 
     return NextResponse.json({ success: true, message: 'Deleted successfully' });

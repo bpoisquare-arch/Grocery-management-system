@@ -17,8 +17,16 @@ export async function GET(request: NextRequest) {
       const onSync = (data: any) => {
         if (isClosed) return;
         try {
+          const normalized = {
+            ...data,
+            type: data?.type || data?.module || 'grocery',
+            module: data?.module || data?.type || 'grocery',
+            timestamp: Date.now(),
+          };
+          const jsonStr = JSON.stringify(normalized);
+          // Dispatch as both named 'sync' event and standard unnamed message event
           controller.enqueue(
-            encoder.encode(`event: sync\ndata: ${JSON.stringify(data)}\n\n`)
+            encoder.encode(`event: sync\ndata: ${jsonStr}\n\ndata: ${jsonStr}\n\n`)
           );
         } catch {
           isClosed = true;

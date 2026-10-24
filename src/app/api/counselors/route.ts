@@ -4,6 +4,8 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { initialCounselors } from '@/lib/mockData';
+import { AUTH_COOKIE_NAME, verifyToken } from '@/lib/auth';
+import { eventBus } from '@/lib/eventBus';
 
 // Helper to format counselor from DB to Client Counselor structure
 function formatCounselor(c: any) {
@@ -71,6 +73,11 @@ export async function GET(request: NextRequest) {
 
 // POST /api/counselors - Create a new counselor
 export async function POST(request: NextRequest) {
+  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const session = token ? await verifyToken(token) : null;
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
   try {
     const body = await request.json();
     const { name, entity, email, phone, serviceCommissions, bmServiceCommissions } = body;
@@ -92,6 +99,10 @@ export async function POST(request: NextRequest) {
         bmServiceCommissions: bmServiceCommissions ? JSON.stringify(bmServiceCommissions) : null,
       },
     });
+
+    try {
+      eventBus.emit('sync', { module: 'counselor', type: 'counselor', action: 'create' });
+    } catch {}
 
     return NextResponse.json({ success: true, data: formatCounselor(newCounselor) }, { status: 201 });
   } catch (error: any) {

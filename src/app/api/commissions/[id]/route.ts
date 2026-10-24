@@ -4,6 +4,7 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { eventBus } from '@/lib/eventBus';
+import { AUTH_COOKIE_NAME, verifyToken } from '@/lib/auth';
 
 // Helper to format DB commission entry into client-side CommissionEntry
 function formatCommissionEntry(comm: any) {
@@ -51,6 +52,11 @@ export async function GET(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const session = token ? await verifyToken(token) : null;
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
   try {
     const { id } = await context.params;
     let entry = await (prisma as any).commissionEntry.findUnique({
@@ -77,6 +83,11 @@ export async function PUT(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const session = token ? await verifyToken(token) : null;
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
   try {
     const { id } = await context.params;
     const body = await request.json();
@@ -184,7 +195,7 @@ export async function PUT(
     }
 
     try {
-      eventBus.emit('sync', { type: 'commission', action: 'update', id });
+      eventBus.emit('sync', { module: 'commission', type: 'commission', action: 'update', id });
     } catch {}
 
     return NextResponse.json({ success: true, data: formatCommissionEntry(updated) });
@@ -202,6 +213,11 @@ export async function DELETE(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const session = token ? await verifyToken(token) : null;
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
   try {
     const { id } = await context.params;
 
@@ -215,7 +231,7 @@ export async function DELETE(
     }
 
     try {
-      eventBus.emit('sync', { type: 'commission', action: 'delete', id });
+      eventBus.emit('sync', { module: 'commission', type: 'commission', action: 'delete', id });
     } catch {}
 
     return NextResponse.json({ success: true, message: 'Deleted successfully' });

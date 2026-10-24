@@ -155,11 +155,13 @@ export async function POST(request: NextRequest) {
             message: 'Logged in successfully.',
           });
 
+          const isHttps = request.headers.get('x-forwarded-proto') === 'https' || request.url.startsWith('https://');
+
           response.cookies.set({
             name: AUTH_COOKIE_NAME,
             value: token,
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
+            secure: isHttps,
             sameSite: 'lax',
             path: '/',
             maxAge: 60 * 60 * 24 * 7,
@@ -215,12 +217,14 @@ export async function POST(request: NextRequest) {
       message: 'Logged in successfully.',
     });
 
+    const isHttps = request.headers.get('x-forwarded-proto') === 'https' || request.url.startsWith('https://');
+
     // Set secure HTTP-only cookie
     response.cookies.set({
       name: AUTH_COOKIE_NAME,
       value: token,
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isHttps,
       sameSite: 'lax',
       path: '/',
       maxAge: 60 * 60 * 24 * 7, // 7 days

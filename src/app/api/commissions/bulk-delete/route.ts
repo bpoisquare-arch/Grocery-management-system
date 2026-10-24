@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { AUTH_COOKIE_NAME, verifyToken } from '@/lib/auth';
+import { eventBus } from '@/lib/eventBus';
 
 // POST /api/commissions/bulk-delete - Delete multiple commission entries
 export async function POST(request: NextRequest) {
+  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const session = token ? await verifyToken(token) : null;
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
+  if (session.role !== 'ADMIN') {
+    return NextResponse.json({ success: false, error: 'Forbidden: Administrator privileges required.' }, { status: 403 });
+  }
   try {
     const { ids } = await request.json();
 
@@ -18,6 +28,10 @@ export async function POST(request: NextRequest) {
         id: { in: ids },
       },
     });
+
+    try {
+      eventBus.emit('sync', { module: 'commission', type: 'commission', action: 'bulk-delete', ids });
+    } catch {}
 
     return NextResponse.json({
       success: true,

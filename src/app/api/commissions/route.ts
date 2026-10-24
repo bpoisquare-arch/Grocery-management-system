@@ -358,7 +358,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      eventBus.emit('sync', { type: 'commission', action: 'create', entity });
+      eventBus.emit('sync', { module: 'commission', type: 'commission', action: 'create', entity });
     } catch {}
 
     return NextResponse.json({ success: true, data: formatCommissionEntry(newEntry) }, { status: 201 });

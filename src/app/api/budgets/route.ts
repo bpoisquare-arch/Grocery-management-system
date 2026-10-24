@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-      eventBus.emit('sync', { type: 'grocery', action: 'budget', entity });
+      eventBus.emit('sync', { module: 'budget', type: 'grocery', action: 'budget', entity });
     } catch {}
 
     return NextResponse.json({ success: true, data: budget });
@@ -123,11 +123,17 @@ export async function DELETE(request: NextRequest) {
 
     if (clearAll === 'true') {
       await prisma.budget.deleteMany({});
+      try {
+        eventBus.emit('sync', { module: 'budget', type: 'grocery', action: 'budget' });
+      } catch {}
       return NextResponse.json({ success: true, message: 'All budgets cleared successfully.' });
     }
 
     if (id) {
       await prisma.budget.delete({ where: { id } });
+      try {
+        eventBus.emit('sync', { module: 'budget', type: 'grocery', action: 'budget' });
+      } catch {}
       return NextResponse.json({ success: true, message: 'Budget deleted successfully.' });
     }
 
@@ -140,7 +146,7 @@ export async function DELETE(request: NextRequest) {
         },
       });
       try {
-        eventBus.emit('sync', { type: 'grocery', action: 'budget' });
+        eventBus.emit('sync', { module: 'budget', type: 'grocery', action: 'budget', entity });
       } catch {}
 
       return NextResponse.json({ success: true, message: 'Budget deleted successfully.' });

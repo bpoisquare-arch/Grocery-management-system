@@ -84,6 +84,7 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
 
   const [existingSlips, setExistingSlips] = useState<ExistingSlip[]>([]);
   const [newSlips, setNewSlips] = useState<NewSlip[]>([]);
+  const [isFetchingSlips, setIsFetchingSlips] = useState(false);
   const [previewModalUrl, setPreviewModalUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -125,6 +126,30 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
       });
       setExistingSlips(loadedSlips);
       setNewSlips([]);
+
+      // If slips were stripped from local cache, fetch on-demand
+      if (urls.length === 0 && entry.status === "Slip Uploaded") {
+        setIsFetchingSlips(true);
+        fetch(`/api/commissions/${entry.id}`)
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data?.success && data.data) {
+              const fullSlips: string[] = data.data.slipUrls || (data.data.slipUrl ? [data.data.slipUrl] : []);
+              if (fullSlips.length > 0) {
+                const fetched: ExistingSlip[] = fullSlips.map((url, idx) => ({
+                  id: `existing-${idx}-${Date.now()}`,
+                  url,
+                  isPdf: url.includes("application/pdf") || url.toLowerCase().endsWith(".pdf"),
+                }));
+                setExistingSlips(fetched);
+              }
+            }
+          })
+          .catch((err) => console.error("Failed to fetch commission slips on-demand:", err))
+          .finally(() => setIsFetchingSlips(false));
+      } else {
+        setIsFetchingSlips(false);
+      }
 
       recalculateCommission(eCounselor, eService, eAmountStr);
     }
@@ -575,6 +600,13 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
                       {totalSlipsCount}/5 Slips
                     </span>
                   </div>
+
+                  {isFetchingSlips && (
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-medium border border-emerald-100">
+                      <Loader2Icon className="size-3.5 animate-spin shrink-0 text-emerald-600" />
+                      <span>Loading attached receipts from database...</span>
+                    </div>
+                  )}
 
                   {/* Dropzone Upload Button */}
                   {totalSlipsCount < 5 && (

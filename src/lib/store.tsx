@@ -278,6 +278,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       try {
         const ts = Date.now();
         const res = await fetch(`/api/groceries?_t=${ts}`, { cache: 'no-store' });
+        if (res.status === 401) {
+          setCurrentUser(null);
+          try { localStorage.removeItem('gem_user'); } catch (e) {}
+        }
         const json = await res.json().catch(() => null);
         if (json?.success && Array.isArray(json.data)) {
           if (lastGroceryMutationTimeRef.current <= ts) {
@@ -327,6 +331,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       try {
         const ts = Date.now();
         const res = await fetch(`/api/commissions?_t=${ts}`, { cache: 'no-store' });
+        if (res.status === 401) {
+          setCurrentUser(null);
+          try { localStorage.removeItem('gem_user'); } catch (e) {}
+        }
         const json = await res.json().catch(() => null);
         if (json?.success && Array.isArray(json.data)) {
           if (lastCommissionMutationTimeRef.current <= ts) {
@@ -474,9 +482,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             } else if (data.user.role === 'ISQUAREBPO_USER') {
               setActiveEntity('ISquareBPO');
             }
-
+          } else {
+            // Clear zombie user state if server session is expired or invalid
+            setCurrentUser(null);
+            try {
+              localStorage.removeItem('gem_user');
+            } catch (e) {}
           }
-        });
+        })
+        .catch(() => {});
     }
   }, []);
 
@@ -517,18 +531,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     // Real-Time EventSource (SSE) - Route-scoped: only updates what the user is currently viewing
     let eventSource: EventSource | null = null;
+    let handleSyncEvent: ((event: MessageEvent) => void) | null = null;
+
     if ('EventSource' in window) {
       try {
         eventSource = new EventSource('/api/events');
-        eventSource.onmessage = (event) => {
+
+        handleSyncEvent = (event: MessageEvent) => {
           try {
+            if (!event?.data) return;
             const data = JSON.parse(event.data);
             if (data?.type === 'connected') return;
 
+            const mod = (data?.module || data?.type || '').toLowerCase();
             const currentPath = window.location.pathname;
 
             // Only fetch if currently on the active module page!
-            if (data?.module === 'grocery' || data?.module === 'budget' || data?.module === 'category') {
+            if (mod === 'grocery' || mod === 'budget' || mod === 'category') {
               if (
                 !currentPath.startsWith('/commissions') &&
                 currentPath !== '/select-module' &&
@@ -536,22 +555,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 currentPath !== '/login'
               ) {
                 const timeSinceLocalMutation = Date.now() - lastGroceryMutationTimeRef.current;
-                if (timeSinceLocalMutation > 2500) {
+                if (timeSinceLocalMutation > 2000) {
                   loadGroceryData();
                 }
               }
-            } else if (data?.module === 'commission' || data?.module === 'counselor') {
+            } else if (mod === 'commission' || mod === 'counselor') {
               if (currentPath.startsWith('/commissions')) {
                 const timeSinceLocalMutation = Date.now() - lastCommissionMutationTimeRef.current;
-                if (timeSinceLocalMutation > 2500) {
+                if (timeSinceLocalMutation > 2000) {
                   loadCommissionData();
                 }
               }
             }
           } catch (e) {
-            console.error('Error handling SSE live event:', e);
+            // Ignore parse errors from keepalive
           }
         };
+
+        eventSource.onmessage = handleSyncEvent;
+        eventSource.addEventListener('sync', handleSyncEvent as EventListener);
 
         eventSource.onerror = () => {
           // Native EventSource auto-reconnects
@@ -564,6 +586,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return () => {
       window.removeEventListener('storage', handleStorage);
       if (eventSource) {
+        if (handleSyncEvent) {
+          eventSource.removeEventListener('sync', handleSyncEvent as EventListener);
+        }
         eventSource.close();
       }
     };
@@ -877,17 +902,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // Derive budget month/year from entry.date if not explicitly provided
     let derivedMonth = 'August';
     let derivedYear = 2026;
-    try {
-      const d = new Date(entry.date);
-      if (!isNaN(d.getTime())) {
+    if (entry.date) {
+      const parts = entry.date.split('-');
+      if (parts.length >= 2) {
         const monthNames = [
           'January', 'February', 'March', 'April', 'May', 'June',
           'July', 'August', 'September', 'October', 'November', 'December'
         ];
-        derivedMonth = monthNames[d.getMonth()];
-        derivedYear = d.getFullYear();
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        if (!isNaN(y) && !isNaN(m) && monthNames[m]) {
+          derivedMonth = monthNames[m];
+          derivedYear = y;
+        }
       }
-    } catch (e) {}
+    }
 
     const assignedBudgetMonth = entry.budgetMonth || derivedMonth;
     const assignedBudgetYear = entry.budgetYear || derivedYear;
@@ -945,6 +974,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const json = await res.json().catch(() => null);
 
       if (!res.ok || !json?.success || !json?.data) {
+        if (res.status === 401) {
+          setCurrentUser(null);
+          try { localStorage.removeItem('gem_user'); } catch (e) {}
+        }
         // Rollback optimistic update
         setGroceryEntries((prev) => {
           const rolledBack = prev.filter((e) => e.id !== tempId);
@@ -1048,6 +1081,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const json = await res.json().catch(() => null);
 
     if (!res.ok || !json?.success || !json?.data) {
+      if (res.status === 401) {
+        setCurrentUser(null);
+        try { localStorage.removeItem('gem_user'); } catch (e) {}
+      }
       const errMsg = json?.error || `Server responded with status ${res.status}: Failed to update grocery in database.`;
       console.error('Failed to update grocery via API:', errMsg);
       throw new Error(errMsg);
@@ -1114,6 +1151,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const updated = groceryEntries.filter((entry) => !ids.includes(entry.id));
     lastGroceryMutationTimeRef.current = Date.now();
     setGroceryEntries(updated);
+    groceryEntriesRef.current = updated;
     saveSafeCache('gem_grocery_cache', updated);
   };
 
@@ -1497,6 +1535,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const json = await res.json().catch(() => null);
 
       if (!res.ok || !json?.success || !json?.data) {
+        if (res.status === 401) {
+          setCurrentUser(null);
+          try { localStorage.removeItem('gem_user'); } catch (e) {}
+        }
         // Rollback optimistic update
         setCommissionEntries((prev) => {
           const rolledBack = prev.filter((e) => e.id !== tempId);
@@ -1606,6 +1648,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const json = await res.json().catch(() => null);
 
     if (!res.ok || !json?.success || !json?.data) {
+      if (res.status === 401) {
+        setCurrentUser(null);
+        try { localStorage.removeItem('gem_user'); } catch (e) {}
+      }
       const errMsg = json?.error || `Server responded with status ${res.status}: Failed to update commission entry in database.`;
       console.error('Failed to update commission via API:', errMsg);
       throw new Error(errMsg);
@@ -1664,6 +1710,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const updated = commissionEntries.filter((entry) => !ids.includes(entry.id));
     lastCommissionMutationTimeRef.current = Date.now();
     setCommissionEntries(updated);
+    commissionEntriesRef.current = updated;
     saveSafeCache('gem_commissions_cache', updated);
   };
 

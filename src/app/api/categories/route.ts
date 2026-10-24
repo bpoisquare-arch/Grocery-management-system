@@ -4,6 +4,8 @@ export const revalidate = 0;
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { initialCategories } from '@/lib/mockData';
+import { AUTH_COOKIE_NAME, verifyToken } from '@/lib/auth';
+import { eventBus } from '@/lib/eventBus';
 
 // Helper to format category from DB to Client structure
 function formatCategory(cat: any) {
@@ -77,6 +79,11 @@ export async function GET(request: NextRequest) {
 
 // POST /api/categories - Create a new category
 export async function POST(request: NextRequest) {
+  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  const session = token ? await verifyToken(token) : null;
+  if (!session) {
+    return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
   try {
     const body = await request.json();
     const { name, type, entity } = body;
@@ -138,6 +145,10 @@ export async function POST(request: NextRequest) {
         createdCategory = { id, name: trimmedName, type: catType, entity: catEntity, createdAt: now };
       }
     }
+
+    try {
+      eventBus.emit('sync', { module: 'category', type: 'category', action: 'create' });
+    } catch {}
 
     return NextResponse.json(
       { success: true, data: formatCategory(createdCategory) },

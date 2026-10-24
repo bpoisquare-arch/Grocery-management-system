@@ -88,6 +88,7 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
   const [details, setDetails] = useState("");
   const [amountStr, setAmountStr] = useState("");
   const [slipItems, setSlipItems] = useState<SlipItem[]>([]);
+  const [isFetchingSlips, setIsFetchingSlips] = useState(false);
   const [previewModalItem, setPreviewModalItem] = useState<SlipItem | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -226,6 +227,37 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
       setSlipItems(initialItems);
       setPreviewModalItem(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
+
+      // If entry has slips in database but they were stripped from local cache, fetch them on-demand
+      if (existingSlips.length === 0 && entry.status === "Slip Uploaded") {
+        setIsFetchingSlips(true);
+        fetch(`/api/groceries/${entry.id}`)
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data?.success && data.data) {
+              const fullSlips: string[] = data.data.slipUrls || (data.data.slipUrl ? [data.data.slipUrl] : []);
+              if (fullSlips.length > 0) {
+                const fetchedItems: SlipItem[] = fullSlips.map((url, index) => {
+                  const isPdf = url.includes("application/pdf") || url.toLowerCase().endsWith(".pdf");
+                  return {
+                    id: `existing-slip-${index}-${Date.now()}`,
+                    url,
+                    previewUrl: url,
+                    name: isPdf ? `Attached_Document_${index + 1}.pdf` : `Attached_Slip_${index + 1}.jpg`,
+                    size: "Saved",
+                    isPdf,
+                    isExisting: true,
+                  };
+                });
+                setSlipItems(fetchedItems);
+              }
+            }
+          })
+          .catch((err) => console.error("Failed to fetch grocery slips on-demand:", err))
+          .finally(() => setIsFetchingSlips(false));
+      } else {
+        setIsFetchingSlips(false);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, entry]);
@@ -601,6 +633,13 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
                     PDF (up to 30MB) • JPG / PNG (up to 10MB)
                   </span>
                 </div>
+
+                {isFetchingSlips && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-medium border border-emerald-100">
+                    <Loader2Icon className="size-4 animate-spin shrink-0 text-emerald-600" />
+                    <span>Loading attached receipts from database...</span>
+                  </div>
+                )}
 
                 {slipItems.length < 10 && (
                   <div
