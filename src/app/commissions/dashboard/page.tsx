@@ -88,12 +88,17 @@ export default function CommissionsDashboardPage() {
   }, [loadCommissionData]);
 
   const isAdmin = currentUser?.role === "ADMIN";
+  const isAuditor = currentUser?.role === "AUDITOR";
 
   // Strict branch isolation for non-admin users
   useEffect(() => {
     if (currentUser?.role === "ISQUAREBPO_USER") {
       toast.error("Commissions Module is not available for ISquareBPO entity.");
       router.push("/dashboard");
+    } else if (currentUser?.role === "AUDITOR") {
+      if (activeEntity !== "Lahore" && activeEntity !== "Multan") {
+        switchEntity("Lahore");
+      }
     } else if (currentUser?.role === "LAHORE_USER" && activeEntity !== "Lahore") {
       switchEntity("Lahore");
     } else if (currentUser?.role === "MULTAN_USER" && activeEntity !== "Multan") {
@@ -539,13 +544,15 @@ export default function CommissionsDashboardPage() {
               <FileTextIcon className="size-4 text-red-500" />
               Export PDF
             </Button>
-            <Button
-              onClick={() => setAddModalOpen(true)}
-              className="flex-1 md:flex-initial bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs flex items-center gap-1.5 h-9 text-xs cursor-pointer"
-            >
-              <PlusIcon className="size-4" />
-              Add Commission
-            </Button>
+            {!isAuditor && (
+              <Button
+                onClick={() => setAddModalOpen(true)}
+                className="flex-1 md:flex-initial bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs flex items-center gap-1.5 h-9 text-xs cursor-pointer"
+              >
+                <PlusIcon className="size-4" />
+                Add Commission
+              </Button>
+            )}
           </div>
         </div>
 
@@ -925,15 +932,17 @@ export default function CommissionsDashboardPage() {
                           <GraduationCapIcon className="size-8 text-gray-300" />
                           <span className="text-base font-bold text-gray-700">No Commission Entries Found</span>
                           <span className="text-xs text-gray-400">Click &quot;Add Commission&quot; to record a student service transaction.</span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setAddModalOpen(true)}
-                            className="mt-2 border-gray-200 font-semibold text-xs cursor-pointer"
-                          >
-                            <PlusIcon className="size-3.5 mr-1" />
-                            Add Commission
-                          </Button>
+                          {!isAuditor && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setAddModalOpen(true)}
+                              className="mt-2 border-gray-200 font-semibold text-xs cursor-pointer"
+                            >
+                              <PlusIcon className="size-3.5 mr-1" />
+                              Add Commission
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1012,10 +1021,12 @@ export default function CommissionsDashboardPage() {
                                 <EyeIcon className="size-3.5 mr-2 text-gray-400" />
                                 View Details
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleAction(entry, "edit")} className="cursor-pointer text-xs">
-                                <PencilIcon className="size-3.5 mr-2 text-gray-400" />
-                                Edit Entry
-                              </DropdownMenuItem>
+                              {!isAuditor && (
+                                <DropdownMenuItem onClick={() => handleAction(entry, "edit")} className="cursor-pointer text-xs">
+                                  <PencilIcon className="size-3.5 mr-2 text-gray-400" />
+                                  Edit Entry
+                                </DropdownMenuItem>
+                              )}
                               {isAdmin && (
                                 <>
                                   <DropdownMenuSeparator className="bg-gray-100" />

@@ -70,10 +70,13 @@ export default function BudgetPage() {
   // State to filter history by specific entity ("all" | "Lahore" | "Multan" | "ISquareBPO" | "Miscellaneous")
   const [selectedHistoryEntity, setSelectedHistoryEntity] = useState<string>("all");
 
-  // Role Access Check
+  const isAdmin = currentUser?.role === "ADMIN";
+  const isAuditor = currentUser?.role === "AUDITOR";
+
+  // Role Access Check: Admin and Auditor allowed
   useEffect(() => {
-    if (currentUser && currentUser.role !== "ADMIN") {
-      toast.error("Access denied. Admin permissions required.");
+    if (currentUser && currentUser.role !== "ADMIN" && currentUser.role !== "AUDITOR") {
+      toast.error("Access denied. Admin or Auditor permissions required.");
       router.push("/dashboard");
     }
   }, [currentUser, router]);
@@ -93,16 +96,16 @@ export default function BudgetPage() {
   }, [formEntity, formMonth, formYear, existingBudget]);
 
   // Compile history items separately per entity with full sequential rollover calculations
-  const allEntities: Entity[] = ["Lahore", "Multan", "ISquareBPO", "Miscellaneous"];
+  // For Auditor, ISquareBPO is completely hidden
+  const allEntities: Entity[] = useMemo(() => {
+    return isAuditor
+      ? ["Lahore", "Multan", "Miscellaneous"]
+      : ["Lahore", "Multan", "ISquareBPO", "Miscellaneous"];
+  }, [isAuditor]);
 
   // Calculate full sequential rollover chain separately per entity (sorted newest first)
   const entityChainsMap = useMemo(() => {
-    const map: Record<Entity, ReturnType<typeof calculateEntityBudgetChain>> = {
-      Lahore: [],
-      Multan: [],
-      ISquareBPO: [],
-      Miscellaneous: [],
-    };
+    const map: Partial<Record<Entity, ReturnType<typeof calculateEntityBudgetChain>>> = {};
 
     const months = [
       "January", "February", "March", "April", "May", "June",
@@ -118,8 +121,8 @@ export default function BudgetPage() {
       map[ent] = sorted;
     });
 
-    return map;
-  }, [budgets, groceryEntries, calculateEntityBudgetChain]);
+    return map as Record<Entity, ReturnType<typeof calculateEntityBudgetChain>>;
+  }, [allEntities, budgets, groceryEntries, calculateEntityBudgetChain]);
 
   const totalPeriodsCount = useMemo(() => {
     return Object.values(entityChainsMap).reduce((sum, list) => sum + list.length, 0);
@@ -192,7 +195,7 @@ export default function BudgetPage() {
   };
 
   // Auth / Role Guard early return
-  if (!currentUser || currentUser.role !== "ADMIN") {
+  if (!currentUser || (currentUser.role !== "ADMIN" && currentUser.role !== "AUDITOR")) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-50 p-6">
         <div className="w-full max-w-md space-y-4">
@@ -215,7 +218,7 @@ export default function BudgetPage() {
             </p>
           </div>
 
-          {budgets.length > 0 && (
+          {isAdmin && budgets.length > 0 && (
             <Button
               variant="outline"
               size="sm"
@@ -229,8 +232,9 @@ export default function BudgetPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Budget Setting / Update Form */}
-          <Card className="border border-gray-200 bg-white shadow-2xs lg:col-span-4">
+          {/* Budget Setting / Update Form (Admin Only) */}
+          {isAdmin && (
+            <Card className="border border-gray-200 bg-white shadow-2xs lg:col-span-4">
             <CardHeader>
               <CardTitle className="text-base font-bold text-gray-900 flex items-center gap-1.5">
                 <CoinsIcon className="size-4 text-emerald-600" />
@@ -395,9 +399,10 @@ export default function BudgetPage() {
               </form>
             </CardContent>
           </Card>
+          )}
 
           {/* Budget History Table */}
-          <Card className="border border-gray-200 bg-white shadow-2xs lg:col-span-8">
+          <Card className={cn("border border-gray-200 bg-white shadow-2xs", isAuditor ? "lg:col-span-12" : "lg:col-span-8")}>
             <CardHeader className="pb-3 border-b border-gray-100">
               <div className="flex items-center justify-between">
                 <div>
@@ -478,7 +483,7 @@ export default function BudgetPage() {
                       <TableHead className="text-[11px] font-bold text-gray-500 py-3 px-3">Allocated Budget</TableHead>
                       <TableHead className="text-[11px] font-bold text-gray-500 py-3 px-3">Total Spent</TableHead>
                       <TableHead className="text-[11px] font-bold text-gray-500 py-3 px-3">Net Remaining</TableHead>
-                      <TableHead className="text-right text-[11px] font-bold text-gray-500 py-3 px-3">Actions</TableHead>
+                      {isAdmin && <TableHead className="text-right text-[11px] font-bold text-gray-500 py-3 px-3">Actions</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -499,18 +504,20 @@ export default function BudgetPage() {
                           <TableCell className="py-3 px-3">
                             <Skeleton className="h-4 w-20 bg-slate-200" />
                           </TableCell>
-                          <TableCell className="py-3 px-3 text-right">
-                            <Skeleton className="h-8 w-8 rounded-lg ml-auto bg-slate-200" />
-                          </TableCell>
+                          {isAdmin && (
+                            <TableCell className="py-3 px-3 text-right">
+                              <Skeleton className="h-8 w-8 rounded-lg ml-auto bg-slate-200" />
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))
                     ) : totalPeriodsCount === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="h-32 text-center text-gray-400 text-sm">
+                        <TableCell colSpan={isAdmin ? 5 : 4} className="h-32 text-center text-gray-400 text-sm">
                           <div className="flex flex-col items-center justify-center gap-1.5">
                             <CoinsIcon className="size-6 text-gray-300" />
                             <span>No budgets assigned yet.</span>
-                            <span className="text-xs text-gray-400">Use the form on the left to allocate a monthly budget.</span>
+                            {isAdmin && <span className="text-xs text-gray-400">Use the form on the left to allocate a monthly budget.</span>}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -521,7 +528,7 @@ export default function BudgetPage() {
                           if (selectedHistoryEntity !== "all") {
                             return (
                               <TableRow key={`empty-${ent}`}>
-                                <TableCell colSpan={5} className="h-28 text-center text-gray-400 text-xs">
+                                <TableCell colSpan={isAdmin ? 5 : 4} className="h-28 text-center text-gray-400 text-xs">
                                   <div className="flex flex-col items-center justify-center gap-1">
                                     <Building2Icon className="size-5 text-gray-300" />
                                     <span>No budget allocations recorded for {ent} entity yet.</span>
@@ -537,7 +544,7 @@ export default function BudgetPage() {
                           <React.Fragment key={ent}>
                             {/* Entity Group Header Row */}
                             <TableRow className="bg-slate-100/90 border-y border-slate-200">
-                              <TableCell colSpan={5} className="py-2.5 px-3">
+                              <TableCell colSpan={isAdmin ? 5 : 4} className="py-2.5 px-3">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
                                     <Building2Icon className="size-4 text-emerald-600" />
@@ -636,31 +643,33 @@ export default function BudgetPage() {
                                   </div>
                                 </TableCell>
 
-                                {/* Actions */}
-                                <TableCell className="py-3 px-3 text-right align-top">
-                                  <div className="flex items-center justify-end gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="icon-xs"
-                                      onClick={() =>
-                                        handleQuickEdit(item.entity, item.month, item.year, item.baseBudget)
-                                      }
-                                      className="h-7 w-7 text-emerald-700 hover:bg-emerald-50 rounded cursor-pointer"
-                                      title="Edit / Update base budget"
-                                    >
-                                      <PencilIcon className="size-3.5" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon-xs"
-                                      onClick={() => handleDeleteBudget(item.entity, item.month, item.year)}
-                                      className="h-7 w-7 text-red-600 hover:bg-red-50 rounded cursor-pointer"
-                                      title="Delete this budget"
-                                    >
-                                      <Trash2Icon className="size-3.5" />
-                                    </Button>
-                                  </div>
-                                </TableCell>
+                                {/* Actions (Admin Only) */}
+                                {isAdmin && (
+                                  <TableCell className="py-3 px-3 text-right align-top">
+                                    <div className="flex items-center justify-end gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon-xs"
+                                        onClick={() =>
+                                          handleQuickEdit(item.entity, item.month, item.year, item.baseBudget)
+                                        }
+                                        className="h-7 w-7 text-emerald-700 hover:bg-emerald-50 rounded cursor-pointer"
+                                        title="Edit / Update base budget"
+                                      >
+                                        <PencilIcon className="size-3.5" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon-xs"
+                                        onClick={() => handleDeleteBudget(item.entity, item.month, item.year)}
+                                        className="h-7 w-7 text-red-600 hover:bg-red-50 rounded cursor-pointer"
+                                        title="Delete this budget"
+                                      >
+                                        <Trash2Icon className="size-3.5" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                )}
                               </TableRow>
                             ))}
                           </React.Fragment>

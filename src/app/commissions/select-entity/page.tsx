@@ -24,20 +24,20 @@ export default function CommissionSelectEntityPage() {
   const { currentUser, switchEntity, logout, currentMonth, currentYear } = useStore();
   const router = useRouter();
 
-  // Access Control: Redirect if not Admin or not logged in
+  // Access Control: Redirect if not Admin, Auditor or not logged in
   useEffect(() => {
     if (!currentUser) {
       router.push("/login");
     } else if (currentUser.role === "ISQUAREBPO_USER") {
       toast.error("Commissions Module is not available for ISquareBPO entity.");
       router.push("/dashboard");
-    } else if (currentUser.role !== "ADMIN") {
+    } else if (currentUser.role !== "ADMIN" && currentUser.role !== "AUDITOR") {
       // Normal users go straight to commission dashboard
       router.push("/commissions/dashboard");
     }
   }, [currentUser, router]);
 
-  if (!currentUser || currentUser.role !== "ADMIN") {
+  if (!currentUser || (currentUser.role !== "ADMIN" && currentUser.role !== "AUDITOR")) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-50 p-6">
         <div className="w-full max-w-md space-y-4">
@@ -146,7 +146,7 @@ export default function CommissionSelectEntityPage() {
                 onClick={() => handleSelectCommissionEntity("Lahore")}
                 className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 group cursor-pointer"
               >
-                Manage Lahore Commission
+                {currentUser?.role === "AUDITOR" ? "View Lahore Commission" : "Manage Lahore Commission"}
                 <ArrowRightIcon className="size-4 group-hover:translate-x-1 transition-transform" />
               </Button>
             </CardFooter>
@@ -191,9 +191,9 @@ export default function CommissionSelectEntityPage() {
             <CardFooter className="pt-2">
               <Button
                 onClick={() => handleSelectCommissionEntity("Multan")}
-                className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 group cursor-pointer"
+                className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 group-hover:shadow-md cursor-pointer"
               >
-                Manage Multan Commission
+                {currentUser?.role === "AUDITOR" ? "View Multan Commission" : "Manage Multan Commission"}
                 <ArrowRightIcon className="size-4 group-hover:translate-x-1 transition-transform" />
               </Button>
             </CardFooter>

@@ -23,11 +23,15 @@ async function main() {
   const multanEmail = process.env.MULTAN_USER_EMAIL || 'multan@grocerymanager.com';
   const multanPassword = process.env.MULTAN_USER_PASSWORD || 'MultanPassword123!';
 
+  const auditorEmail = process.env.AUDITOR_EMAIL || 'auditor@grocerymanager.com';
+  const auditorPassword = process.env.AUDITOR_PASSWORD || 'AuditorPassword123!';
+
   // 1. Hash passwords securely with bcrypt
   console.log('Hashing user credentials with bcrypt (10 rounds)...');
   const hashedAdminPassword = await hashPassword(adminPassword);
   const hashedLahorePassword = await hashPassword(lahorePassword);
   const hashedMultanPassword = await hashPassword(multanPassword);
+  const hashedAuditorPassword = await hashPassword(auditorPassword);
 
   // 2. Seed/Upsert Users
   await prisma.user.upsert({
@@ -81,6 +85,24 @@ async function main() {
       password: hashedMultanPassword,
       role: 'MULTAN_USER',
       assignedEntity: 'Multan',
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: auditorEmail },
+    update: {
+      name: 'Auditor',
+      password: hashedAuditorPassword,
+      role: 'AUDITOR',
+      assignedEntity: null,
+    },
+    create: {
+      id: 'user-auditor',
+      name: 'Auditor',
+      email: auditorEmail,
+      password: hashedAuditorPassword,
+      role: 'AUDITOR',
+      assignedEntity: null,
     },
   });
   console.log('✓ Users created with bcrypt-hashed passwords in MySQL.');

@@ -1,4 +1,4 @@
-export type Role = 'ADMIN' | 'LAHORE_USER' | 'MULTAN_USER' | 'ISQUAREBPO_USER';
+export type Role = 'ADMIN' | 'LAHORE_USER' | 'MULTAN_USER' | 'ISQUAREBPO_USER' | 'AUDITOR';
 export type Entity = 'Lahore' | 'Multan' | 'ISquareBPO' | 'Miscellaneous';
 export type SlipStatus = 'Slip Uploaded' | 'Slip Missing' | 'Approved Without Slip';
 
@@ -217,6 +217,13 @@ export const mockUsers: User[] = [
     avatar: '',
     role: 'ISQUAREBPO_USER',
     assignedEntity: 'ISquareBPO',
+  },
+  {
+    id: 'user-auditor',
+    name: 'Auditor',
+    email: 'auditor@grocerymanager.com',
+    avatar: '',
+    role: 'AUDITOR',
   },
 ];
 

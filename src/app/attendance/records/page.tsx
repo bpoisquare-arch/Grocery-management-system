@@ -523,8 +523,9 @@ export default function AttendanceRecordsPage() {
   const isAdmin = currentUser?.role === 'ADMIN'
   const isLahoreUser = currentUser?.role === 'LAHORE_USER'
   const isMultanUser = currentUser?.role === 'MULTAN_USER'
+  const isAuditor = currentUser?.role === 'AUDITOR'
 
-  const defaultBranch = isLahoreUser ? 'Lahore' : isMultanUser ? 'Multan' : 'all'
+  const defaultBranch = isLahoreUser ? 'Lahore' : isMultanUser ? 'Multan' : isAuditor ? 'Lahore' : 'all'
 
   const [records, setRecords] = useState<AttendanceRecordWithEmployee[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
@@ -682,8 +683,10 @@ export default function AttendanceRecordsPage() {
       setSelectedBranch('Lahore')
     } else if (isMultanUser) {
       setSelectedBranch('Multan')
+    } else if (isAuditor && selectedBranch !== 'Lahore' && selectedBranch !== 'Multan') {
+      setSelectedBranch('Lahore')
     }
-  }, [isLahoreUser, isMultanUser])
+  }, [isLahoreUser, isMultanUser, isAuditor, selectedBranch])
 
   const handleQuickMonthChange = (newMonth: string) => {
     setSelectedQuickMonth(newMonth)
@@ -2126,7 +2129,7 @@ function formatExcelWorkedHours(minutes?: number | null, formattedStr?: string |
                 <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block truncate">
                   Branch
                 </label>
-                {!isAdmin && (
+                {!isAdmin && !isAuditor && (
                   <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1 rounded">
                     Locked
                   </span>
@@ -2134,12 +2137,12 @@ function formatExcelWorkedHours(minutes?: number | null, formattedStr?: string |
               </div>
               <Select
                 value={selectedBranch}
-                disabled={!isAdmin}
-                onValueChange={(val) => setSelectedBranch(val || 'all')}
+                disabled={!isAdmin && !isAuditor}
+                onValueChange={(val) => setSelectedBranch(val || (isAuditor ? 'Lahore' : 'all'))}
               >
                 <SelectTrigger
                   className={`text-xs border-slate-300 h-9.5 font-medium rounded-lg w-full ${
-                    !isAdmin ? 'bg-slate-100 text-slate-600 cursor-not-allowed' : 'bg-slate-50/50 focus:bg-white'
+                    !isAdmin && !isAuditor ? 'bg-slate-100 text-slate-600 cursor-not-allowed' : 'bg-slate-50/50 focus:bg-white'
                   }`}
                 >
                   <SelectValue placeholder="ALL BRANCHES" />

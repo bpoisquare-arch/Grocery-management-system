@@ -84,6 +84,10 @@ export default function CounselorsPage() {
     if (currentUser?.role === "ISQUAREBPO_USER") {
       toast.error("Commissions Module is not available for ISquareBPO entity.");
       router.push("/dashboard");
+    } else if (currentUser?.role === "AUDITOR") {
+      if (activeEntity !== "Lahore" && activeEntity !== "Multan") {
+        switchEntity("Lahore");
+      }
     } else if (currentUser?.role === "LAHORE_USER" && activeEntity !== "Lahore") {
       switchEntity("Lahore");
     } else if (currentUser?.role === "MULTAN_USER" && activeEntity !== "Multan") {

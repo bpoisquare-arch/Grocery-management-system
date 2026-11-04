@@ -72,6 +72,7 @@ export default function GroceryPage() {
     isLoading,
     loadGroceryData,
     activeEntity,
+    switchEntity,
     refreshData,
     groceryEntries,
     categories,
@@ -84,7 +85,15 @@ export default function GroceryPage() {
     getEntityBudgetBreakdown,
   } = useStore();
   const isAdmin = currentUser?.role === "ADMIN";
+  const isAuditor = currentUser?.role === "AUDITOR";
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Prevent Auditor from accessing ISquareBPO entity
+  useEffect(() => {
+    if (isAuditor && activeEntity === "ISquareBPO") {
+      switchEntity("Lahore");
+    }
+  }, [isAuditor, activeEntity, switchEntity]);
 
   useEffect(() => {
     loadGroceryData();
@@ -603,13 +612,15 @@ export default function GroceryPage() {
               <FileTextIcon className="size-4 text-red-500" />
               Export PDF
             </Button>
-            <Button
-              onClick={() => setAddModalOpen(true)}
-              className="flex-1 md:flex-initial bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs flex items-center gap-1.5 h-9 text-xs"
-            >
-              <PlusIcon className="size-4" />
-              Add Grocery
-            </Button>
+            {!isAuditor && (
+              <Button
+                onClick={() => setAddModalOpen(true)}
+                className="flex-1 md:flex-initial bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs flex items-center gap-1.5 h-9 text-xs"
+              >
+                <PlusIcon className="size-4" />
+                Add Grocery
+              </Button>
+            )}
           </div>
         </div>
 
@@ -1010,12 +1021,18 @@ export default function GroceryPage() {
                             {entry.details}
                           </TableCell>
                           <TableCell className="py-2">
-                            <CategoryCombobox
-                              value={entry.category}
-                              categories={categories}
-                              onSelect={(catName) => handleCategorySelect(entry.id, catName)}
-                              onAddNewCategory={(initialName) => handleOpenAddCategorySheet(entry.id, initialName)}
-                            />
+                            {isAuditor ? (
+                              <span className="text-xs font-semibold text-gray-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200/80 inline-block">
+                                {entry.category || "Uncategorized"}
+                              </span>
+                            ) : (
+                              <CategoryCombobox
+                                value={entry.category}
+                                categories={categories}
+                                onSelect={(catName) => handleCategorySelect(entry.id, catName)}
+                                onAddNewCategory={(initialName) => handleOpenAddCategorySheet(entry.id, initialName)}
+                              />
+                            )}
                           </TableCell>
                           <TableCell className="font-bold text-gray-900 whitespace-nowrap">
                             Rs. {entry.amount.toLocaleString()}
@@ -1039,10 +1056,12 @@ export default function GroceryPage() {
                                   <EyeIcon className="size-4 mr-2 text-gray-400" />
                                   View Details
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleAction(entry, "edit")} className="cursor-pointer">
-                                  <PencilIcon className="size-4 mr-2 text-gray-400" />
-                                  Edit
-                                </DropdownMenuItem>
+                                {!isAuditor && (
+                                  <DropdownMenuItem onClick={() => handleAction(entry, "edit")} className="cursor-pointer">
+                                    <PencilIcon className="size-4 mr-2 text-gray-400" />
+                                    Edit
+                                  </DropdownMenuItem>
+                                )}
                                 {isAdmin && entry.status === "Slip Missing" && (
                                   <DropdownMenuItem onClick={() => handleAction(entry, "approve")} className="cursor-pointer text-blue-600 focus:text-blue-600">
                                     <FileCheckIcon className="size-4 mr-2 text-blue-500" />

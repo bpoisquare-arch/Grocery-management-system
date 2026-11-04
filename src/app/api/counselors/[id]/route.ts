@@ -45,6 +45,9 @@ export async function PUT(
   if (!session) {
     return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
   }
+  if (session.role === 'AUDITOR') {
+    return NextResponse.json({ success: false, error: 'Forbidden: Auditor account has view-only access.' }, { status: 403 });
+  }
   try {
     const { id } = await context.params;
     const body = await request.json();
@@ -89,6 +92,9 @@ export async function DELETE(
   const session = token ? await verifyToken(token) : null;
   if (!session) {
     return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
+  if (session.role === 'AUDITOR') {
+    return NextResponse.json({ success: false, error: 'Forbidden: Auditor account has view-only access.' }, { status: 403 });
   }
   try {
     const { id } = await context.params;

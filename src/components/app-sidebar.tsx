@@ -50,6 +50,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const isAdmin = currentUser?.role === "ADMIN";
   const isLahoreUser = currentUser?.role === "LAHORE_USER";
+  const isAuditor = currentUser?.role === "AUDITOR";
 
   // Build main navigation items
   const navigationItems = [
@@ -93,7 +94,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* Main Navigation Menu */}
         <SidebarMenu>
           {navigationItems
-            .filter((item) => !item.adminOnly || isAdmin)
+            .filter((item) => !item.adminOnly || isAdmin || (isAuditor && item.url === "/budget"))
             .map((item) => {
               const isActive = pathname === item.url;
               return (
@@ -121,8 +122,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               );
             })}
 
-          {/* Entity Switcher for Admin & Lahore User */}
-          {(isAdmin || isLahoreUser) && (
+          {/* Entity Switcher for Admin, Auditor & Lahore User */}
+          {(isAdmin || isLahoreUser || isAuditor) && (
             <SidebarMenuItem>
               <DropdownMenu>
                 <DropdownMenuTrigger
@@ -167,30 +168,32 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     Miscellaneous Entity
                   </DropdownMenuItem>
 
-                  {/* Multan & ISquareBPO (Admin Only) */}
+                  {/* Multan (Admin & Auditor) */}
+                  {(isAdmin || isAuditor) && (
+                    <DropdownMenuItem
+                      onClick={() => switchEntity("Multan")}
+                      className={cn(
+                        "cursor-pointer text-xs font-semibold",
+                        activeEntity === "Multan" && "bg-emerald-50 text-emerald-700 font-bold"
+                      )}
+                    >
+                      <Building2Icon className="size-4 mr-2 text-emerald-600" />
+                      Multan Entity
+                    </DropdownMenuItem>
+                  )}
+
+                  {/* ISquareBPO (Admin Only) */}
                   {isAdmin && (
-                    <>
-                      <DropdownMenuItem
-                        onClick={() => switchEntity("Multan")}
-                        className={cn(
-                          "cursor-pointer text-xs font-semibold",
-                          activeEntity === "Multan" && "bg-emerald-50 text-emerald-700 font-bold"
-                        )}
-                      >
-                        <Building2Icon className="size-4 mr-2 text-emerald-600" />
-                        Multan Entity
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => switchEntity("ISquareBPO")}
-                        className={cn(
-                          "cursor-pointer text-xs font-semibold",
-                          activeEntity === "ISquareBPO" && "bg-emerald-50 text-emerald-700 font-bold"
-                        )}
-                      >
-                        <Building2Icon className="size-4 mr-2 text-emerald-600" />
-                        ISquareBPO Entity
-                      </DropdownMenuItem>
-                    </>
+                    <DropdownMenuItem
+                      onClick={() => switchEntity("ISquareBPO")}
+                      className={cn(
+                        "cursor-pointer text-xs font-semibold",
+                        activeEntity === "ISquareBPO" && "bg-emerald-50 text-emerald-700 font-bold"
+                      )}
+                    >
+                      <Building2Icon className="size-4 mr-2 text-emerald-600" />
+                      ISquareBPO Entity
+                    </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -258,6 +261,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <AvatarFallback className="rounded-lg bg-emerald-100 text-emerald-700 text-sm font-bold flex items-center justify-center">
                       {currentUser.role === "ADMIN"
                         ? "A"
+                        : currentUser.role === "AUDITOR"
+                        ? "AU"
                         : currentUser.role === "LAHORE_USER"
                         ? "L"
                         : currentUser.role === "MULTAN_USER"
@@ -267,7 +272,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight min-w-0">
                     <span className="truncate font-semibold text-gray-900">{currentUser.name}</span>
-                    <span className="truncate text-xs text-gray-500 font-medium">{currentUser.role.replace("_", " ")}</span>
+                    <span className="truncate text-xs text-gray-500 font-medium">
+                      {currentUser.role === "AUDITOR" ? "Auditor (View Only)" : currentUser.role.replace("_", " ")}
+                    </span>
                   </div>
                 </div>
                 <Button

@@ -86,6 +86,9 @@ export async function GET(
     if (!entry) {
       return NextResponse.json({ success: false, error: 'Entry not found' }, { status: 404 });
     }
+    if (session.role === 'AUDITOR' && entry.entity === 'ISquareBPO') {
+      return NextResponse.json({ success: false, error: 'Entry not found' }, { status: 404 });
+    }
     return NextResponse.json({ success: true, data: formatGroceryEntry(entry) });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -101,6 +104,9 @@ export async function PUT(
   const session = token ? await verifyToken(token) : null;
   if (!session) {
     return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
+  if (session.role === 'AUDITOR') {
+    return NextResponse.json({ success: false, error: 'Forbidden: Auditor account has view-only access.' }, { status: 403 });
   }
   try {
     const { id } = await context.params;
@@ -208,6 +214,9 @@ export async function DELETE(
   const session = token ? await verifyToken(token) : null;
   if (!session) {
     return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
+  if (session.role === 'AUDITOR') {
+    return NextResponse.json({ success: false, error: 'Forbidden: Auditor account has view-only access.' }, { status: 403 });
   }
   try {
     const { id } = await context.params;

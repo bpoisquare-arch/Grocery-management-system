@@ -72,6 +72,9 @@ export function SiteHeader() {
     if (role === "ADMIN") {
       switchEntity("Lahore");
       toast.success("Switched view to Admin (Full Access)");
+    } else if (role === "AUDITOR") {
+      switchEntity("Lahore");
+      toast.success("Switched view to Auditor (View Only)");
     } else if (role === "LAHORE_USER") {
       switchEntity("Lahore");
       toast.success("Switched view to Lahore User");
@@ -132,8 +135,8 @@ export function SiteHeader() {
           </span>
         </div>
 
-        {/* Quick Entity Switcher for Lahore User & Admin */}
-        {(currentUser?.role === "LAHORE_USER" || currentUser?.role === "ADMIN") && (
+        {/* Quick Entity Switcher for Lahore User, Auditor & Admin */}
+        {(currentUser?.role === "LAHORE_USER" || currentUser?.role === "ADMIN" || currentUser?.role === "AUDITOR") && (
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -174,29 +177,29 @@ export function SiteHeader() {
                 <LayersIcon className="size-4 mr-2 text-purple-600" />
                 Miscellaneous Entity
               </DropdownMenuItem>
+              {(currentUser?.role === "ADMIN" || currentUser?.role === "AUDITOR") && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    switchEntity("Multan");
+                    toast.success("Switched to Multan");
+                  }}
+                  className={activeEntity === "Multan" ? "bg-emerald-50 text-emerald-800 font-bold" : "cursor-pointer text-xs"}
+                >
+                  <Building2Icon className="size-4 mr-2 text-emerald-600" />
+                  Multan Entity
+                </DropdownMenuItem>
+              )}
               {currentUser?.role === "ADMIN" && (
-                <>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      switchEntity("Multan");
-                      toast.success("Switched to Multan");
-                    }}
-                    className={activeEntity === "Multan" ? "bg-emerald-50 text-emerald-800 font-bold" : "cursor-pointer text-xs"}
-                  >
-                    <Building2Icon className="size-4 mr-2 text-emerald-600" />
-                    Multan Entity
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      switchEntity("ISquareBPO");
-                      toast.success("Switched to ISquareBPO");
-                    }}
-                    className={activeEntity === "ISquareBPO" ? "bg-emerald-50 text-emerald-800 font-bold" : "cursor-pointer text-xs"}
-                  >
-                    <Building2Icon className="size-4 mr-2 text-emerald-600" />
-                    ISquareBPO Entity
-                  </DropdownMenuItem>
-                </>
+                <DropdownMenuItem
+                  onClick={() => {
+                    switchEntity("ISquareBPO");
+                    toast.success("Switched to ISquareBPO");
+                  }}
+                  className={activeEntity === "ISquareBPO" ? "bg-emerald-50 text-emerald-800 font-bold" : "cursor-pointer text-xs"}
+                >
+                  <Building2Icon className="size-4 mr-2 text-emerald-600" />
+                  ISquareBPO Entity
+                </DropdownMenuItem>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
@@ -227,6 +230,13 @@ export function SiteHeader() {
               >
                 <ShieldCheckIcon className="size-4 mr-2 text-emerald-600" />
                 Admin (Full Access)
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => handleRoleChange("AUDITOR")}
+                className={(currentUser.role as string) === "AUDITOR" ? "bg-emerald-50 text-emerald-800 font-bold" : ""}
+              >
+                <UserIcon className="size-4 mr-2 text-purple-600" />
+                Auditor (View Only)
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => handleRoleChange("LAHORE_USER")}

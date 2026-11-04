@@ -47,6 +47,7 @@ export function CommissionsSidebar({ ...props }: React.ComponentProps<typeof Sid
   const { isMobile } = useSidebar();
 
   const isAdmin = currentUser?.role === "ADMIN";
+  const isAuditor = currentUser?.role === "AUDITOR";
 
   // Build commissions navigation items
   const navItems = [
@@ -88,7 +89,7 @@ export function CommissionsSidebar({ ...props }: React.ComponentProps<typeof Sid
               )}
             >
               <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
-              {isAdmin ? `ADMIN • ${activeEntity.toUpperCase()}` : `${activeEntity.toUpperCase()} BRANCH`}
+              {isAdmin ? `ADMIN • ${activeEntity.toUpperCase()}` : isAuditor ? `AUDITOR • ${activeEntity.toUpperCase()} (VIEW ONLY)` : `${activeEntity.toUpperCase()} BRANCH`}
             </Badge>
           </div>
         </div>
@@ -124,8 +125,8 @@ export function CommissionsSidebar({ ...props }: React.ComponentProps<typeof Sid
               );
             })}
 
-          {/* Admin Commission Entity Switcher */}
-          {isAdmin && (
+          {/* Admin / Auditor Commission Entity Switcher */}
+          {(isAdmin || isAuditor) && (
             <SidebarMenuItem>
               <DropdownMenu>
                 <DropdownMenuTrigger
@@ -138,7 +139,7 @@ export function CommissionsSidebar({ ...props }: React.ComponentProps<typeof Sid
                 >
                   <GitCompareIcon className="size-5 text-gray-400" />
                   <span className="flex-1 text-left">Switch Entity</span>
-                  <span className="text-[10px] text-gray-400 font-mono bg-gray-100 px-1 rounded">Admin</span>
+                  <span className="text-[10px] text-gray-400 font-mono bg-gray-100 px-1 rounded">{isAuditor ? "Auditor" : "Admin"}</span>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-52">
                   <DropdownMenuLabel>Select Active Branch</DropdownMenuLabel>
@@ -218,12 +219,14 @@ export function CommissionsSidebar({ ...props }: React.ComponentProps<typeof Sid
                 <div className="flex items-center gap-2 flex-1 min-w-0 px-2 py-1.5">
                   <Avatar className="size-9 rounded-lg shrink-0">
                     <AvatarFallback className="rounded-lg bg-emerald-100 text-emerald-700 text-sm font-bold flex items-center justify-center">
-                      {currentUser.role === "ADMIN" ? "A" : currentUser.role === "LAHORE_USER" ? "L" : "M"}
+                      {currentUser.role === "ADMIN" ? "A" : currentUser.role === "AUDITOR" ? "AU" : currentUser.role === "LAHORE_USER" ? "L" : "M"}
                     </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight min-w-0">
                     <span className="truncate font-semibold text-gray-900">{currentUser.name}</span>
-                    <span className="truncate text-xs text-gray-500 font-medium">{currentUser.role.replace("_", " ")}</span>
+                    <span className="truncate text-xs text-gray-500 font-medium">
+                      {currentUser.role === "AUDITOR" ? "Auditor (View Only)" : currentUser.role.replace("_", " ")}
+                    </span>
                   </div>
                 </div>
                 <Button

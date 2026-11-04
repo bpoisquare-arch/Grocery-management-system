@@ -39,15 +39,16 @@ export default function SelectEntityPage() {
 
   const isLahoreUser = currentUser?.role === "LAHORE_USER";
   const isAdmin = currentUser?.role === "ADMIN";
+  const isAuditor = currentUser?.role === "AUDITOR";
 
-  // Access Control: Allow Admin and Lahore User (who has 2 entities)
+  // Access Control: Allow Admin, Lahore User, and Auditor
   useEffect(() => {
     if (!currentUser) {
       router.push("/login");
-    } else if (!isAdmin && !isLahoreUser) {
+    } else if (!isAdmin && !isLahoreUser && !isAuditor) {
       router.push("/dashboard");
     }
-  }, [currentUser, isAdmin, isLahoreUser, router]);
+  }, [currentUser, isAdmin, isLahoreUser, isAuditor, router]);
 
   // Helper to dynamically calculate overview stats for the latest allocated budget month
   const getLatestEntityBudgetInfo = (entity: Entity) => {
@@ -110,7 +111,7 @@ export default function SelectEntityPage() {
     router.push("/dashboard");
   };
 
-  if (!currentUser || (!isAdmin && !isLahoreUser)) {
+  if (!currentUser || (!isAdmin && !isLahoreUser && !isAuditor)) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center bg-slate-50 p-6">
         <div className="w-full max-w-md space-y-4">
@@ -168,6 +169,8 @@ export default function SelectEntityPage() {
           <p className="text-sm text-gray-500 font-medium max-w-md mx-auto">
             {isLahoreUser
               ? "Choose between Main Lahore or Miscellaneous entity to manage expenses and budget."
+              : isAuditor
+              ? "View expenses, budgets, and grocery records for Lahore and Multan entities."
               : "Choose an entity to manage its monthly grocery expenses, set allocated budgets, and track balances."}
           </p>
         </div>
@@ -177,6 +180,8 @@ export default function SelectEntityPage() {
           className={
             isLahoreUser
               ? "grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto w-full"
+              : isAuditor
+              ? "grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto w-full"
               : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full"
           }
         >
@@ -261,7 +266,7 @@ export default function SelectEntityPage() {
                 onClick={() => handleSelectEntity("Lahore", lahoreInfo.month, lahoreInfo.year)}
                 className="w-full h-9 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 group cursor-pointer"
               >
-                Manage Main Lahore
+                {isAuditor ? "View Main Lahore" : "Manage Main Lahore"}
                 <ArrowRightIcon className="size-3.5 group-hover:translate-x-1 transition-transform" />
               </Button>
             </CardFooter>
@@ -348,14 +353,14 @@ export default function SelectEntityPage() {
                 onClick={() => handleSelectEntity("Miscellaneous", miscInfo.month, miscInfo.year)}
                 className="w-full h-9 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 group cursor-pointer"
               >
-                Manage Miscellaneous
+                {isAuditor ? "View Miscellaneous" : "Manage Miscellaneous"}
                 <ArrowRightIcon className="size-3.5 group-hover:translate-x-1 transition-transform" />
               </Button>
             </CardFooter>
           </Card>
 
-          {/* MULTAN CARD (Admin only) */}
-          {isAdmin && (
+          {/* MULTAN CARD (Admin and Auditor) */}
+          {(isAdmin || isAuditor) && (
             <Card className="border border-gray-200 hover:border-emerald-500/50 bg-white shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between">
               <CardHeader className="pb-4">
                 <div className="flex justify-between items-start">
@@ -436,7 +441,7 @@ export default function SelectEntityPage() {
                   onClick={() => handleSelectEntity("Multan", multanInfo.month, multanInfo.year)}
                   className="w-full h-9 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 group cursor-pointer"
                 >
-                  Manage Multan
+                  {isAuditor ? "View Multan" : "Manage Multan"}
                   <ArrowRightIcon className="size-3.5 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </CardFooter>

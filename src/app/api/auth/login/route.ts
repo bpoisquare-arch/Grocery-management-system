@@ -14,6 +14,7 @@ async function ensureDatabaseInitialized() {
       const lahoreHash = await hashPassword('LahorePassword123!');
       const multanHash = await hashPassword('MultanPassword123!');
       const isquareHash = await hashPassword('ISquarePassword123!');
+      const auditorHash = await hashPassword('AuditorPassword123!');
 
       await prisma.user.createMany({
         data: [
@@ -47,6 +48,14 @@ async function ensureDatabaseInitialized() {
             password: isquareHash,
             role: 'ISQUAREBPO_USER',
             assignedEntity: 'ISquareBPO',
+          },
+          {
+            id: 'user-auditor',
+            name: 'Auditor',
+            email: 'auditor@grocerymanager.com',
+            password: auditorHash,
+            role: 'AUDITOR',
+            assignedEntity: null,
           },
         ],
       });

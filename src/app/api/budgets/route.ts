@@ -19,6 +19,14 @@ export async function GET(request: NextRequest) {
 
   try {
     const whereClause: any = {};
+    if (session.role === 'AUDITOR') {
+      if (entity === 'ISquareBPO') {
+        return NextResponse.json({ success: true, data: [] });
+      }
+      if (!entity) {
+        whereClause.entity = { not: 'ISquareBPO' };
+      }
+    }
     if (entity) {
       whereClause.entity = entity;
     }
@@ -61,6 +69,9 @@ export async function POST(request: NextRequest) {
   const session = token ? await verifyToken(token) : null;
   if (!session) {
     return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
+  if (session.role !== 'ADMIN') {
+    return NextResponse.json({ success: false, error: 'Forbidden: Administrator privileges required.' }, { status: 403 });
   }
   try {
     const body = await request.json();
@@ -112,6 +123,9 @@ export async function DELETE(request: NextRequest) {
   const session = token ? await verifyToken(token) : null;
   if (!session) {
     return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
+  if (session.role !== 'ADMIN') {
+    return NextResponse.json({ success: false, error: 'Forbidden: Administrator privileges required.' }, { status: 403 });
   }
   try {
     const { searchParams } = new URL(request.url);

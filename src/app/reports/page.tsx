@@ -42,6 +42,7 @@ import autoTable from "jspdf-autotable";
 export default function ReportsPage() {
   const { currentUser, activeEntity, groceryEntries, categories, currentMonth, currentYear, getEntityBudget, isLoading, loadGroceryData } = useStore();
   const isAdmin = currentUser?.role === "ADMIN";
+  const isAuditor = currentUser?.role === "AUDITOR";
 
   React.useEffect(() => {
     loadGroceryData();
@@ -59,14 +60,18 @@ export default function ReportsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Lock user to their assigned entity if not Admin or Lahore user
+  // Lock user to their assigned entity if not Admin, Lahore user, or Auditor
   React.useEffect(() => {
-    if (currentUser && !isAdmin && !isLahoreUser && currentUser.assignedEntity) {
+    if (currentUser && !isAdmin && !isLahoreUser && !isAuditor && currentUser.assignedEntity) {
       setReportEntity(currentUser.assignedEntity);
     } else if (activeEntity) {
-      setReportEntity(activeEntity);
+      if (isAuditor && activeEntity === "ISquareBPO") {
+        setReportEntity("Lahore");
+      } else {
+        setReportEntity(activeEntity);
+      }
     }
-  }, [currentUser, isAdmin, isLahoreUser, activeEntity]);
+  }, [currentUser, isAdmin, isLahoreUser, isAuditor, activeEntity]);
 
   // Handle Reset
   const handleReset = () => {
@@ -361,7 +366,7 @@ export default function ReportsPage() {
                 <Select
                   value={reportEntity}
                   onValueChange={(val) => setReportEntity((val as Entity) || "Lahore")}
-                  disabled={!isAdmin && !isLahoreUser}
+                  disabled={!isAdmin && !isLahoreUser && !isAuditor}
                 >
                   <SelectTrigger id="reportEntity" className="h-10 border-gray-200 text-xs font-semibold disabled:bg-gray-50 disabled:text-gray-400">
                     <SelectValue placeholder="Select Entity" />
@@ -369,11 +374,11 @@ export default function ReportsPage() {
                   <SelectContent>
                     <SelectItem value="Lahore">Main Lahore</SelectItem>
                     <SelectItem value="Miscellaneous">Miscellaneous Entity</SelectItem>
+                    {(isAdmin || isAuditor) && (
+                      <SelectItem value="Multan">Multan Entity</SelectItem>
+                    )}
                     {isAdmin && (
-                      <>
-                        <SelectItem value="Multan">Multan Entity</SelectItem>
-                        <SelectItem value="ISquareBPO">ISquareBPO Entity</SelectItem>
-                      </>
+                      <SelectItem value="ISquareBPO">ISquareBPO Entity</SelectItem>
                     )}
                   </SelectContent>
                 </Select>

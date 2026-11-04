@@ -56,6 +56,7 @@ export default function DashboardPage() {
   const {
     currentUser,
     activeEntity,
+    switchEntity,
     currentMonth,
     currentYear,
     budgets,
@@ -80,6 +81,14 @@ export default function DashboardPage() {
   const currentRealYear = new Date().getFullYear();
 
   const isAdmin = currentUser?.role === "ADMIN";
+  const isAuditor = currentUser?.role === "AUDITOR";
+
+  // Prevent Auditor from accessing ISquareBPO entity
+  React.useEffect(() => {
+    if (isAuditor && activeEntity === "ISquareBPO") {
+      switchEntity("Lahore");
+    }
+  }, [isAuditor, activeEntity, switchEntity]);
 
   const entityBudgets = useMemo(() => {
     return budgets.filter((b) => b.entity === activeEntity);
@@ -273,15 +282,17 @@ export default function DashboardPage() {
             </div>
 
             <Badge className="bg-emerald-50 text-emerald-800 hover:bg-emerald-50 border border-emerald-100/50 text-xs font-semibold py-1.5 px-3 rounded-md">
-              {isAdmin ? "ADMIN" : `${activeEntity.toUpperCase()} USER`}
+              {isAdmin ? "ADMIN" : isAuditor ? "AUDITOR (VIEW ONLY)" : `${activeEntity.toUpperCase()} USER`}
             </Badge>
-            <Button
-              onClick={() => setAddModalOpen(true)}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs flex items-center gap-1.5 h-9 text-xs"
-            >
-              <PlusIcon className="size-4" />
-              Add Grocery
-            </Button>
+            {!isAuditor && (
+              <Button
+                onClick={() => setAddModalOpen(true)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs flex items-center gap-1.5 h-9 text-xs"
+              >
+                <PlusIcon className="size-4" />
+                Add Grocery
+              </Button>
+            )}
           </div>
         </div>
 
@@ -514,10 +525,12 @@ export default function DashboardPage() {
                                 <EyeIcon className="size-4 mr-2 text-gray-400" />
                                 View Details
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleAction(entry, "edit")} className="cursor-pointer">
-                                <PencilIcon className="size-4 mr-2 text-gray-400" />
-                                Edit
-                              </DropdownMenuItem>
+                              {!isAuditor && (
+                                <DropdownMenuItem onClick={() => handleAction(entry, "edit")} className="cursor-pointer">
+                                  <PencilIcon className="size-4 mr-2 text-gray-400" />
+                                  Edit
+                                </DropdownMenuItem>
+                              )}
                               {isAdmin && entry.status === "Slip Missing" && (
                                 <DropdownMenuItem onClick={() => handleAction(entry, "approve")} className="cursor-pointer text-blue-600 focus:text-blue-600">
                                   <FileCheckIcon className="size-4 mr-2 text-blue-500" />

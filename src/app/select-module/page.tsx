@@ -47,9 +47,10 @@ export default function SelectModulePage() {
   const isAdmin = currentUser.role === "ADMIN";
   const isLahoreUser = currentUser.role === "LAHORE_USER";
   const isMultanUser = currentUser.role === "MULTAN_USER";
+  const isAuditor = currentUser.role === "AUDITOR";
 
   const handleSelectGrocery = () => {
-    if (isAdmin || currentUser.role === "LAHORE_USER") {
+    if (isAdmin || currentUser.role === "LAHORE_USER" || isAuditor) {
       router.push("/select-entity");
     } else if (currentUser.role === "MULTAN_USER") {
       switchEntity("Multan");
@@ -63,7 +64,7 @@ export default function SelectModulePage() {
   };
 
   const handleSelectCommissions = () => {
-    if (isAdmin) {
+    if (isAdmin || isAuditor) {
       router.push("/commissions/select-entity");
     } else if (currentUser.role === "LAHORE_USER") {
       switchEntity("Lahore");
@@ -82,6 +83,9 @@ export default function SelectModulePage() {
     if (isAdmin) {
       toast.success("Opening Attendance Records (All Branches)");
       router.push("/attendance/records?branch=all");
+    } else if (isAuditor) {
+      toast.success("Opening Attendance Records (Lahore & Multan)");
+      router.push("/attendance/records?branch=Lahore");
     } else if (currentUser.role === "LAHORE_USER") {
       switchEntity("Lahore");
       toast.success("Opening Lahore Attendance Records");
@@ -125,7 +129,7 @@ export default function SelectModulePage() {
             variant="outline"
             className="bg-emerald-50 text-emerald-800 border-emerald-200 text-xs font-semibold px-2.5 py-1"
           >
-            {isAdmin ? "ADMIN" : `${currentUser.role.replace("_USER", "")} USER`}
+            {isAdmin ? "ADMIN" : isAuditor ? "AUDITOR (VIEW ONLY)" : `${currentUser.role.replace("_USER", "")} USER`}
           </Badge>
           <Button
             variant="outline"
@@ -186,7 +190,9 @@ export default function SelectModulePage() {
                   <Building2Icon className="size-4 text-emerald-600 shrink-0" />
                   <span className="truncate">
                     {isAdmin
-                      ? "Lahore, Multan, Misc"
+                      ? "Lahore, Multan, Misc, ISquareBPO"
+                      : isAuditor
+                      ? "Lahore, Multan & Misc (View Only)"
                       : currentUser.role === "LAHORE_USER"
                       ? "Lahore & Misc"
                       : `${activeEntity} Entity`}
@@ -203,7 +209,7 @@ export default function SelectModulePage() {
                 className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 group-hover:shadow-md cursor-pointer"
               >
                 <span className="truncate">
-                  {isAdmin || currentUser.role === "LAHORE_USER"
+                  {isAdmin || currentUser.role === "LAHORE_USER" || isAuditor
                     ? "Open Grocery Entity Selector"
                     : `Open ${activeEntity} Grocery`}
                 </span>
@@ -227,7 +233,7 @@ export default function SelectModulePage() {
                   <BadgePercentIcon className="size-7" />
                 </div>
                 <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 font-semibold text-[11px]">
-                  {currentUser.role === "ISQUAREBPO_USER" ? "Lahore & Multan Only" : "Commissions"}
+                  {currentUser.role === "ISQUAREBPO_USER" ? "Lahore & Multan Only" : isAuditor ? "View Only" : "Commissions"}
                 </Badge>
               </div>
               <CardTitle className="text-2xl font-bold text-gray-900 mt-5 group-hover:text-emerald-700 transition-colors">
@@ -266,7 +272,7 @@ export default function SelectModulePage() {
                 <span className="truncate">
                   {currentUser.role === "ISQUAREBPO_USER"
                     ? "Not for ISquareBPO"
-                    : isAdmin
+                    : isAdmin || isAuditor
                     ? "Open Commissions Selector"
                     : `Open ${activeEntity} Commissions`}
                 </span>
@@ -315,6 +321,8 @@ export default function SelectModulePage() {
                   <span className="truncate">
                     {isAdmin
                       ? "All Branches (Lahore & Multan)"
+                      : isAuditor
+                      ? "Lahore & Multan Branches"
                       : isLahoreUser
                       ? "Lahore Branch Locked"
                       : isMultanUser
@@ -333,7 +341,7 @@ export default function SelectModulePage() {
                 className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 group-hover:shadow-md cursor-pointer"
               >
                 <span className="truncate">
-                  {isAdmin
+                  {isAdmin || isAuditor
                     ? "Open Attendance Records"
                     : isLahoreUser
                     ? "Open Lahore Attendance"

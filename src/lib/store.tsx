@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { toast } from 'sonner';
 import {
   User,
   GroceryEntry,
@@ -481,6 +482,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               setActiveEntity('Multan');
             } else if (data.user.role === 'ISQUAREBPO_USER') {
               setActiveEntity('ISquareBPO');
+            } else if (data.user.role === 'AUDITOR') {
+              const savedEntity = localStorage.getItem('gem_entity') as Entity | null;
+              if (savedEntity === 'Miscellaneous' || savedEntity === 'Lahore' || savedEntity === 'Multan') {
+                setActiveEntity(savedEntity);
+              } else {
+                setActiveEntity('Lahore');
+              }
             }
           } else {
             // Clear zombie user state if server session is expired or invalid
@@ -608,7 +616,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (
       currentUser?.role === 'ADMIN' ||
       currentUser?.assignedEntity === entity ||
-      (currentUser?.role === 'LAHORE_USER' && (entity === 'Lahore' || entity === 'Miscellaneous'))
+      (currentUser?.role === 'LAHORE_USER' && (entity === 'Lahore' || entity === 'Miscellaneous')) ||
+      (currentUser?.role === 'AUDITOR' && (entity === 'Lahore' || entity === 'Multan' || entity === 'Miscellaneous'))
     ) {
       setActiveEntity(entity);
       localStorage.setItem('gem_entity', entity);
@@ -670,6 +679,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         } else if (data.user.role === 'ISQUAREBPO_USER') {
           setActiveEntity('ISquareBPO');
           safeSetLocalStorage('gem_entity', 'ISquareBPO');
+        } else if (data.user.role === 'AUDITOR') {
+          const savedEntity = localStorage.getItem('gem_entity') as Entity | null;
+          if (savedEntity === 'Miscellaneous' || savedEntity === 'Lahore' || savedEntity === 'Multan') {
+            setActiveEntity(savedEntity);
+          } else {
+            setActiveEntity('Lahore');
+            safeSetLocalStorage('gem_entity', 'Lahore');
+          }
         }
         // Fetch priority data immediately upon login
         loadGroceryData();
@@ -864,6 +881,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     slipFiles?: File[];
     slipUrls?: string[];
   }) => {
+    if (currentUser?.role === 'AUDITOR') {
+      toast.error('Auditor account has view-only access.');
+      return;
+    }
     const finalSlipUrls: string[] = [];
 
     if (entry.slipUrls && Array.isArray(entry.slipUrls)) {
@@ -1023,6 +1044,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       slipUrls?: string[];
     }
   ) => {
+    if (currentUser?.role === 'AUDITOR') {
+      toast.error('Auditor account has view-only access.');
+      return;
+    }
     const existing = groceryEntries.find((e) => e.id === id);
     const finalSlipUrls: string[] = [];
 
@@ -1437,6 +1462,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     slipFiles?: File[];
     slipUrls?: string[];
   }) => {
+    if (currentUser?.role === 'AUDITOR') {
+      toast.error('Auditor account has view-only access.');
+      return;
+    }
     const finalSlipUrls: string[] = [];
 
     if (entry.slipUrls && Array.isArray(entry.slipUrls)) {
@@ -1590,6 +1619,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       slipUrls?: string[];
     }
   ) => {
+    if (currentUser?.role === 'AUDITOR') {
+      toast.error('Auditor account has view-only access.');
+      return;
+    }
     const existing = commissionEntries.find((e) => e.id === id);
     const finalSlipUrls: string[] = [];
 
@@ -1722,6 +1755,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     serviceCommissions?: CounselorServiceCommissions;
     bmServiceCommissions?: CounselorServiceCommissions;
   }) => {
+    if (currentUser?.role === 'AUDITOR') {
+      toast.error('Auditor account has view-only access.');
+      return;
+    }
     const payload = {
       name: counselor.name,
       entity: counselor.entity || 'All',
@@ -1761,6 +1798,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       bmServiceCommissions?: CounselorServiceCommissions;
     }
   ) => {
+    if (currentUser?.role === 'AUDITOR') {
+      toast.error('Auditor account has view-only access.');
+      return;
+    }
     const res = await fetch(`/api/counselors/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -1781,6 +1822,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteCounselor = async (id: string) => {
+    if (currentUser?.role === 'AUDITOR') {
+      toast.error('Auditor account has view-only access.');
+      return;
+    }
     const res = await fetch(`/api/counselors/${id}`, { method: 'DELETE' });
     const json = await res.json().catch(() => null);
 

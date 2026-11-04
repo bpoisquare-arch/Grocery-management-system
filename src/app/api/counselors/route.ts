@@ -78,6 +78,9 @@ export async function POST(request: NextRequest) {
   if (!session) {
     return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
   }
+  if (session.role === 'AUDITOR') {
+    return NextResponse.json({ success: false, error: 'Forbidden: Auditor account has view-only access.' }, { status: 403 });
+  }
   try {
     const body = await request.json();
     const { name, entity, email, phone, serviceCommissions, bmServiceCommissions } = body;

@@ -19,6 +19,13 @@ export async function GET(request: NextRequest) {
         branch = 'Lahore'
       } else if (session.role === 'MULTAN_USER') {
         branch = 'Multan'
+      } else if (session.role === 'AUDITOR') {
+        if (branch === 'ISquareBPO') {
+          return NextResponse.json({ success: true, employees: [] })
+        }
+        if (!branch || branch === 'all') {
+          branch = 'Lahore'
+        }
       }
     }
 

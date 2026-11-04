@@ -26,6 +26,10 @@ export async function GET(request: NextRequest) {
         branch = 'Lahore'
       } else if (session.role === 'MULTAN_USER') {
         branch = 'Multan'
+      } else if (session.role === 'AUDITOR') {
+        if (branch === 'ISquareBPO') {
+          return NextResponse.json({ success: true, requests: [], pendingCount: 0, total: 0 })
+        }
       }
     }
 
@@ -76,6 +80,13 @@ export async function POST(request: NextRequest) {
         effectiveBranch = 'Lahore'
       } else if (session.role === 'MULTAN_USER') {
         effectiveBranch = 'Multan'
+      } else if (session.role === 'AUDITOR') {
+        if (effectiveBranch !== 'Lahore' && effectiveBranch !== 'Multan') {
+          return NextResponse.json(
+            { success: false, error: 'Forbidden: Auditor can only submit attendance requests for Lahore or Multan.' },
+            { status: 403 }
+          )
+        }
       }
     }
 

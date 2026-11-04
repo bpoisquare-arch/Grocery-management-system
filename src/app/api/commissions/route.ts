@@ -65,6 +65,14 @@ export async function GET(request: NextRequest) {
 
     try {
       const whereClause: any = {};
+      if (session.role === 'AUDITOR') {
+        if (entity === 'ISquareBPO') {
+          return NextResponse.json({ success: true, data: [] });
+        }
+        if (!entity || entity === 'All') {
+          whereClause.entity = { in: ['Lahore', 'Multan'] };
+        }
+      }
       if (entity && entity !== 'All') {
         whereClause.entity = entity;
       }
@@ -148,6 +156,9 @@ export async function POST(request: NextRequest) {
   const session = token ? await verifyToken(token) : null;
   if (!session) {
     return NextResponse.json({ success: false, error: 'Unauthorized: Authentication required.' }, { status: 401 });
+  }
+  if (session.role === 'AUDITOR') {
+    return NextResponse.json({ success: false, error: 'Forbidden: Auditor account has view-only access.' }, { status: 403 });
   }
   try {
     const body = await request.json();
