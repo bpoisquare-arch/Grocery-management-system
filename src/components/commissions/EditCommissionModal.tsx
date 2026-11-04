@@ -34,6 +34,8 @@ import {
   EyeIcon,
   LockIcon,
   ImageIcon,
+  PlusIcon,
+  GlobeIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -58,7 +60,14 @@ interface NewSlip {
 }
 
 export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissionModalProps) {
-  const { activeEntity, counselors, updateCommissionEntry } = useStore();
+  const {
+    activeEntity,
+    counselors,
+    updateCommissionEntry,
+    commissionCountries,
+    fetchCommissionCountries,
+    addCommissionCountry,
+  } = useStore();
 
   const branchCounselors = React.useMemo(() => {
     return counselors.filter(
@@ -68,6 +77,10 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
 
   const [studentName, setStudentName] = useState("");
   const [service, setService] = useState<CommissionService>("Visa Processing");
+  const [country, setCountry] = useState<string>("Australia");
+  const [isAddingCountry, setIsAddingCountry] = useState(false);
+  const [newCountryName, setNewCountryName] = useState("");
+  const [isSubmittingCountry, setIsSubmittingCountry] = useState(false);
   const [counselor, setCounselor] = useState("Humaira Amin");
   const [amountStr, setAmountStr] = useState("");
   const [date, setDate] = useState("");
@@ -90,6 +103,32 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (open) {
+      fetchCommissionCountries();
+    }
+  }, [open, fetchCommissionCountries]);
+
+  const handleAddNewCountry = async () => {
+    const trimmed = newCountryName.trim();
+    if (!trimmed) {
+      toast.error("Please enter a country name.");
+      return;
+    }
+    setIsSubmittingCountry(true);
+    try {
+      const added = await addCommissionCountry(trimmed);
+      setCountry(added);
+      setIsAddingCountry(false);
+      setNewCountryName("");
+      toast.success(`Country "${added}" added and selected.`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add country.");
+    } finally {
+      setIsSubmittingCountry(false);
+    }
+  };
+
+  useEffect(() => {
     if (entry) {
       const eService = entry.service || "Visa Processing";
       const eCounselor = entry.counselor || counselors[0]?.name || "Humaira Amin";
@@ -97,6 +136,9 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
 
       setStudentName(entry.studentName || "");
       setService(eService);
+      setCountry(entry.country || "Australia");
+      setIsAddingCountry(false);
+      setNewCountryName("");
       setCounselor(eCounselor);
       setAmountStr(eAmountStr);
       setDate(entry.date || "");
@@ -336,6 +378,7 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
       await updateCommissionEntry(entry.id, {
         studentName: studentName.trim(),
         service,
+        country: country || undefined,
         counselor: counselor || counselors[0]?.name || "Humaira Amin",
         amount,
         date,
@@ -400,7 +443,7 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
                   />
                 </div>
 
-                {/* 2. Service & Amount Grid */}
+                {/* 2. Service & Country Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Service Dropdown */}
                   <div className="flex flex-col gap-1">
@@ -421,6 +464,99 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
                     </Select>
                   </div>
 
+                  {/* Country Selector with Real-Time Add New Option */}
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="edit-country" className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+                        <GlobeIcon className="size-3.5 text-emerald-600" />
+                        Country <span className="text-red-500">*</span>
+                      </Label>
+                      {!isAddingCountry && (
+                        <button
+                          type="button"
+                          onClick={() => setIsAddingCountry(true)}
+                          className="text-[11px] text-emerald-600 hover:text-emerald-700 font-semibold flex items-center gap-0.5 cursor-pointer hover:underline"
+                        >
+                          <PlusIcon className="size-3" />
+                          Add New
+                        </button>
+                      )}
+                    </div>
+
+                    {isAddingCountry ? (
+                      <div className="flex items-center gap-1.5">
+                        <Input
+                          placeholder="e.g. UK, Canada..."
+                          value={newCountryName}
+                          onChange={(e) => setNewCountryName(e.target.value)}
+                          className="h-9 border-gray-300 text-xs font-medium focus:border-emerald-500"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleAddNewCountry();
+                            } else if (e.key === "Escape") {
+                              setIsAddingCountry(false);
+                              setNewCountryName("");
+                            }
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={isSubmittingCountry || !newCountryName.trim()}
+                          onClick={handleAddNewCountry}
+                          className="h-9 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold cursor-pointer shrink-0"
+                        >
+                          {isSubmittingCountry ? <Loader2Icon className="size-3.5 animate-spin" /> : "Save"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setIsAddingCountry(false);
+                            setNewCountryName("");
+                          }}
+                          className="h-9 px-2 text-gray-500 hover:text-gray-700 cursor-pointer shrink-0"
+                        >
+                          <XIcon className="size-3.5" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Select
+                        value={country}
+                        onValueChange={(val) => {
+                          if (val === "__add_new__") {
+                            setIsAddingCountry(true);
+                          } else if (val) {
+                            setCountry(val);
+                          }
+                        }}
+                      >
+                        <SelectTrigger id="edit-country" className="h-9 border-gray-200 text-xs font-semibold bg-white">
+                          <SelectValue placeholder="Select Country" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-56 bg-white">
+                          {commissionCountries.map((c) => (
+                            <SelectItem key={c} value={c} className="text-xs font-medium cursor-pointer">
+                              {c}
+                            </SelectItem>
+                          ))}
+                          <SelectItem
+                            value="__add_new__"
+                            className="text-xs font-bold text-emerald-600 hover:text-emerald-700 cursor-pointer border-t border-gray-100"
+                          >
+                            + Add New Country...
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                </div>
+
+                {/* 3. Amount & Counselor Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Amount */}
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="edit-amount" className="text-xs font-semibold text-gray-700">
@@ -439,10 +575,7 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
                       />
                     </div>
                   </div>
-                </div>
 
-                {/* 3. Counselor & Claimed Month/Year Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Counselor Dropdown */}
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="edit-counselor" className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
@@ -462,9 +595,10 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
 
-                  {/* Claimed Month & Year (Side by Side) */}
-                  <div className="grid grid-cols-2 gap-2">
+                {/* 4. Claimed Month & Year */}
+                <div className="grid grid-cols-2 gap-2">
                     {/* Claimed Month */}
                     <div className="flex flex-col gap-1">
                       <Label htmlFor="edit-claimedMonth" className="text-xs font-semibold text-gray-700 flex items-center gap-1">
@@ -514,7 +648,6 @@ export function EditCommissionModal({ open, onOpenChange, entry }: EditCommissio
                       </Select>
                     </div>
                   </div>
-                </div>
 
                 {/* 4. Payment Date & Notes Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

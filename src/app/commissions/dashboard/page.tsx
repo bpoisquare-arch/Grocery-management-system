@@ -324,7 +324,7 @@ export default function CommissionsDashboardPage() {
         [summaryCollected, "", summaryCc, ""],
         [summaryBm, "", summaryCount, ""],
         [],
-        ["Payment Date", "Student Name", "Service", "Counselor", "Amount (Rs.)", "C.C (Rs.)", "B.M (Rs.)", "Claimed Period", "Slip Status"]
+        ["Payment Date", "Student Name", "Service", "Country", "Counselor", "Amount (Rs.)", "C.C (Rs.)", "B.M (Rs.)", "Claimed Period", "Slip Status"]
       ];
 
       filteredEntries.forEach((e) => {
@@ -332,6 +332,7 @@ export default function CommissionsDashboardPage() {
           e.date ? format(new Date(e.date), "dd MMM yyyy") : "-",
           e.studentName,
           e.service,
+          e.country || "-",
           e.counselor,
           e.amount,
           e.counselorCommission || 0,
@@ -344,8 +345,8 @@ export default function CommissionsDashboardPage() {
       const worksheet = XLSX.utils.aoa_to_sheet(aoaData);
 
       worksheet["!merges"] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 8 } },
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 9 } },
         { s: { r: 3, c: 0 }, e: { r: 3, c: 1 } },
         { s: { r: 3, c: 2 }, e: { r: 3, c: 3 } },
         { s: { r: 4, c: 0 }, e: { r: 4, c: 1 } },
@@ -441,11 +442,12 @@ export default function CommissionsDashboardPage() {
         doc.text(card.value, cardX + 4, cardY + 11.5);
       });
 
-      const headers = [["Payment Date", "Student", "Service", "Counselor", "Amount", "C.C", "B.M", "Claimed Period", "Status"]];
+      const headers = [["Payment Date", "Student", "Service", "Country", "Counselor", "Amount", "C.C", "B.M", "Claimed Period", "Status"]];
       const rows = filteredEntries.map((e) => [
         e.date ? format(new Date(e.date), "dd MMM yyyy") : "-",
         e.studentName,
         e.service,
+        e.country || "-",
         e.counselor,
         `Rs. ${e.amount.toLocaleString()}`,
         `Rs. ${(e.counselorCommission || 0).toLocaleString()}`,
@@ -457,6 +459,7 @@ export default function CommissionsDashboardPage() {
       const footers = [
         [
           "Total",
+          "",
           "",
           "",
           "",
@@ -876,6 +879,7 @@ export default function CommissionsDashboardPage() {
                     <TableHead className="text-xs font-bold text-gray-400 whitespace-nowrap">Payment Date</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">Student</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">Service</TableHead>
+                    <TableHead className="text-xs font-bold text-gray-400">Country</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">Counselor</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">Amount</TableHead>
                     <TableHead className="text-xs font-bold text-gray-400">C.C</TableHead>
@@ -906,6 +910,9 @@ export default function CommissionsDashboardPage() {
                           <Skeleton className="h-4 w-24 bg-slate-200" />
                         </TableCell>
                         <TableCell>
+                          <Skeleton className="h-4 w-20 bg-slate-200" />
+                        </TableCell>
+                        <TableCell>
                           <Skeleton className="h-4 w-24 bg-slate-200" />
                         </TableCell>
                         <TableCell>
@@ -927,7 +934,7 @@ export default function CommissionsDashboardPage() {
                     ))
                   ) : paginatedEntries.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={isAdmin ? 11 : 10} className="h-64 text-center">
+                      <TableCell colSpan={isAdmin ? 12 : 11} className="h-64 text-center">
                         <div className="flex flex-col items-center justify-center gap-2 p-6 text-gray-400">
                           <GraduationCapIcon className="size-8 text-gray-300" />
                           <span className="text-base font-bold text-gray-700">No Commission Entries Found</span>
@@ -977,6 +984,15 @@ export default function CommissionsDashboardPage() {
                           <Badge className="bg-slate-100 text-slate-800 border-gray-200 font-semibold text-[10px]">
                             {entry.service}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {entry.country ? (
+                            <Badge className="bg-emerald-50 text-emerald-800 border-emerald-200/70 font-semibold text-[10px]">
+                              {entry.country}
+                            </Badge>
+                          ) : (
+                            <span className="text-gray-400 text-xs">-</span>
+                          )}
                         </TableCell>
                         <TableCell className="font-medium text-gray-700 whitespace-nowrap">
                           {entry.counselor}

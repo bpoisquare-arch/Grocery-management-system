@@ -28,6 +28,7 @@ function formatCommissionEntry(comm: any) {
     studentName: comm.studentName,
     service: comm.service,
     counselor: comm.counselor,
+    country: comm.country || undefined,
     amount: comm.amount,
     date: comm.date,
     fullReceived: !!comm.fullReceived,
@@ -99,6 +100,7 @@ export async function PUT(
     if (body.studentName !== undefined) updateData.studentName = body.studentName.trim();
     if (body.service !== undefined) updateData.service = body.service;
     if (body.counselor !== undefined) updateData.counselor = body.counselor;
+    if (body.country !== undefined) updateData.country = body.country ? String(body.country).trim() : null;
     if (body.amount !== undefined) updateData.amount = parseFloat(body.amount);
     if (body.date !== undefined) updateData.date = body.date;
     if (body.fullReceived !== undefined) updateData.fullReceived = !!body.fullReceived;

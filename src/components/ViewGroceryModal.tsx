@@ -57,7 +57,7 @@ export function ViewGroceryModal({ open, onOpenChange, entry }: ViewGroceryModal
       return;
     }
 
-    const hasSlips = (entry.slipUrls && entry.slipUrls.length > 0) || !!entry.slipUrl;
+    const hasSlips = (entry.slipUrls && entry.slipUrls.length > 0 && entry.slipUrls.some(s => s && s.length > 10)) || (!!entry.slipUrl && entry.slipUrl.length > 10);
     if (entry.status === 'Slip Uploaded' && !hasSlips) {
       setIsFetchingSlip(true);
       fetch(`/api/groceries/${entry.id}`)

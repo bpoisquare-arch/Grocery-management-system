@@ -196,7 +196,7 @@ export default function SelectEntityPage() {
                   <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-semibold text-[10px]">
                     Main Branch
                   </Badge>
-                  {isGroceryLoading && !lahoreInfo.hasAllocatedBudget ? (
+                  {isGroceryLoading ? (
                     <Skeleton className="h-5 w-24 rounded-md bg-slate-200" />
                   ) : (
                     <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md flex items-center gap-1">
@@ -213,7 +213,7 @@ export default function SelectEntityPage() {
               <div className="grid grid-cols-3 gap-1.5 border-y border-gray-100 py-3 text-center">
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Budget</span>
-                  {isGroceryLoading && !lahoreInfo.hasAllocatedBudget ? (
+                  {isGroceryLoading ? (
                     <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
                   ) : (
                     <span className="text-xs font-bold text-gray-900">Rs. {lahoreInfo.budget.toLocaleString()}</span>
@@ -221,7 +221,7 @@ export default function SelectEntityPage() {
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Spent</span>
-                  {isGroceryLoading && !lahoreInfo.hasAllocatedBudget ? (
+                  {isGroceryLoading ? (
                     <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
                   ) : (
                     <span className="text-xs font-bold text-emerald-600">Rs. {lahoreInfo.spent.toLocaleString()}</span>
@@ -229,7 +229,7 @@ export default function SelectEntityPage() {
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Balance</span>
-                  {isGroceryLoading && !lahoreInfo.hasAllocatedBudget ? (
+                  {isGroceryLoading ? (
                     <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
                   ) : (
                     <span className={`text-xs font-bold ${lahoreInfo.remaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
@@ -243,14 +243,14 @@ export default function SelectEntityPage() {
               <div className="space-y-1">
                 <div className="flex justify-between text-xs font-semibold text-gray-500">
                   <span>Usage</span>
-                  {isGroceryLoading && !lahoreInfo.hasAllocatedBudget ? (
+                  {isGroceryLoading ? (
                     <Skeleton className="h-3 w-8 bg-slate-200" />
                   ) : (
                     <span>{lahoreInfo.pct}%</span>
                   )}
                 </div>
                 <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                  {isGroceryLoading && !lahoreInfo.hasAllocatedBudget ? (
+                  {isGroceryLoading ? (
                     <Skeleton className="h-full w-full bg-slate-200" />
                   ) : (
                     <div
@@ -283,7 +283,7 @@ export default function SelectEntityPage() {
                   <Badge className="bg-purple-50 text-purple-700 hover:bg-purple-50 border border-purple-100 font-semibold text-[10px]">
                     Misc Entity
                   </Badge>
-                  {isGroceryLoading && !miscInfo.hasAllocatedBudget ? (
+                  {isGroceryLoading ? (
                     <Skeleton className="h-5 w-24 rounded-md bg-slate-200" />
                   ) : (
                     <span className="text-[10px] font-bold text-purple-800 bg-purple-100/70 px-2 py-0.5 rounded-md flex items-center gap-1">
@@ -300,7 +300,7 @@ export default function SelectEntityPage() {
               <div className="grid grid-cols-3 gap-1.5 border-y border-gray-100 py-3 text-center">
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Budget</span>
-                  {isGroceryLoading && !miscInfo.hasAllocatedBudget ? (
+                  {isGroceryLoading ? (
                     <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
                   ) : (
                     <span className="text-xs font-bold text-gray-900">Rs. {miscInfo.budget.toLocaleString()}</span>
@@ -308,7 +308,7 @@ export default function SelectEntityPage() {
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Spent</span>
-                  {isGroceryLoading && !miscInfo.hasAllocatedBudget ? (
+                  {isGroceryLoading ? (
                     <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
                   ) : (
                     <span className="text-xs font-bold text-purple-600">Rs. {miscInfo.spent.toLocaleString()}</span>
@@ -316,7 +316,7 @@ export default function SelectEntityPage() {
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Balance</span>
-                  {isGroceryLoading && !miscInfo.hasAllocatedBudget ? (
+                  {isGroceryLoading ? (
                     <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
                   ) : (
                     <span className={`text-xs font-bold ${miscInfo.remaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
@@ -330,14 +330,14 @@ export default function SelectEntityPage() {
               <div className="space-y-1">
                 <div className="flex justify-between text-xs font-semibold text-gray-500">
                   <span>Usage</span>
-                  {isGroceryLoading && !miscInfo.hasAllocatedBudget ? (
+                  {isGroceryLoading ? (
                     <Skeleton className="h-3 w-8 bg-slate-200" />
                   ) : (
                     <span>{miscInfo.pct}%</span>
                   )}
                 </div>
                 <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                  {isGroceryLoading && !miscInfo.hasAllocatedBudget ? (
+                  {isGroceryLoading ? (
                     <Skeleton className="h-full w-full bg-slate-200" />
                   ) : (
                     <div
@@ -371,7 +371,7 @@ export default function SelectEntityPage() {
                     <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-semibold text-[10px]">
                       Multan Office
                     </Badge>
-                    {isGroceryLoading && !multanInfo.hasAllocatedBudget ? (
+                    {isGroceryLoading ? (
                       <Skeleton className="h-5 w-24 rounded-md bg-slate-200" />
                     ) : (
                       <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md flex items-center gap-1">
@@ -388,7 +388,7 @@ export default function SelectEntityPage() {
                 <div className="grid grid-cols-3 gap-1.5 border-y border-gray-100 py-3 text-center">
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Budget</span>
-                    {isGroceryLoading && !multanInfo.hasAllocatedBudget ? (
+                    {isGroceryLoading ? (
                       <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
                     ) : (
                       <span className="text-xs font-bold text-gray-900">Rs. {multanInfo.budget.toLocaleString()}</span>
@@ -396,7 +396,7 @@ export default function SelectEntityPage() {
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Spent</span>
-                    {isGroceryLoading && !multanInfo.hasAllocatedBudget ? (
+                    {isGroceryLoading ? (
                       <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
                     ) : (
                       <span className="text-xs font-bold text-emerald-600">Rs. {multanInfo.spent.toLocaleString()}</span>
@@ -404,7 +404,7 @@ export default function SelectEntityPage() {
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Balance</span>
-                    {isGroceryLoading && !multanInfo.hasAllocatedBudget ? (
+                    {isGroceryLoading ? (
                       <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
                     ) : (
                       <span className={`text-xs font-bold ${multanInfo.remaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
@@ -418,14 +418,14 @@ export default function SelectEntityPage() {
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs font-semibold text-gray-500">
                     <span>Usage</span>
-                    {isGroceryLoading && !multanInfo.hasAllocatedBudget ? (
+                    {isGroceryLoading ? (
                       <Skeleton className="h-3 w-8 bg-slate-200" />
                     ) : (
                       <span>{multanInfo.pct}%</span>
                     )}
                   </div>
                   <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                    {isGroceryLoading && !multanInfo.hasAllocatedBudget ? (
+                    {isGroceryLoading ? (
                       <Skeleton className="h-full w-full bg-slate-200" />
                     ) : (
                       <div
@@ -460,7 +460,7 @@ export default function SelectEntityPage() {
                     <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-semibold text-[10px]">
                       ISquareBPO Office
                     </Badge>
-                    {isGroceryLoading && !isquareInfo.hasAllocatedBudget ? (
+                    {isGroceryLoading ? (
                       <Skeleton className="h-5 w-24 rounded-md bg-slate-200" />
                     ) : (
                       <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md flex items-center gap-1">
@@ -477,7 +477,7 @@ export default function SelectEntityPage() {
                 <div className="grid grid-cols-3 gap-1.5 border-y border-gray-100 py-3 text-center">
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Budget</span>
-                    {isGroceryLoading && !isquareInfo.hasAllocatedBudget ? (
+                    {isGroceryLoading ? (
                       <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
                     ) : (
                       <span className="text-xs font-bold text-gray-900">Rs. {isquareInfo.budget.toLocaleString()}</span>
@@ -485,7 +485,7 @@ export default function SelectEntityPage() {
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Spent</span>
-                    {isGroceryLoading && !isquareInfo.hasAllocatedBudget ? (
+                    {isGroceryLoading ? (
                       <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
                     ) : (
                       <span className="text-xs font-bold text-emerald-600">Rs. {isquareInfo.spent.toLocaleString()}</span>
@@ -493,7 +493,7 @@ export default function SelectEntityPage() {
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Balance</span>
-                    {isGroceryLoading && !isquareInfo.hasAllocatedBudget ? (
+                    {isGroceryLoading ? (
                       <Skeleton className="h-4 w-14 mx-auto mt-1 bg-slate-200" />
                     ) : (
                       <span className={`text-xs font-bold ${isquareInfo.remaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
@@ -507,14 +507,14 @@ export default function SelectEntityPage() {
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs font-semibold text-gray-500">
                     <span>Usage</span>
-                    {isGroceryLoading && !isquareInfo.hasAllocatedBudget ? (
+                    {isGroceryLoading ? (
                       <Skeleton className="h-3 w-8 bg-slate-200" />
                     ) : (
                       <span>{isquareInfo.pct}%</span>
                     )}
                   </div>
                   <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                    {isGroceryLoading && !isquareInfo.hasAllocatedBudget ? (
+                    {isGroceryLoading ? (
                       <Skeleton className="h-full w-full bg-slate-200" />
                     ) : (
                       <div

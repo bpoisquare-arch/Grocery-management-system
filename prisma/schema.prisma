@@ -48,6 +48,9 @@ model GroceryEntry {
   approvedByAdmin Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([entity, budgetYear, budgetMonth], name: "idx_grocery_entity_budget")
+  @@index([date], name: "idx_grocery_date")
 }
 
 model GroceryCategory {
@@ -77,6 +80,7 @@ model CommissionEntry {
   studentName         String
   service             String    // Visa Processing, PTE, Visa Granted, IELTS, FBR Document, Proof of Deposit
   counselor           String
+  country             String?   // e.g. "Australia", "New Zealand", etc.
   amount              Float
   date                String    // YYYY-MM-DD format
   fullReceived        Boolean   @default(false)
@@ -109,5 +113,12 @@ model CommissionClaim {
   claimedAt   DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model CommissionCountry {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 

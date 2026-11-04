@@ -106,12 +106,15 @@ export const ALL_YEARS = [
   2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032
 ];
 
+export const DEFAULT_COMMISSION_COUNTRIES = ['Australia', 'New Zealand'];
+
 export interface CommissionEntry {
   id: string;
   entity: Entity;
   studentName: string;
   service: CommissionService;
   counselor: string;
+  country?: string;
   amount: number;
   date: string; // YYYY-MM-DD
   fullReceived: boolean;

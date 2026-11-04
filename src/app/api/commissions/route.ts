@@ -29,6 +29,7 @@ function formatCommissionEntry(comm: any) {
     studentName: comm.studentName,
     service: comm.service,
     counselor: comm.counselor,
+    country: comm.country || undefined,
     amount: comm.amount,
     date: comm.date,
     fullReceived: !!comm.fullReceived,
@@ -167,6 +168,7 @@ export async function POST(request: NextRequest) {
       studentName,
       service,
       counselor,
+      country,
       amount,
       date,
       fullReceived,
@@ -209,6 +211,7 @@ export async function POST(request: NextRequest) {
           studentName: studentName.trim(),
           service,
           counselor,
+          country: country ? String(country).trim() : null,
           amount: parseFloat(amount),
           date,
           fullReceived: !!fullReceived,
@@ -274,12 +277,13 @@ export async function POST(request: NextRequest) {
         const now = new Date();
         try {
           await prisma.$executeRawUnsafe(
-            'INSERT INTO `CommissionEntry` (`id`, `entity`, `studentName`, `service`, `counselor`, `amount`, `date`, `fullReceived`, `counselorCommission`, `bmCommission`, `status`, `claimedMonth`, `claimedYear`, `isClaimed`, `claimedAt`, `slipUrl`, `slipUrls`, `slipType`, `notes`, `createdAt`, `updatedAt`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO `CommissionEntry` (`id`, `entity`, `studentName`, `service`, `counselor`, `country`, `amount`, `date`, `fullReceived`, `counselorCommission`, `bmCommission`, `status`, `claimedMonth`, `claimedYear`, `isClaimed`, `claimedAt`, `slipUrl`, `slipUrls`, `slipType`, `notes`, `createdAt`, `updatedAt`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             id,
             entity,
             studentName.trim(),
             service,
             counselor,
+            country ? String(country).trim() : null,
             parseFloat(amount),
             date,
             fullReceived ? 1 : 0,
@@ -300,12 +304,13 @@ export async function POST(request: NextRequest) {
         } catch (insertErr) {
           try {
             await prisma.$executeRawUnsafe(
-              'INSERT INTO `CommissionEntry` (`id`, `entity`, `studentName`, `service`, `counselor`, `amount`, `date`, `fullReceived`, `counselorCommission`, `bmCommission`, `status`, `slipUrl`, `slipUrls`, `slipType`, `notes`, `createdAt`, `updatedAt`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+              'INSERT INTO `CommissionEntry` (`id`, `entity`, `studentName`, `service`, `counselor`, `country`, `amount`, `date`, `fullReceived`, `counselorCommission`, `bmCommission`, `status`, `slipUrl`, `slipUrls`, `slipType`, `notes`, `createdAt`, `updatedAt`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
               id,
               entity,
               studentName.trim(),
               service,
               counselor,
+              country ? String(country).trim() : null,
               parseFloat(amount),
               date,
               fullReceived ? 1 : 0,
@@ -348,6 +353,7 @@ export async function POST(request: NextRequest) {
           studentName: studentName.trim(),
           service,
           counselor,
+          country: country ? String(country).trim() : null,
           amount: parseFloat(amount),
           date,
           fullReceived: !!fullReceived,

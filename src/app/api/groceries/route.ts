@@ -98,6 +98,22 @@ export async function GET(request: NextRequest) {
 
     const entries = await (prisma as any).groceryEntry.findMany({
       where: whereClause,
+      select: {
+        id: true,
+        entity: true,
+        date: true,
+        details: true,
+        category: true,
+        amount: true,
+        addedBy: true,
+        status: true,
+        budgetMonth: true,
+        budgetYear: true,
+        slipType: true,
+        approvedByAdmin: true,
+        createdAt: true,
+        updatedAt: true,
+      },
       orderBy: [
         { date: 'desc' },
         { createdAt: 'desc' },
@@ -119,14 +135,15 @@ export async function GET(request: NextRequest) {
     console.error('Database query error in GET /api/groceries:', error.message);
     try {
       let rawEntries: any[] = [];
+      const fields = '`id`, `entity`, `date`, `details`, `category`, `amount`, `addedBy`, `status`, `budgetMonth`, `budgetYear`, `slipType`, `approvedByAdmin`, `createdAt`, `updatedAt`';
       if (entity) {
         rawEntries = await prisma.$queryRawUnsafe<any[]>(
-          'SELECT * FROM `GroceryEntry` WHERE `entity` = ? ORDER BY `date` DESC, `createdAt` DESC',
+          `SELECT ${fields} FROM \`GroceryEntry\` WHERE \`entity\` = ? ORDER BY \`date\` DESC, \`createdAt\` DESC`,
           entity
         );
       } else {
         rawEntries = await prisma.$queryRawUnsafe<any[]>(
-          'SELECT * FROM `GroceryEntry` ORDER BY `date` DESC, `createdAt` DESC'
+          `SELECT ${fields} FROM \`GroceryEntry\` ORDER BY \`date\` DESC, \`createdAt\` DESC`
         );
       }
       const formatted = rawEntries.map(formatGroceryEntry);

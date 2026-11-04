@@ -96,10 +96,14 @@ interface StoreContextType {
   getEntityBudgetBreakdown: (entity: Entity, month?: string, year?: number) => BudgetBreakdown;
   calculateEntityBudgetChain: (entity: Entity) => (BudgetBreakdown & { entity: Entity; month: string; year: number })[];
   // Commission & Counselor Methods
+  commissionCountries: string[];
+  fetchCommissionCountries: () => Promise<string[]>;
+  addCommissionCountry: (name: string) => Promise<string>;
   addCommissionEntry: (entry: {
     studentName: string;
     service: CommissionService;
     counselor: string;
+    country?: string;
     amount: number;
     date: string;
     fullReceived: boolean;
@@ -119,6 +123,7 @@ interface StoreContextType {
       studentName?: string;
       service?: CommissionService;
       counselor?: string;
+      country?: string;
       amount?: number;
       date?: string;
       fullReceived?: boolean;
@@ -208,6 +213,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [commissionEntries, setCommissionEntries] = useState<CommissionEntry[]>([]);
+  const [commissionCountries, setCommissionCountries] = useState<string[]>(['Australia', 'New Zealand']);
   const [counselors, setCounselors] = useState<Counselor[]>([]);
   const [currentMonth, setCurrentMonthState] = useState<string>('August');
   const [currentYear, setCurrentYearState] = useState<number>(2026);
@@ -378,24 +384,82 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return promise;
   }, []);
 
+  // Modular lazy-fetch: Commission Countries only
+  const countriesInFlightRef = useRef<Promise<string[]> | null>(null);
+
+  const fetchCommissionCountries = useCallback(async () => {
+    if (countriesInFlightRef.current) return countriesInFlightRef.current;
+    const promise = (async () => {
+      try {
+        const ts = Date.now();
+        const res = await fetch(`/api/commissions/countries?_t=${ts}`, { cache: 'no-store' });
+        const json = await res.json().catch(() => null);
+        if (json?.success && Array.isArray(json.data)) {
+          const names = json.data.map((c: any) => c.name);
+          setCommissionCountries(names);
+          saveSafeCache('gem_commission_countries', names);
+          return names;
+        }
+      } catch (e) {
+        console.error('Error fetching commission countries:', e);
+      } finally {
+        countriesInFlightRef.current = null;
+      }
+      return ['Australia', 'New Zealand'];
+    })();
+    countriesInFlightRef.current = promise;
+    return promise;
+  }, []);
+
+  const addCommissionCountry = useCallback(async (name: string): Promise<string> => {
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error('Country name cannot be empty');
+    const res = await fetch('/api/commissions/countries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: trimmed }),
+    });
+    const json = await res.json().catch(() => null);
+    if (json?.success && json.data?.name) {
+      setCommissionCountries((prev) => {
+        if (prev.includes(json.data.name)) return prev;
+        const updated = [...prev, json.data.name];
+        saveSafeCache('gem_commission_countries', updated);
+        return updated;
+      });
+      return json.data.name;
+    }
+    throw new Error(json?.error || 'Failed to add country');
+  }, []);
+
   // Page-specific lazy loaders:
   // 1. Dashboard: Budgets + Groceries only (no categories, no commissions)
   const loadDashboardData = useCallback(async () => {
-    await Promise.allSettled([fetchBudgets(), fetchGroceries()]);
-    setLastSyncedAt(new Date());
+    setIsGroceryLoading(true);
+    try {
+      await Promise.allSettled([fetchBudgets(), fetchGroceries()]);
+    } finally {
+      setIsGroceryLoading(false);
+      setLastSyncedAt(new Date());
+    }
   }, [fetchBudgets, fetchGroceries]);
 
   // 2. Grocery Management: Groceries + Categories + Budgets (no commissions)
   const loadGroceryData = useCallback(async (force?: boolean) => {
-    await Promise.allSettled([fetchGroceries(), fetchCategories(), fetchBudgets()]);
-    setLastSyncedAt(new Date());
+    setIsGroceryLoading(true);
+    try {
+      await Promise.allSettled([fetchGroceries(), fetchCategories(), fetchBudgets()]);
+    } finally {
+      setIsGroceryLoading(false);
+      setLastSyncedAt(new Date());
+    }
   }, [fetchGroceries, fetchCategories, fetchBudgets]);
 
-  // 3. Commissions: Commissions + Counselors only (no groceries, no budgets)
+  // 3. Commissions: Commissions + Counselors + Countries (no groceries, no budgets)
   const loadCommissionData = useCallback(async (force?: boolean) => {
-    await Promise.allSettled([fetchCommissions(), fetchCounselors()]);
+    await Promise.allSettled([fetchCommissions(), fetchCounselors(), fetchCommissionCountries()]);
     setLastSyncedAt(new Date());
-  }, [fetchCommissions, fetchCounselors]);
+  }, [fetchCommissions, fetchCounselors, fetchCommissionCountries]);
 
   // 4. On-demand page refresh
   const refreshData = useCallback(async () => {
@@ -418,11 +482,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const cachedCategories = getSafeCache<Category[]>('gem_categories_cache', []);
       const cachedCommissions = getSafeCache<CommissionEntry[]>('gem_commissions_cache', []);
       const cachedCounselors = getSafeCache<Counselor[]>('gem_counselors_cache', []);
+      const cachedCountries = getSafeCache<string[]>('gem_commission_countries', []);
 
+      if (cachedCountries.length > 0) {
+        setCommissionCountries(cachedCountries);
+      }
       if (cachedGroceries.length > 0) {
         setGroceryEntries(cachedGroceries);
         groceryEntriesRef.current = cachedGroceries;
-        setIsGroceryLoading(false);
       }
       if (cachedBudgets.length > 0) {
         setBudgets(cachedBudgets);
@@ -1449,6 +1516,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     studentName: string;
     service: CommissionService;
     counselor: string;
+    country?: string;
     amount: number;
     date: string;
     fullReceived: boolean;
@@ -1506,6 +1574,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       studentName: entry.studentName,
       service: entry.service,
       counselor: entry.counselor,
+      country: entry.country,
       amount: entry.amount,
       date: entry.date,
       fullReceived: entry.fullReceived,
@@ -1528,6 +1597,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       studentName: entry.studentName,
       service: entry.service,
       counselor: entry.counselor,
+      country: entry.country,
       amount: entry.amount,
       date: entry.date,
       fullReceived: entry.fullReceived,
@@ -1604,6 +1674,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       studentName?: string;
       service?: CommissionService;
       counselor?: string;
+      country?: string;
       amount?: number;
       date?: string;
       fullReceived?: boolean;
@@ -1908,6 +1979,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         getEntityBudget,
         getEntityBudgetBreakdown,
         calculateEntityBudgetChain,
+        commissionCountries,
+        fetchCommissionCountries,
+        addCommissionCountry,
         addCommissionEntry,
         updateCommissionEntry,
         deleteCommissionEntry,

@@ -229,7 +229,8 @@ export function EditGroceryModal({ open, onOpenChange, entry }: EditGroceryModal
       if (fileInputRef.current) fileInputRef.current.value = "";
 
       // If entry has slips in database but they were stripped from local cache, fetch them on-demand
-      if (existingSlips.length === 0 && entry.status === "Slip Uploaded") {
+      const hasRealExisting = existingSlips.length > 0 && existingSlips.some((s) => s && s.length > 10);
+      if (!hasRealExisting && entry.status === "Slip Uploaded") {
         setIsFetchingSlips(true);
         fetch(`/api/groceries/${entry.id}`)
           .then((res) => (res.ok ? res.json() : null))
