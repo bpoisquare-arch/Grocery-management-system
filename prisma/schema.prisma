@@ -122,3 +122,24 @@ model CommissionCountry {
   updatedAt DateTime @updatedAt
 }
 
+model LawChamberEntry {
+  id             String   @id @default(cuid())
+  srNo           Int      @unique
+  studentName    String
+  passportNo     String   @unique
+  date           String   // YYYY-MM-DD
+  amount         Float
+  reimbursed     String   @default("Yes") // "Yes" | "No"
+  status         String   @default("Slip Missing") // "Slip Uploaded" | "Slip Missing"
+  slipUrl        String?  @db.LongText
+  slipUrls       String?  @db.LongText // JSON string array of URLs
+  slipType       String?  // "image", "pdf"
+  notes          String?  @db.Text
+  addedBy        String   @default("Admin")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([passportNo], name: "idx_law_chamber_passport")
+  @@index([date], name: "idx_law_chamber_date")
+}
+

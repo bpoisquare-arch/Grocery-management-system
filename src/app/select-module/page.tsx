@@ -20,6 +20,8 @@ import {
   TrendingUpIcon,
   ClockIcon,
   CalendarCheckIcon,
+  ScaleIcon,
+  CreditCardIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -100,10 +102,15 @@ export default function SelectModulePage() {
     }
   };
 
+  const handleSelectLawChambers = () => {
+    toast.success("Opening Chaudhary Law Chambers");
+    router.push("/law-chambers");
+  };
+
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-between py-10 px-6 sm:px-12">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-between py-8 px-4 sm:px-8 lg:px-12">
       {/* Top Bar */}
-      <div className="max-w-6xl w-full mx-auto flex justify-between items-center mb-8">
+      <div className="max-w-[1720px] w-full mx-auto flex justify-between items-center mb-6">
         <div className="flex items-center gap-3.5">
           <div className="flex size-14 items-center justify-center rounded-2xl bg-emerald-700/10 p-1 border border-emerald-600/20 shadow-sm">
             <Image
@@ -144,20 +151,20 @@ export default function SelectModulePage() {
       </div>
 
       {/* Main Panel */}
-      <div className="max-w-6xl w-full mx-auto space-y-8 flex-1 flex flex-col justify-center">
+      <div className="max-w-[1720px] w-full mx-auto space-y-8 flex-1 flex flex-col justify-center">
         <div className="text-center space-y-2">
           <Badge className="bg-emerald-100/80 text-emerald-800 hover:bg-emerald-100 border border-emerald-200/50 text-xs font-bold px-3 py-1 mb-1">
             <SparklesIcon className="size-3 mr-1 text-emerald-600" />
             Operational Workspace
           </Badge>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight">Select a Module</h1>
-          <p className="text-sm text-gray-500 font-medium max-w-md mx-auto">
-            Choose an operational module to manage branch expenses, employee commissions, or view live attendance records.
+          <p className="text-sm text-gray-500 font-medium max-w-xl mx-auto">
+            Choose an operational module to manage branch expenses, employee commissions, live attendance records, or student chamber registrations.
           </p>
         </div>
 
-        {/* Module Cards (3 Columns) */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Module Cards (4 Columns - Full Width) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 w-full">
           {/* 1. GROCERY MODULE CARD */}
           <Card
             onClick={handleSelectGrocery}
@@ -172,7 +179,7 @@ export default function SelectModulePage() {
                   Expenses & Invoices
                 </Badge>
               </div>
-              <CardTitle className="text-2xl font-bold text-gray-900 mt-5 group-hover:text-emerald-700 transition-colors">
+              <CardTitle className="text-xl sm:text-[22px] lg:text-[20px] xl:text-[22px] 2xl:text-[24px] font-bold text-gray-900 mt-5 group-hover:text-emerald-700 transition-colors whitespace-nowrap">
                 Grocery Management
               </CardTitle>
             </CardHeader>
@@ -236,7 +243,7 @@ export default function SelectModulePage() {
                   {currentUser.role === "ISQUAREBPO_USER" ? "Lahore & Multan Only" : isAuditor ? "View Only" : "Commissions"}
                 </Badge>
               </div>
-              <CardTitle className="text-2xl font-bold text-gray-900 mt-5 group-hover:text-emerald-700 transition-colors">
+              <CardTitle className="text-xl sm:text-[22px] lg:text-[20px] xl:text-[22px] 2xl:text-[24px] font-bold text-gray-900 mt-5 group-hover:text-emerald-700 transition-colors whitespace-nowrap">
                 Employee Commissions
               </CardTitle>
             </CardHeader>
@@ -302,7 +309,7 @@ export default function SelectModulePage() {
                   </Badge>
                 </div>
               </div>
-              <CardTitle className="text-2xl font-bold text-gray-900 mt-5 group-hover:text-emerald-700 transition-colors">
+              <CardTitle className="text-xl sm:text-[22px] lg:text-[20px] xl:text-[22px] 2xl:text-[24px] font-bold text-gray-900 mt-5 group-hover:text-emerald-700 transition-colors whitespace-nowrap">
                 Attendance Records
               </CardTitle>
             </CardHeader>
@@ -353,10 +360,58 @@ export default function SelectModulePage() {
               </Button>
             </CardFooter>
           </Card>
+
+          {/* 4. CHAUDHARY LAW CHAMBERS MODULE CARD */}
+          <Card
+            onClick={handleSelectLawChambers}
+            className="group border border-gray-200 hover:border-emerald-500/70 bg-white shadow-xs hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden"
+          >
+            <CardHeader className="pb-4">
+              <div className="flex justify-between items-start">
+                <div className="size-13 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-2xs group-hover:bg-emerald-600 group-hover:text-white transition-colors duration-200">
+                  <ScaleIcon className="size-7" />
+                </div>
+                <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-semibold text-[11px]">
+                  Chambers Laws
+                </Badge>
+              </div>
+              <CardTitle className="text-xl sm:text-[22px] lg:text-[20px] xl:text-[22px] 2xl:text-[24px] font-bold text-gray-900 mt-5 group-hover:text-emerald-700 transition-colors whitespace-nowrap">
+                Law Chambers
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-600 leading-relaxed font-normal">
+                Log student chamber entries, verify unique passport numbers to prevent duplicates, track fee reimbursements, and upload receipt slips.
+              </p>
+
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100 text-xs text-gray-600 font-medium">
+                <div className="flex items-center gap-1.5">
+                  <ReceiptIcon className="size-4 text-emerald-600 shrink-0" />
+                  <span>Slips & Receipts</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <UsersIcon className="size-4 text-emerald-600 shrink-0" />
+                  <span className="truncate">All Branches Shared</span>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="pt-2">
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSelectLawChambers();
+                }}
+                className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 group-hover:shadow-md cursor-pointer"
+              >
+                <span className="truncate">Open Law Chambers</span>
+                <ArrowRightIcon className="size-4 group-hover:translate-x-1 transition-transform shrink-0" />
+              </Button>
+            </CardFooter>
+          </Card>
         </div>
       </div>
 
-      <div className="max-w-6xl w-full mx-auto text-center text-xs font-semibold text-gray-400 mt-10">
+      <div className="max-w-[1720px] w-full mx-auto text-center text-xs font-semibold text-gray-400 mt-10">
         ISquareBPO Multi-Branch Management System • 2026
       </div>
     </div>

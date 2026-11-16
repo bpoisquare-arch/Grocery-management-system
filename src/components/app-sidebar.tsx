@@ -29,6 +29,7 @@ import {
   LayoutGridIcon,
   LayersIcon,
   ClockIcon,
+  ScaleIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -244,6 +245,24 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             >
               <ClockIcon className="size-5 text-emerald-600" />
               <span>Attendance Records</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
+          {/* Chaudhary Law Chambers Module */}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              render={<Link href="/law-chambers" />}
+              tooltip="Chaudhary Law Chambers"
+              isActive={pathname === "/law-chambers"}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+                pathname === "/law-chambers"
+                  ? "bg-emerald-50 text-emerald-800 font-bold"
+                  : "text-gray-600 hover:bg-emerald-50 hover:text-emerald-700"
+              )}
+            >
+              <ScaleIcon className="size-5 text-emerald-600" />
+              <span>Law Chambers</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

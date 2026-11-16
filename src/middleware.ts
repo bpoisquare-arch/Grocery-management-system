@@ -13,6 +13,8 @@ const protectedRoutes = [
   '/select-module',
   '/commissions',
   '/attendance',
+  '/law-chambers',
+  '/chambers-laws',
 ];
 const authRoutes = ['/login'];
 
@@ -49,6 +51,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/select-module', request.url));
   }
 
+  // Redirect /chambers-laws alias to /law-chambers
+  if (pathname === '/chambers-laws' || pathname.startsWith('/chambers-laws/')) {
+    const targetUrl = new URL('/law-chambers', request.url);
+    return NextResponse.redirect(targetUrl);
+  }
+
   // Root redirect
   if (pathname === '/') {
     if (isAuthenticated) {
@@ -73,5 +81,7 @@ export const config = {
     '/budget/:path*',
     '/reports/:path*',
     '/attendance/:path*',
+    '/law-chambers/:path*',
+    '/chambers-laws/:path*',
   ],
 };

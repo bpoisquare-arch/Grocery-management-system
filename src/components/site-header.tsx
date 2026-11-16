@@ -63,6 +63,9 @@ export function SiteHeader() {
         return "Expense Reports";
       case "/settings":
         return "Account Settings";
+      case "/law-chambers":
+      case "/chambers-laws":
+        return "Chaudhary Law Chambers";
       default:
         return "Expense Management";
     }
