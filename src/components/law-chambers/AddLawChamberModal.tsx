@@ -294,7 +294,7 @@ export function AddLawChamberModal({
                   Add Student Entry
                 </DialogTitle>
                 <DialogDescription className="text-xs text-gray-500 mt-0.5">
-                  Chaudhary Law Chambers student registration & reimbursement record.
+                  Chambers Law student registration & reimbursement record.
                 </DialogDescription>
               </div>
               <Badge

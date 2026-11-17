@@ -103,7 +103,7 @@ export default function SelectModulePage() {
   };
 
   const handleSelectLawChambers = () => {
-    toast.success("Opening Chaudhary Law Chambers");
+    toast.success("Opening Chambers Law");
     router.push("/law-chambers");
   };
 
@@ -361,7 +361,7 @@ export default function SelectModulePage() {
             </CardFooter>
           </Card>
 
-          {/* 4. CHAUDHARY LAW CHAMBERS MODULE CARD */}
+          {/* 4. CHAMBERS LAW MODULE CARD */}
           <Card
             onClick={handleSelectLawChambers}
             className="group border border-gray-200 hover:border-emerald-500/70 bg-white shadow-xs hover:shadow-lg transition-all duration-200 cursor-pointer flex flex-col justify-between overflow-hidden"
@@ -372,11 +372,11 @@ export default function SelectModulePage() {
                   <ScaleIcon className="size-7" />
                 </div>
                 <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-semibold text-[11px]">
-                  Chambers Laws
+                  Chambers Law
                 </Badge>
               </div>
               <CardTitle className="text-xl sm:text-[22px] lg:text-[20px] xl:text-[22px] 2xl:text-[24px] font-bold text-gray-900 mt-5 group-hover:text-emerald-700 transition-colors whitespace-nowrap">
-                Law Chambers
+                Chambers Law
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -403,7 +403,7 @@ export default function SelectModulePage() {
                 }}
                 className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors flex items-center justify-center gap-2 group-hover:shadow-md cursor-pointer"
               >
-                <span className="truncate">Open Law Chambers</span>
+                <span className="truncate">Open Chambers Law</span>
                 <ArrowRightIcon className="size-4 group-hover:translate-x-1 transition-transform shrink-0" />
               </Button>
             </CardFooter>

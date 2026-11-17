@@ -312,9 +312,9 @@ export default function LawChambersPage() {
       worksheet["!cols"] = colWidths;
 
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Chambers Laws");
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Chambers Law");
 
-      const fileName = `Chaudhary_Law_Chambers_${format(new Date(), "yyyy-MM-dd")}.xlsx`;
+      const fileName = `Chambers_Law_${format(new Date(), "yyyy-MM-dd")}.xlsx`;
       XLSX.writeFile(workbook, fileName);
       toast.success(`Exported ${filteredEntries.length} records to Excel.`);
     } catch (err: any) {
@@ -336,7 +336,7 @@ export default function LawChambersPage() {
       // Title & Header
       doc.setFontSize(18);
       doc.setTextColor(22, 101, 52); // Emerald 800
-      doc.text("Chaudhary Law Chambers", 40, 45);
+      doc.text("Chambers Law", 40, 45);
 
       doc.setFontSize(10);
       doc.setTextColor(100);
@@ -381,7 +381,7 @@ export default function LawChambersPage() {
         margin: { left: 40, right: 40 },
       });
 
-      doc.save(`Chaudhary_Law_Chambers_${format(new Date(), "yyyy-MM-dd")}.pdf`);
+      doc.save(`Chambers_Law_${format(new Date(), "yyyy-MM-dd")}.pdf`);
       toast.success(`Exported ${filteredEntries.length} records to PDF.`);
     } catch (err: any) {
       console.error(err);
@@ -397,13 +397,13 @@ export default function LawChambersPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
-                Chaudhary Law Chambers
+                Chambers Law
               </h1>
               <Badge
                 variant="outline"
                 className="bg-emerald-50 text-emerald-800 border-emerald-200 text-xs font-bold px-2 py-0.5"
               >
-                Chambers Laws
+                Chambers Law
               </Badge>
             </div>
             <p className="text-xs sm:text-sm text-gray-500 font-medium mt-1">
@@ -772,31 +772,31 @@ export default function LawChambersPage() {
                       onCheckedChange={handleSelectAll}
                     />
                   </TableHead>
-                  <TableHead className="w-12 text-center text-xs font-bold text-gray-600">
+                  <TableHead className="w-12 text-center text-xs font-bold text-gray-700">
                     Slip
                   </TableHead>
-                  <TableHead className="w-16 text-xs font-bold text-gray-600">
+                  <TableHead className="w-20 text-xs font-bold text-gray-700">
                     S.No.
                   </TableHead>
-                  <TableHead className="w-32 text-xs font-bold text-gray-600">
+                  <TableHead className="w-36 text-xs font-bold text-gray-700">
                     Date
                   </TableHead>
-                  <TableHead className="text-xs font-bold text-gray-600">
+                  <TableHead className="text-xs font-bold text-gray-700">
                     Student Name
                   </TableHead>
-                  <TableHead className="w-36 text-xs font-bold text-gray-600">
+                  <TableHead className="w-44 text-xs font-bold text-gray-700">
                     Passport No.
                   </TableHead>
-                  <TableHead className="w-32 text-xs font-bold text-gray-600">
+                  <TableHead className="w-32 text-xs font-bold text-gray-700">
                     Amount
                   </TableHead>
-                  <TableHead className="w-28 text-xs font-bold text-gray-600">
+                  <TableHead className="w-28 text-xs font-bold text-gray-700">
                     Reimbursed
                   </TableHead>
-                  <TableHead className="w-36 text-xs font-bold text-gray-600">
+                  <TableHead className="w-40 text-xs font-bold text-gray-700">
                     Status
                   </TableHead>
-                  <TableHead className="w-16 text-right text-xs font-bold text-gray-600 pr-4">
+                  <TableHead className="w-16 text-right text-xs font-bold text-gray-700 pr-4">
                     Actions
                   </TableHead>
                 </TableRow>
@@ -860,7 +860,7 @@ export default function LawChambersPage() {
                           >
                             <span
                               className={cn(
-                                "size-2.5 rounded-full inline-block transition-transform hover:scale-125",
+                                "size-3 rounded-full inline-block transition-transform hover:scale-125",
                                 hasSlip ? "bg-emerald-500 shadow-2xs" : "bg-rose-500"
                               )}
                             />
@@ -868,12 +868,12 @@ export default function LawChambersPage() {
                         </TableCell>
 
                         {/* S.No */}
-                        <TableCell className="text-xs font-mono font-bold text-gray-500">
+                        <TableCell className="text-sm font-mono font-bold text-gray-700 whitespace-nowrap">
                           #{entry.srNo}
                         </TableCell>
 
                         {/* Date */}
-                        <TableCell className="text-xs font-medium text-gray-700 whitespace-nowrap">
+                        <TableCell className="text-sm font-semibold text-gray-800 whitespace-nowrap">
                           {(() => {
                             if (!entry.date) return "-";
                             const d = new Date(entry.date);
@@ -881,32 +881,29 @@ export default function LawChambersPage() {
                           })()}
                         </TableCell>
 
-                        {/* Student Name */}
-                        <TableCell className="text-xs font-bold text-gray-900">
+                        {/* Student Name (Enlarged prominent font) */}
+                        <TableCell className="text-[15px] font-bold text-gray-950">
                           <button
                             type="button"
                             onClick={() => {
                               setActiveEntry(entry);
                               setIsViewOpen(true);
                             }}
-                            className="text-left hover:text-emerald-700 transition-colors cursor-pointer"
+                            className="text-left hover:text-emerald-700 transition-colors cursor-pointer font-bold tracking-tight"
                           >
                             {entry.studentName}
                           </button>
                         </TableCell>
 
-                        {/* Passport No (Unique) */}
+                        {/* Passport No (Highlighted Badge) */}
                         <TableCell>
-                          <Badge
-                            variant="outline"
-                            className="font-mono text-xs font-bold tracking-wider uppercase bg-slate-50 text-slate-800 border-slate-200"
-                          >
+                          <span className="inline-flex items-center px-3 py-1 rounded-md font-mono text-[13px] font-black tracking-wider uppercase bg-amber-100 text-amber-950 border border-amber-300 shadow-2xs">
                             {entry.passportNo}
-                          </Badge>
+                          </span>
                         </TableCell>
 
                         {/* Amount */}
-                        <TableCell className="text-xs font-extrabold text-gray-900 whitespace-nowrap">
+                        <TableCell className="text-sm font-extrabold text-gray-950 whitespace-nowrap">
                           Rs. {entry.amount.toLocaleString()}
                         </TableCell>
 
@@ -914,7 +911,7 @@ export default function LawChambersPage() {
                         <TableCell>
                           <Badge
                             className={cn(
-                              "text-[10px] font-bold px-2 py-0.5",
+                              "text-xs font-bold px-2.5 py-0.5",
                               entry.reimbursed === "Yes"
                                 ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                 : "bg-amber-50 text-amber-700 border-amber-200"
@@ -928,7 +925,7 @@ export default function LawChambersPage() {
                         <TableCell>
                           <Badge
                             className={cn(
-                              "text-[10px] font-bold px-2.5 py-0.5 gap-1.5 flex items-center w-fit",
+                              "text-xs font-bold px-3 py-1 gap-1.5 flex items-center w-fit",
                               hasSlip
                                 ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
                                 : "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-50"
@@ -936,7 +933,7 @@ export default function LawChambersPage() {
                           >
                             <span
                               className={cn(
-                                "size-1.5 rounded-full shrink-0",
+                                "size-2 rounded-full shrink-0",
                                 hasSlip ? "bg-emerald-500" : "bg-rose-500"
                               )}
                             />
@@ -944,7 +941,7 @@ export default function LawChambersPage() {
                           </Badge>
                         </TableCell>
 
-                        {/* Actions (3 Dots Menu) */}
+                        {/* Actions (3 Dots Menu - Black & Highly Visible) */}
                         <TableCell className="text-right pr-4">
                           <DropdownMenu>
                             <DropdownMenuTrigger
@@ -952,11 +949,12 @@ export default function LawChambersPage() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="size-8 text-gray-400 hover:text-gray-900 hover:bg-slate-100"
+                                  className="size-8 text-black hover:text-black hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                                  title="Actions"
                                 />
                               }
                             >
-                              <MoreVerticalIcon className="size-4" />
+                              <MoreVerticalIcon className="size-5 text-black stroke-[2.5]" />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-44 bg-white border-gray-200">
                               <DropdownMenuItem

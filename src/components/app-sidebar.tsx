@@ -248,11 +248,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarMenuButton>
           </SidebarMenuItem>
 
-          {/* Chaudhary Law Chambers Module */}
+          {/* Chambers Law Module */}
           <SidebarMenuItem>
             <SidebarMenuButton
               render={<Link href="/law-chambers" />}
-              tooltip="Chaudhary Law Chambers"
+              tooltip="Chambers Law"
               isActive={pathname === "/law-chambers"}
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
@@ -262,7 +262,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               )}
             >
               <ScaleIcon className="size-5 text-emerald-600" />
-              <span>Law Chambers</span>
+              <span>Chambers Law</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

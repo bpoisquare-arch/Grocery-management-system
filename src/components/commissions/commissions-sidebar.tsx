@@ -209,15 +209,15 @@ export function CommissionsSidebar({ ...props }: React.ComponentProps<typeof Sid
             </SidebarMenuButton>
           </SidebarMenuItem>
 
-          {/* Chaudhary Law Chambers */}
+          {/* Chambers Law */}
           <SidebarMenuItem>
             <SidebarMenuButton
               render={<Link href="/law-chambers" />}
-              tooltip="Chaudhary Law Chambers"
+              tooltip="Chambers Law"
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-emerald-50 hover:text-emerald-700"
             >
               <ScaleIcon className="size-5 text-emerald-600" />
-              <span>Law Chambers</span>
+              <span>Chambers Law</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

@@ -65,7 +65,7 @@ export function SiteHeader() {
         return "Account Settings";
       case "/law-chambers":
       case "/chambers-laws":
-        return "Chaudhary Law Chambers";
+        return "Chambers Law";
       default:
         return "Expense Management";
     }

@@ -246,7 +246,7 @@ export function ImportLawChamberModal({
 
   const downloadSampleTemplate = () => {
     const sample = [
-      ["Chaudhary Law Chambers"],
+      ["Chambers Law"],
       ["S.No.", "Student Name", "Passport No.", "Date", "Amount", "Reimbursed to Me"],
       [1, "M Mohsin Wakeel", "AU6309431", "23/06/2026", 5000, "Yes"],
       [2, "Mudassar Ijaz khokar", "WV4166251", "24/06/2026", 5000, "Yes"],
@@ -255,7 +255,7 @@ export function ImportLawChamberModal({
     const ws = XLSX.utils.aoa_to_sheet(sample);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Students");
-    XLSX.writeFile(wb, "Chaudhary_Law_Chambers_Template.xlsx");
+    XLSX.writeFile(wb, "Chambers_Law_Template.xlsx");
     toast.success("Sample template downloaded.");
   };
 
@@ -312,7 +312,7 @@ export function ImportLawChamberModal({
                 Click to browse or Drag & Drop Excel File
               </h4>
               <p className="text-xs text-gray-400 mt-1">
-                Supports .xlsx, .xls, and .csv files (matches Chaudhary Law Chambers format)
+                Supports .xlsx, .xls, and .csv files (matches Chambers Law format)
               </p>
             </div>
           </div>

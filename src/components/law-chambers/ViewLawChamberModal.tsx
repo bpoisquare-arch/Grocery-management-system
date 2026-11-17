@@ -73,7 +73,7 @@ export function ViewLawChamberModal({
               </DialogTitle>
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
-              Chaudhary Law Chambers Record Details
+              Chambers Law Record Details
             </p>
           </div>
           <div className="flex items-center gap-2">
