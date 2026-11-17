@@ -61,14 +61,14 @@ export function ViewLawChamberModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl w-[95vw] bg-white p-5 md:p-7 rounded-2xl ring-1 ring-black/5 shadow-2xl max-h-[92vh] overflow-y-auto">
-        <DialogHeader className="pb-3 border-b border-gray-100 flex flex-row items-center justify-between">
+      <DialogContent className="sm:max-w-4xl w-[95vw] md:w-full bg-white p-4 sm:p-5 rounded-2xl ring-1 ring-black/5 shadow-2xl max-h-[95vh] overflow-y-auto overflow-x-hidden">
+        <DialogHeader className="pb-3 border-b border-gray-100 pr-8 sm:pr-10 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
                 S.No #{entry.srNo}
               </span>
-              <DialogTitle className="text-lg md:text-xl font-bold text-gray-900">
+              <DialogTitle className="text-base sm:text-lg md:text-xl font-bold text-gray-900 truncate">
                 {entry.studentName}
               </DialogTitle>
             </div>
@@ -76,7 +76,7 @@ export function ViewLawChamberModal({
               Chambers Law Record Details
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {onEditClick && (
               <Button
                 variant="outline"

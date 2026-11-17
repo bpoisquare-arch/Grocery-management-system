@@ -265,6 +265,24 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <span>Chambers Law</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
+
+          {/* Investors Commissions Module */}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              render={<Link href="/investors-commissions" />}
+              tooltip="Investors Commissions"
+              isActive={pathname === "/investors-commissions"}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
+                pathname === "/investors-commissions"
+                  ? "bg-emerald-50 text-emerald-800 font-bold"
+                  : "text-gray-600 hover:bg-emerald-50 hover:text-emerald-700"
+              )}
+            >
+              <CoinsIcon className="size-5 text-emerald-600" />
+              <span>Investors Commissions</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarContent>
 

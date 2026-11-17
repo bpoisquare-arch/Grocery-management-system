@@ -286,11 +286,11 @@ export function AddLawChamberModal({
           onOpenChange(v);
         }}
       >
-        <DialogContent className="sm:max-w-3xl w-[95vw] bg-white p-5 md:p-7 rounded-2xl ring-1 ring-black/5 shadow-2xl max-h-[92vh] overflow-y-auto">
-          <DialogHeader className="pb-3 border-b border-gray-100">
-            <div className="flex items-center justify-between">
+        <DialogContent className="sm:max-w-3xl w-[95vw] md:w-full bg-white p-4 sm:p-5 rounded-2xl ring-1 ring-black/5 shadow-2xl max-h-[95vh] overflow-y-auto overflow-x-hidden">
+          <DialogHeader className="pb-3 border-b border-gray-100 pr-8 sm:pr-10">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <DialogTitle className="text-lg md:text-xl font-bold text-gray-900">
+                <DialogTitle className="text-base sm:text-lg md:text-xl font-bold text-gray-900">
                   Add Student Entry
                 </DialogTitle>
                 <DialogDescription className="text-xs text-gray-500 mt-0.5">
@@ -300,7 +300,7 @@ export function AddLawChamberModal({
               <Badge
                 variant="outline"
                 className={cn(
-                  "font-bold text-xs px-2.5 py-1",
+                  "font-bold text-xs px-2.5 py-1 w-fit shrink-0",
                   slipItems.length > 0
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                     : "bg-amber-50 text-amber-700 border-amber-200"

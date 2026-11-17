@@ -66,6 +66,9 @@ export function SiteHeader() {
       case "/law-chambers":
       case "/chambers-laws":
         return "Chambers Law";
+      case "/investors-commissions":
+      case "/investor-commissions":
+        return "Investors Commissions";
       default:
         return "Expense Management";
     }

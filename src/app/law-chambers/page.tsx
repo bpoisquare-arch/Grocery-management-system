@@ -712,7 +712,7 @@ export default function LawChambersPage() {
               </div>
 
               {/* Reset Button */}
-              <div className="space-y-1.5 shrink-0">
+              <div className="w-full sm:w-auto space-y-1.5 shrink-0">
                 <Label className="text-xs font-bold text-transparent select-none hidden sm:block">
                   Reset
                 </Label>
@@ -720,9 +720,10 @@ export default function LawChambersPage() {
                   variant="outline"
                   onClick={handleResetFilters}
                   title="Reset all filters"
-                  className="size-10 border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-slate-50 flex items-center justify-center p-0"
+                  className="h-10 w-full sm:w-10 border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-slate-50 flex items-center justify-center gap-2 p-0"
                 >
-                  <RotateCcwIcon className="size-4" />
+                  <RotateCcwIcon className="size-4 shrink-0" />
+                  <span className="sm:hidden text-xs font-semibold">Reset Filters</span>
                 </Button>
               </div>
             </div>

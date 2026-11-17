@@ -15,6 +15,8 @@ const protectedRoutes = [
   '/attendance',
   '/law-chambers',
   '/chambers-laws',
+  '/investors-commissions',
+  '/investor-commissions',
 ];
 const authRoutes = ['/login'];
 
@@ -57,6 +59,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(targetUrl);
   }
 
+  // Redirect /investor-commissions alias to /investors-commissions
+  if (pathname === '/investor-commissions' || pathname.startsWith('/investor-commissions/')) {
+    const targetUrl = new URL('/investors-commissions', request.url);
+    return NextResponse.redirect(targetUrl);
+  }
+
   // Root redirect
   if (pathname === '/') {
     if (isAuthenticated) {
@@ -83,5 +91,7 @@ export const config = {
     '/attendance/:path*',
     '/law-chambers/:path*',
     '/chambers-laws/:path*',
+    '/investors-commissions/:path*',
+    '/investor-commissions/:path*',
   ],
 };
