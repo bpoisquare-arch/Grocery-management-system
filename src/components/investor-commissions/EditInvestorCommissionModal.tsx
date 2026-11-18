@@ -456,7 +456,7 @@ export function EditInvestorCommissionModal({
                     type="number"
                     min="0"
                     max="100"
-                    step="0.1"
+                    step="any"
                     value={commissionRateStr}
                     onChange={(e) => setCommissionRateStr(e.target.value)}
                     className="h-9 text-xs font-extrabold text-emerald-800 border-gray-200 pr-7"

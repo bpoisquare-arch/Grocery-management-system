@@ -275,7 +275,7 @@ export default function LawChambersPage() {
         "Passport No.": entry.passportNo,
         "Date": entry.date,
         "Amount (Rs.)": entry.amount,
-        "Reimbursed to Me": entry.reimbursed,
+        "Paid to Chamber": entry.reimbursed === "Yes" ? "Paid" : "Pending",
         "Slip Status": entry.status,
         "Remarks": entry.notes || "",
         "Added By": entry.addedBy,
@@ -289,7 +289,7 @@ export default function LawChambersPage() {
         "Passport No.": "",
         "Date": "",
         "Amount (Rs.)": totalAmt,
-        "Reimbursed to Me": "",
+        "Paid to Chamber": "",
         "Slip Status": "",
         "Remarks": "",
         "Added By": "",
@@ -304,7 +304,7 @@ export default function LawChambersPage() {
         { wch: 16 }, // Passport No
         { wch: 14 }, // Date
         { wch: 14 }, // Amount
-        { wch: 18 }, // Reimbursed
+        { wch: 18 }, // Paid to Chamber
         { wch: 16 }, // Slip Status
         { wch: 24 }, // Remarks
         { wch: 16 }, // Added By
@@ -357,7 +357,7 @@ export default function LawChambersPage() {
       const totalAmt = filteredEntries.reduce((sum, e) => sum + e.amount, 0);
 
       autoTable(doc, {
-        head: [["S.No", "Student Name", "Passport No.", "Date", "Amount", "Reimbursed", "Slip Status"]],
+        head: [["S.No", "Student Name", "Passport No.", "Date", "Amount", "Paid to Chamber", "Slip Status"]],
         body: tableData,
         foot: [["", `Total: ${filteredEntries.length} Students`, "", "", `Rs. ${totalAmt.toLocaleString()}`, "", ""]],
         startY: 95,
@@ -520,15 +520,15 @@ export default function LawChambersPage() {
             </CardContent>
           </Card>
 
-          {/* Card 3: Reimbursed to Me */}
+          {/* Card 3: Paid to Chamber */}
           <Card className="border border-gray-200/80 bg-white shadow-2xs hover:shadow-xs transition-shadow">
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                  REIMBURSED TO ME
+                  PAID TO CHAMBER
                 </span>
                 <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 text-[10px] font-bold">
-                  {stats.reimbursedPercentage}% Reimbursed
+                  {stats.reimbursedPercentage}% Paid
                 </Badge>
               </div>
               <div className="mt-2 flex items-baseline gap-2">
@@ -537,7 +537,7 @@ export default function LawChambersPage() {
                 </span>
               </div>
               <p className="text-[11px] text-gray-500 mt-1 font-medium truncate">
-                {stats.reimbursedCount} of {stats.totalCount} students cleared
+                {stats.reimbursedCount} of {stats.totalCount} students paid
               </p>
             </CardContent>
           </Card>
@@ -686,10 +686,10 @@ export default function LawChambersPage() {
                 </Select>
               </div>
 
-              {/* Reimbursed Status */}
-              <div className="w-full sm:w-[130px] space-y-1.5">
+              {/* Paid to Chamber Filter */}
+              <div className="w-full sm:w-[150px] space-y-1.5">
                 <Label className="text-xs font-bold text-gray-700">
-                  Reimbursed
+                  Paid to Chamber
                 </Label>
                 <Select
                   value={reimbursedFilter}
@@ -704,9 +704,9 @@ export default function LawChambersPage() {
                     <SelectValue placeholder="All" />
                   </SelectTrigger>
                   <SelectContent className="bg-white border-gray-200">
-                    <SelectItem value="all" className="text-xs">All</SelectItem>
-                    <SelectItem value="Yes" className="text-xs text-emerald-700 font-semibold">Yes</SelectItem>
-                    <SelectItem value="No" className="text-xs text-amber-700 font-semibold">No</SelectItem>
+                    <SelectItem value="all" className="text-xs font-semibold">All</SelectItem>
+                    <SelectItem value="Yes" className="text-xs text-emerald-700 font-semibold">Yes (Paid)</SelectItem>
+                    <SelectItem value="No" className="text-xs text-amber-700 font-semibold">No (Pending)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -791,8 +791,8 @@ export default function LawChambersPage() {
                   <TableHead className="w-32 text-xs font-bold text-gray-700">
                     Amount
                   </TableHead>
-                  <TableHead className="w-28 text-xs font-bold text-gray-700">
-                    Reimbursed
+                  <TableHead className="w-32 text-xs font-bold text-gray-700">
+                    Paid to Chamber
                   </TableHead>
                   <TableHead className="w-40 text-xs font-bold text-gray-700">
                     Status
@@ -908,7 +908,7 @@ export default function LawChambersPage() {
                           Rs. {entry.amount.toLocaleString()}
                         </TableCell>
 
-                        {/* Reimbursed to Me */}
+                        {/* Paid to Chamber */}
                         <TableCell>
                           <Badge
                             className={cn(
@@ -918,7 +918,7 @@ export default function LawChambersPage() {
                                 : "bg-amber-50 text-amber-700 border-amber-200"
                             )}
                           >
-                            {entry.reimbursed === "Yes" ? "Yes" : "No"}
+                            {entry.reimbursed === "Yes" ? "Paid" : "Pending"}
                           </Badge>
                         </TableCell>
 

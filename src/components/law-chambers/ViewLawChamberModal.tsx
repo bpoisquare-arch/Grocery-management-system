@@ -125,7 +125,7 @@ export function ViewLawChamberModal({
 
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
-              Reimbursed to Me
+              Paid to Chamber
             </span>
             <Badge
               className={cn(
@@ -135,7 +135,7 @@ export function ViewLawChamberModal({
                   : "bg-amber-100 text-amber-800 border-amber-200"
               )}
             >
-              {entry.reimbursed === "Yes" ? "✓ Yes (Reimbursed)" : "Pending"}
+              {entry.reimbursed === "Yes" ? "✓ Yes (Paid)" : "No (Pending)"}
             </Badge>
           </div>
         </div>

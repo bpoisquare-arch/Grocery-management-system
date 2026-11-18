@@ -438,7 +438,7 @@ export function AddInvestorCommissionModal({
                     type="number"
                     min="0"
                     max="100"
-                    step="0.1"
+                    step="any"
                     placeholder="4"
                     value={commissionRateStr}
                     onChange={(e) => setCommissionRateStr(e.target.value)}

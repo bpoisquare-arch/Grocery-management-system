@@ -65,7 +65,7 @@ export function AddLawChamberModal({
   const [passportNo, setPassportNo] = useState("");
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [amountStr, setAmountStr] = useState("5000");
-  const [reimbursed, setReimbursed] = useState("Yes");
+  const [reimbursed, setReimbursed] = useState("No");
   const [notes, setNotes] = useState("");
   const [slipItems, setSlipItems] = useState<SlipItem[]>([]);
   const [previewModalItem, setPreviewModalItem] = useState<SlipItem | null>(null);
@@ -89,7 +89,7 @@ export function AddLawChamberModal({
     setPassportNo("");
     setDate(new Date());
     setAmountStr("5000");
-    setReimbursed("Yes");
+    setReimbursed("No");
     setNotes("");
     cleanUpBlobs(slipItems);
     setSlipItems([]);
@@ -431,10 +431,10 @@ export function AddLawChamberModal({
                 />
               </div>
 
-              {/* Reimbursed to Me */}
+              {/* Paid to Chamber */}
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="reimbursed" className="text-xs font-bold text-gray-700">
-                  REIMBURSED TO ME
+                  PAID TO CHAMBER
                 </Label>
                 <Select
                   value={reimbursed}
@@ -446,11 +446,11 @@ export function AddLawChamberModal({
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
                   <SelectContent className="bg-white border-gray-200">
-                    <SelectItem value="Yes" className="text-xs font-semibold text-emerald-700">
-                      Yes (Reimbursed)
-                    </SelectItem>
                     <SelectItem value="No" className="text-xs font-semibold text-amber-700">
                       No (Pending)
+                    </SelectItem>
+                    <SelectItem value="Yes" className="text-xs font-semibold text-emerald-700">
+                      Yes (Paid)
                     </SelectItem>
                   </SelectContent>
                 </Select>

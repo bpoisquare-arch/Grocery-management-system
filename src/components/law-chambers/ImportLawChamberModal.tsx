@@ -109,7 +109,7 @@ export function ImportLawChamberModal({
         const passportIdx = headers.findIndex((h) => h.includes("passport"));
         const dateIdx = headers.findIndex((h) => h.includes("date"));
         const amountIdx = headers.findIndex((h) => h.includes("amount") || h.includes("fee"));
-        const reimbursedIdx = headers.findIndex((h) => h.includes("reimburs"));
+        const reimbursedIdx = headers.findIndex((h) => h.includes("chamber") || h.includes("paid") || h.includes("reimburs"));
 
         const rows: ParsedRow[] = [];
         const seenInFile = new Set<string>();
@@ -151,7 +151,7 @@ export function ImportLawChamberModal({
           }
 
           const amount = parseFloat(rawAmount) || 5000;
-          const reimbursed = String(rawReimbursed || "Yes").toLowerCase().startsWith("y") ? "Yes" : "No";
+          const reimbursed = String(rawReimbursed || "No").toLowerCase().startsWith("y") ? "Yes" : "No";
 
           let isDuplicate = false;
           let duplicateReason = "";
@@ -247,9 +247,9 @@ export function ImportLawChamberModal({
   const downloadSampleTemplate = () => {
     const sample = [
       ["Chambers Law"],
-      ["S.No.", "Student Name", "Passport No.", "Date", "Amount", "Reimbursed to Me"],
-      [1, "M Mohsin Wakeel", "AU6309431", "23/06/2026", 5000, "Yes"],
-      [2, "Mudassar Ijaz khokar", "WV4166251", "24/06/2026", 5000, "Yes"],
+      ["S.No.", "Student Name", "Passport No.", "Date", "Amount", "Paid to Chamber"],
+      [1, "M Mohsin Wakeel", "AU6309431", "23/06/2026", 5000, "No"],
+      [2, "Mudassar Ijaz khokar", "WV4166251", "24/06/2026", 5000, "No"],
       [3, "M Absaar Aqeel", "AQ1305932", "27/07/2026", 5000, "Yes"],
     ];
     const ws = XLSX.utils.aoa_to_sheet(sample);
@@ -361,7 +361,7 @@ export function ImportLawChamberModal({
                     <TableHead className="text-xs font-bold">Passport No.</TableHead>
                     <TableHead className="text-xs font-bold">Date</TableHead>
                     <TableHead className="text-xs font-bold">Amount</TableHead>
-                    <TableHead className="text-xs font-bold">Reimbursed</TableHead>
+                    <TableHead className="text-xs font-bold">Paid to Chamber</TableHead>
                     <TableHead className="text-xs font-bold">Status</TableHead>
                   </TableRow>
                 </TableHeader>

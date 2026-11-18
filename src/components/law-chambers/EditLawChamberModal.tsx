@@ -453,7 +453,7 @@ export function EditLawChamberModal({
 
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="edit-reimbursed" className="text-xs font-bold text-gray-700">
-                  REIMBURSED TO ME
+                  PAID TO CHAMBER
                 </Label>
                 <Select
                   value={reimbursed}
@@ -465,11 +465,11 @@ export function EditLawChamberModal({
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
                   <SelectContent className="bg-white border-gray-200">
-                    <SelectItem value="Yes" className="text-xs font-semibold text-emerald-700">
-                      Yes (Reimbursed)
-                    </SelectItem>
                     <SelectItem value="No" className="text-xs font-semibold text-amber-700">
                       No (Pending)
+                    </SelectItem>
+                    <SelectItem value="Yes" className="text-xs font-semibold text-emerald-700">
+                      Yes (Paid)
                     </SelectItem>
                   </SelectContent>
                 </Select>
