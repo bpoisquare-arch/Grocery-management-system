@@ -159,6 +159,22 @@ export async function createAttendanceRequest(params: {
   reason?: string | null
   submitted_by?: string | null
 }): Promise<AttendanceRequestItem> {
+  if (params.request_type === 'LEAVE' && params.leave_type !== 'Maternity Leave' && params.leave_type !== 'Work From Home') {
+    const { getEmployeeLeaveBalanceSummary } = await import('./attendance.service')
+    const summary = await getEmployeeLeaveBalanceSummary(params.employee_id, params.attendance_date)
+    const leaveName = params.leave_type || 'Casual Leave'
+    const duration = params.leave_duration !== undefined && params.leave_duration !== null ? params.leave_duration : 1
+    let remaining = 0
+    if (leaveName.includes('Probation')) remaining = summary.remaining.probation_leaves
+    else if (leaveName.includes('Annual')) remaining = summary.remaining.annual_leaves
+    else if (leaveName.includes('Sick')) remaining = summary.remaining.sick_leaves
+    else remaining = summary.remaining.casual_leaves
+
+    if (remaining < duration) {
+      throw new Error(`Cannot submit leave request: Quota exceeded for ${leaveName}. Only ${remaining} day(s) remaining, but ${duration} day(s) requested.`)
+    }
+  }
+
   const newItem: AttendanceRequestItem = {
     id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `req-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     employee_id: params.employee_id,
@@ -194,6 +210,9 @@ export async function createAttendanceRequest(params: {
       if (data.request?.id) {
         newItem.id = data.request.id
       }
+    } else {
+      const errJson = await res.json().catch(() => ({}))
+      throw new Error(errJson.error || 'Failed to submit request to MIS API.')
     }
   } catch (apiErr) {
     console.warn('MIS API request sync warning:', apiErr)

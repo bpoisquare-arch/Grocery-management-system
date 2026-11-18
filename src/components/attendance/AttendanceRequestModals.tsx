@@ -149,6 +149,14 @@ export function ApplyLeaveModal({
 
     const numDays = isWfh ? 1 : (parseFloat(leaveDays) || 1)
 
+    if (selectedLeaveType !== 'Maternity Leave' && !isWfh) {
+      if (currentRem < numDays) {
+        setError(`Quota Exceeded: Only ${currentRem} remaining for ${selectedLeaveType}, but ${numDays} day(s) requested.`)
+        setIsSubmitting(false)
+        return
+      }
+    }
+
     try {
       const res = await fetch('/api/attendance/requests', {
         method: 'POST',
@@ -194,6 +202,11 @@ export function ApplyLeaveModal({
     ? Number((currentRem - requestedVal).toFixed(2))
     : Math.max(0, Number((currentRem - requestedVal).toFixed(2)))
   const isOver = isWfh ? false : requestedVal > currentRem
+
+  const isProbationExhausted = (effectiveRemaining.probation_leaves ?? 0) <= 0
+  const isCasualExhausted = (effectiveRemaining.casual_leaves ?? 0) <= 0
+  const isSickExhausted = (effectiveRemaining.sick_leaves ?? 0) <= 0
+  const isAnnualExhausted = (effectiveRemaining.annual_leaves ?? 0) <= 0
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -261,7 +274,7 @@ export function ApplyLeaveModal({
                 </span>
               ) : isProbation ? (
                 <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-[11px] font-bold border border-amber-200 whitespace-nowrap self-start sm:self-auto">
-                  Probation Active (Max 1/mo, {effectiveQuotas.probation_leaves ?? 3} total)
+                  Probation Active ({effectiveQuotas.probation_leaves ?? 3} total)
                 </span>
               ) : (
                 <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-900 text-[11px] font-bold border border-emerald-200 whitespace-nowrap self-start sm:self-auto">
@@ -279,8 +292,12 @@ export function ApplyLeaveModal({
                 <SelectContent className="w-[var(--radix-select-trigger-width)] min-w-[320px]">
                   {isProbation ? (
                     <>
-                      <SelectItem value="Probation Leave" className="text-xs sm:text-sm font-bold text-indigo-950 py-2.5">
-                        Probation Leave ({effectiveRemaining.probation_leaves ?? 3} remaining / {effectiveQuotas.probation_leaves ?? 3} • Max 1/month)
+                      <SelectItem
+                        value="Probation Leave"
+                        disabled={isProbationExhausted}
+                        className={`text-xs sm:text-sm font-bold text-indigo-950 py-2.5 ${isProbationExhausted ? 'text-slate-400 opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        Probation Leave ({effectiveRemaining.probation_leaves ?? 3} remaining / {effectiveQuotas.probation_leaves ?? 3}{isProbationExhausted ? ' • Exhausted (0)' : ''})
                       </SelectItem>
                       <SelectItem value="Maternity Leave" className="text-xs sm:text-sm font-semibold text-purple-700 py-2.5">
                         Maternity Leave (No Quota Limit)
@@ -291,14 +308,26 @@ export function ApplyLeaveModal({
                     </>
                   ) : (
                     <>
-                      <SelectItem value="Casual Leave" className="text-xs sm:text-sm font-medium py-2.5">
-                        Casual Leave ({effectiveRemaining.casual_leaves ?? 7} remaining / {effectiveQuotas.casual_leaves ?? 7})
+                      <SelectItem
+                        value="Casual Leave"
+                        disabled={isCasualExhausted}
+                        className={`text-xs sm:text-sm font-medium py-2.5 ${isCasualExhausted ? 'text-slate-400 opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        Casual Leave ({effectiveRemaining.casual_leaves ?? 7} remaining / {effectiveQuotas.casual_leaves ?? 7}{isCasualExhausted ? ' • Exhausted (0)' : ''})
                       </SelectItem>
-                      <SelectItem value="Sick Leave" className="text-xs sm:text-sm font-medium py-2.5">
-                        Sick Leave ({effectiveRemaining.sick_leaves ?? 7} remaining / {effectiveQuotas.sick_leaves ?? 7})
+                      <SelectItem
+                        value="Sick Leave"
+                        disabled={isSickExhausted}
+                        className={`text-xs sm:text-sm font-medium py-2.5 ${isSickExhausted ? 'text-slate-400 opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        Sick Leave ({effectiveRemaining.sick_leaves ?? 7} remaining / {effectiveQuotas.sick_leaves ?? 7}{isSickExhausted ? ' • Exhausted (0)' : ''})
                       </SelectItem>
-                      <SelectItem value="Annual Leave" className="text-xs sm:text-sm font-medium py-2.5">
-                        Annual Leave ({effectiveRemaining.annual_leaves ?? 6} remaining / {effectiveQuotas.annual_leaves ?? 6})
+                      <SelectItem
+                        value="Annual Leave"
+                        disabled={isAnnualExhausted}
+                        className={`text-xs sm:text-sm font-medium py-2.5 ${isAnnualExhausted ? 'text-slate-400 opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        Annual Leave ({effectiveRemaining.annual_leaves ?? 6} remaining / {effectiveQuotas.annual_leaves ?? 6}{isAnnualExhausted ? ' • Exhausted (0)' : ''})
                       </SelectItem>
                       <SelectItem value="Maternity Leave" className="text-xs sm:text-sm font-semibold text-purple-700 py-2.5">
                         Maternity Leave (No Quota Limit)
@@ -425,8 +454,8 @@ export function ApplyLeaveModal({
             <Button
               type="submit"
               size="sm"
-              disabled={isSubmitting}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1.5 shadow-xs h-10 px-5 text-xs sm:text-sm"
+              disabled={isSubmitting || (isOver && selectedLeaveType !== 'Maternity Leave' && !isWfh) || (currentRem <= 0 && selectedLeaveType !== 'Maternity Leave' && !isWfh)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1.5 shadow-xs h-10 px-5 text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               Submit Request

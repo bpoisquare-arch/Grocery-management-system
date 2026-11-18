@@ -136,11 +136,15 @@ export async function getGazettedHolidays(): Promise<Record<string, string>> {
     const res = await fetch(`${misUrl}/api/attendance/holidays?year=2026`, { cache: 'no-store', headers: { 'x-internal-key': process.env.INTERNAL_API_SECRET || 'isquare-internal-attendance-bridge-2026' } })
     if (res.ok) {
       const json = await res.json()
-      if (Array.isArray(json.holidays)) {
-        for (const h of json.holidays) {
-          if (h.date) holidaysMap[h.date] = h.name || 'Gazetted Holiday'
+      if (json.holidays && typeof json.holidays === 'object') {
+        if (Array.isArray(json.holidays)) {
+          for (const h of json.holidays) {
+            if (h.date) holidaysMap[h.date] = h.name || 'Gazetted Holiday'
+          }
+          return holidaysMap
+        } else {
+          return json.holidays
         }
-        return holidaysMap
       }
     }
   } catch {}
