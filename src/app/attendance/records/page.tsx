@@ -41,6 +41,7 @@ import {
   AttendanceRecordWithEmployee,
   AttendanceSettings,
   Employee,
+  DEFAULT_WORK_DAYS,
 } from '@/lib/attendance/database.types'
 import {
   hasOfficeInTimePassed,
@@ -128,6 +129,8 @@ function getRecordStatusFlags(
   const dayName = getDayName(date)
   const isSunday = dayName === 'Sunday'
   const isGazettedHoliday = Boolean(holidays[date])
+  const workDays = (Array.isArray(emp.work_days) && emp.work_days.length > 0) ? emp.work_days : DEFAULT_WORK_DAYS
+  const isScheduledOffDay = !workDays.includes(dayName)
   const todayStr = formatDate(new Date())
   const isFuture = date > todayStr
   const isToday = date === todayStr
@@ -217,6 +220,7 @@ function getRecordStatusFlags(
           isGazettedHoliday,
           isLeave: false,
           isAbsent: false,
+          isOffDay: false,
           isLate: false,
           isEarlyLeave: false,
           isMissingIn: false,
@@ -225,6 +229,24 @@ function getRecordStatusFlags(
           isPresent: false,
           isBeforeJoining: false,
           statusLabel: isSunday ? 'Sunday' : 'Holiday',
+        }
+      }
+
+      if (isScheduledOffDay) {
+        return {
+          isSunday: false,
+          isGazettedHoliday: false,
+          isLeave: false,
+          isAbsent: false,
+          isOffDay: true,
+          isLate: false,
+          isEarlyLeave: false,
+          isMissingIn: false,
+          isMissingOut: false,
+          isWfh: false,
+          isPresent: false,
+          isBeforeJoining: false,
+          statusLabel: 'Off Day',
         }
       }
 
@@ -291,6 +313,7 @@ function getRecordStatusFlags(
       isGazettedHoliday,
       isLeave: false,
       isAbsent: false,
+      isOffDay: false,
       isLate: false,
       isEarlyLeave: false,
       isMissingIn: false,
@@ -299,6 +322,24 @@ function getRecordStatusFlags(
       isPresent: false,
       isBeforeJoining: false,
       statusLabel: isSunday ? 'Sunday' : 'Holiday',
+    }
+  }
+
+  if (isScheduledOffDay) {
+    return {
+      isSunday: false,
+      isGazettedHoliday: false,
+      isLeave: false,
+      isAbsent: false,
+      isOffDay: true,
+      isLate: false,
+      isEarlyLeave: false,
+      isMissingIn: false,
+      isMissingOut: false,
+      isWfh: false,
+      isPresent: false,
+      isBeforeJoining: false,
+      statusLabel: 'Off Day',
     }
   }
 
@@ -1333,6 +1374,12 @@ function formatExcelWorkedHours(minutes?: number | null, formattedStr?: string |
             timeOutVal = 'Leave'
             workedHoursVal = '0:00'
             statusVal = flags.statusLabel || 'Leave'
+          } else if (flags.isOffDay) {
+            attendanceVal = 'Off Day'
+            timeInVal = 'Off Day'
+            timeOutVal = 'Off Day'
+            workedHoursVal = '0:00'
+            statusVal = 'Off Day'
           } else if (flags.isAbsent) {
             attendanceVal = 'Absent'
             timeInVal = 'Absent'
@@ -1375,8 +1422,8 @@ function formatExcelWorkedHours(minutes?: number | null, formattedStr?: string |
           const timeOutCell = row.getCell(8)
           const statusCell = row.getCell(10)
 
-          // 1. Sunday / Off -> Blue bold font
-          if (isSunday || attendanceVal === 'Off') {
+          // 1. Sunday / Off / Off Day -> Blue bold font
+          if (isSunday || attendanceVal === 'Off' || attendanceVal === 'Off Day') {
             const blueFont: Partial<ExcelJS.Font> = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF002060' } }
             attCell.font = blueFont
             timeInCell.font = blueFont
@@ -1508,6 +1555,8 @@ function formatExcelWorkedHours(minutes?: number | null, formattedStr?: string |
     const isPast = date < todayStr
     const presentCountOnDate = getPresentEmployeesCountOnDate(date)
     const isGazettedHoliday = Boolean(holidays[date]) && presentCountOnDate === 0
+    const workDays = (Array.isArray(emp.work_days) && emp.work_days.length > 0) ? emp.work_days : DEFAULT_WORK_DAYS
+    const isScheduledOffDay = !workDays.includes(dayName)
 
     const rec = recordMatrixMap.get(`${emp.id}_${date}`) || recordMatrixMap.get(`${emp.employee_id}_${date}`)
 
@@ -1582,6 +1631,19 @@ function formatExcelWorkedHours(minutes?: number | null, formattedStr?: string |
 
       // B. Explicit Absent Record (Clickable to Apply Leave)
       if (isExplicitAbsent) {
+        if (isScheduledOffDay) {
+          return (
+            <div
+              className="flex items-center justify-center py-2 select-none"
+              title={`${dayName} (Scheduled Off Day)`}
+            >
+              <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[10px] font-bold shadow-2xs tracking-wide">
+                Off Day
+              </span>
+            </div>
+          )
+        }
+
         if (maxUploadedDate && date > maxUploadedDate) {
           return (
             <div className="flex items-center justify-center py-2 text-slate-300 font-mono text-xs select-none">
@@ -1731,7 +1793,21 @@ function formatExcelWorkedHours(minutes?: number | null, formattedStr?: string |
     }
 
     // 3. If NO record exists:
-    // A. Future Date OR Date after the last uploaded attendance date -> Show neutral placeholder "--"
+    // A. Scheduled Off Day for this employee
+    if (isScheduledOffDay) {
+      return (
+        <div
+          className="flex items-center justify-center py-2 select-none"
+          title={`${dayName} (Scheduled Off Day)`}
+        >
+          <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[10px] font-bold shadow-2xs tracking-wide">
+            Off Day
+          </span>
+        </div>
+      )
+    }
+
+    // B. Future Date OR Date after the last uploaded attendance date -> Show neutral placeholder "--"
     if (isFuture || (maxUploadedDate && date > maxUploadedDate)) {
       return (
         <div className="flex items-center justify-center py-2 text-slate-300 font-mono text-xs select-none">

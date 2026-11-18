@@ -3,6 +3,7 @@ import {
   AttendanceRecord,
   AttendanceRecordWithEmployee,
   AttendanceSettings,
+  DEFAULT_WORK_DAYS,
 } from '@/lib/attendance/database.types'
 import { DEFAULT_ATTENDANCE_SETTINGS, cleanDesignation } from '@/lib/attendance/attendance-calculator'
 
@@ -22,11 +23,20 @@ export async function getEmployees(options?: {
     const res = await fetch(`${misUrl}/api/attendance/employees`, { cache: 'no-store', headers: { 'x-internal-key': process.env.INTERNAL_API_SECRET || 'isquare-internal-attendance-bridge-2026' } })
     if (res.ok) {
       const json = await res.json()
-      let employees: Employee[] = (json.employees || []).map((row: any) => ({
-        ...row,
-        branch: row.branch || 'Multan',
-        designation: cleanDesignation(row.designation),
-      }))
+      let employees: Employee[] = (json.employees || []).map((row: any) => {
+        let workDays = row.work_days
+        if (typeof workDays === 'string') {
+          try {
+            workDays = JSON.parse(workDays)
+          } catch {}
+        }
+        return {
+          ...row,
+          branch: row.branch || 'Multan',
+          designation: cleanDesignation(row.designation),
+          work_days: Array.isArray(workDays) && workDays.length > 0 ? workDays : DEFAULT_WORK_DAYS,
+        }
+      })
       if (options?.isActiveOnly) {
         employees = employees.filter((e) => e.is_active !== false)
       }

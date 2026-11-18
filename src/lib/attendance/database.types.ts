@@ -6,6 +6,15 @@ export interface EmployeeLeaveQuotas {
   probation_leaves?: number
 }
 
+export const DEFAULT_WORK_DAYS: string[] = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+]
+
 export interface Employee {
   id: string
   user_id?: string | null
@@ -20,6 +29,7 @@ export interface Employee {
   is_old_staff?: boolean | null
   is_attendance_exempt?: boolean | null
   is_active: boolean
+  work_days?: string[]
   leave_quotas?: EmployeeLeaveQuotas
   base_leave_quotas?: EmployeeLeaveQuotas
   created_at?: string
