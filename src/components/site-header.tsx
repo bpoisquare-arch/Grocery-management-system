@@ -103,7 +103,7 @@ export function SiteHeader() {
   };
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-white px-4 md:px-6 sticky top-0 z-30">
+    <header className="flex h-16 shrink-0 items-center justify-between border-b border-border bg-white px-3 sm:px-4 md:px-6 sticky top-0 z-30 w-full min-w-0">
       <div className="flex items-center gap-2">
         <SidebarTrigger className="-ml-1 text-gray-500 hover:text-gray-900" />
         <Separator

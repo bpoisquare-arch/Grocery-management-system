@@ -129,7 +129,7 @@ model LawChamberEntry {
   passportNo     String   @unique
   date           String   // YYYY-MM-DD
   amount         Float
-  reimbursed     String   @default("Yes") // "Yes" | "No"
+  reimbursed     String   @default("No") // "Yes" | "No" (Paid to Chamber)
   status         String   @default("Slip Missing") // "Slip Uploaded" | "Slip Missing"
   slipUrl        String?  @db.LongText
   slipUrls       String?  @db.LongText // JSON string array of URLs
@@ -144,24 +144,30 @@ model LawChamberEntry {
 }
 
 model InvestorCommissionEntry {
-  id                 String   @id @default(cuid())
-  srNo               Int      @unique
-  studentName        String
-  passportNo         String   @unique
-  date               String   // YYYY-MM-DD
-  amount             Float    // Principal fee amount
-  commissionRate     Float    @default(4.0) // Commission percentage e.g. 4%
-  investorCommission Float    // Auto-calculated: amount * (commissionRate / 100)
-  accountNo          String?  // Optional account number
-  reimbursed         String   @default("Yes") // "Yes" | "No"
-  status             String   @default("Slip Missing") // "Slip Uploaded" | "Slip Missing"
-  slipUrl            String?  @db.LongText
-  slipUrls           String?  @db.LongText // JSON string array of URLs
-  slipType           String?  // "image", "pdf"
-  notes              String?  @db.Text
-  addedBy            String   @default("Admin")
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                       String   @id @default(cuid())
+  srNo                     Int      @unique
+  studentName              String
+  passportNo               String   @unique
+  date                     String   // YYYY-MM-DD
+  amount                   Float    // Principal fee amount
+  commissionRate           Float    @default(4.0) // Kept for backwards-compat (Receivable Commission %)
+  investorCommission       Float    @default(0)   // Kept for backwards-compat (Receivable Amount)
+  receivableCommissionRate Float    @default(4.0) // Receivable Commission %
+  receivableAmount         Float    @default(0)   // Receivable Amount (auto-calculated)
+  payableCommissionRate    Float    @default(0.0) // Payable Commission %
+  payableAmount            Float    @default(0)   // Payable Amount (auto-calculated)
+  edlinkCommission         Float    @default(0)   // Auto-calculated: receivableAmount - payableAmount
+  statementDays            Int?                   // Statement Days
+  accountNo                String?  // Optional account number
+  reimbursed               String   @default("No") // "Yes" | "No" (Paid to Investor)
+  status                   String   @default("Slip Missing") // "Slip Uploaded" | "Slip Missing"
+  slipUrl                  String?  @db.LongText
+  slipUrls                 String?  @db.LongText // JSON string array of URLs
+  slipType                 String?  // "image", "pdf"
+  notes                    String?  @db.Text
+  addedBy                  String   @default("Admin")
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
   @@index([passportNo], name: "idx_inv_comm_passport")
   @@index([date], name: "idx_inv_comm_date")

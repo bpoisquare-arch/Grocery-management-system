@@ -55,11 +55,20 @@ export async function POST(request: NextRequest) {
       const rawAmount = row.amount !== undefined ? row.amount : row['Amount'];
       const amount = parseFloat(rawAmount) || 0;
       
-      const rawRate = row.commissionRate !== undefined ? row.commissionRate : row['Commission %'];
-      const commissionRate = (rawRate !== undefined && rawRate !== null && rawRate !== '') ? parseFloat(rawRate) : 4.0;
-      const investorCommission = Math.round((amount * (commissionRate / 100)) * 100) / 100;
+      const rawRecRate = row.receivableCommissionRate ?? row['Receivable Commission %'] ?? row['Receivable Comm. %'] ?? row.commissionRate ?? row['Commission %'];
+      const receivableCommissionRate = (rawRecRate !== undefined && rawRecRate !== null && rawRecRate !== '') ? parseFloat(rawRecRate) : 4.0;
+      const receivableAmount = Math.round((amount * (receivableCommissionRate / 100)) * 100) / 100;
+
+      const rawPayRate = row.payableCommissionRate ?? row['Payable Commission %'] ?? row['Payable Comm. %'];
+      const payableCommissionRate = (rawPayRate !== undefined && rawPayRate !== null && rawPayRate !== '') ? parseFloat(rawPayRate) : 0.0;
+      const payableAmount = Math.round((amount * (payableCommissionRate / 100)) * 100) / 100;
+      const edlinkCommission = Math.round((receivableAmount - payableAmount) * 100) / 100;
+
+      const rawDays = row.statementDays ?? row['Statement Days'];
+      const statementDays = rawDays !== undefined && rawDays !== null && rawDays !== '' ? parseInt(String(rawDays), 10) || null : null;
+
       const accountNo = (row.accountNo || row['Account No'] || row['Account Number'] || '').toString().trim() || null;
-      const reimbursed = (row.reimbursed || row['Reimbursed to Me'] || row['Reimbursed'] || 'Yes').toString().trim();
+      const reimbursed = (row.reimbursed || row['Paid to Investor'] || row['Reimbursed to Me'] || row['Reimbursed'] || 'No').toString().trim();
 
       if (!studentName || !passportNo) {
         skipped.push({
@@ -98,23 +107,46 @@ export async function POST(request: NextRequest) {
 
       await prisma.$executeRawUnsafe(
         `INSERT INTO \`InvestorCommissionEntry\` 
-         (\`id\`, \`srNo\`, \`studentName\`, \`passportNo\`, \`date\`, \`amount\`, \`commissionRate\`, \`investorCommission\`, \`accountNo\`, \`reimbursed\`, \`status\`, \`addedBy\`, \`createdAt\`, \`updatedAt\`)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Slip Missing', ?, NOW(3), NOW(3))`,
+         (\`id\`, \`srNo\`, \`studentName\`, \`passportNo\`, \`date\`, \`amount\`, \`commissionRate\`, \`investorCommission\`, \`receivableCommissionRate\`, \`receivableAmount\`, \`payableCommissionRate\`, \`payableAmount\`, \`edlinkCommission\`, \`statementDays\`, \`accountNo\`, \`reimbursed\`, \`status\`, \`addedBy\`, \`createdAt\`, \`updatedAt\`)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Slip Missing', ?, NOW(3), NOW(3))`,
         id,
         currentSrNo,
         studentName,
         passportNo,
         date,
         amount,
-        commissionRate,
-        investorCommission,
+        receivableCommissionRate,
+        receivableAmount,
+        receivableCommissionRate,
+        receivableAmount,
+        payableCommissionRate,
+        payableAmount,
+        edlinkCommission,
+        statementDays,
         accountNo,
-        reimbursed || 'Yes',
+        reimbursed || 'No',
         addedByName
       );
 
       existingPassportMap.set(passportNo, { studentName, srNo: currentSrNo });
-      inserted.push({ id, srNo: currentSrNo, studentName, passportNo, date, amount, commissionRate, investorCommission, accountNo, reimbursed });
+      inserted.push({
+        id,
+        srNo: currentSrNo,
+        studentName,
+        passportNo,
+        date,
+        amount,
+        commissionRate: receivableCommissionRate,
+        investorCommission: receivableAmount,
+        receivableCommissionRate,
+        receivableAmount,
+        payableCommissionRate,
+        payableAmount,
+        edlinkCommission,
+        statementDays,
+        accountNo,
+        reimbursed: reimbursed || 'No',
+      });
     }
 
     return NextResponse.json({

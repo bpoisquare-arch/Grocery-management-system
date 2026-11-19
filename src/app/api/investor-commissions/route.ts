@@ -24,12 +24,29 @@ function formatEntry(entry: any): InvestorCommissionEntry {
   const status = (slipUrls && slipUrls.length > 0) || entry.slipUrl ? 'Slip Uploaded' : 'Slip Missing';
 
   const amount = typeof entry.amount === 'number' ? entry.amount : parseFloat(entry.amount) || 0;
-  const commissionRate = typeof entry.commissionRate === 'number'
-    ? entry.commissionRate
-    : parseFloat(entry.commissionRate) || 4.0;
-  const investorCommission = typeof entry.investorCommission === 'number'
-    ? entry.investorCommission
-    : parseFloat(entry.investorCommission) || Math.round((amount * (commissionRate / 100)) * 100) / 100;
+  const receivableCommissionRate = typeof entry.receivableCommissionRate === 'number'
+    ? entry.receivableCommissionRate
+    : (entry.receivableCommissionRate !== undefined && entry.receivableCommissionRate !== null ? parseFloat(entry.receivableCommissionRate) : (typeof entry.commissionRate === 'number' ? entry.commissionRate : parseFloat(entry.commissionRate) || 4.0));
+  
+  const receivableAmount = typeof entry.receivableAmount === 'number'
+    ? entry.receivableAmount
+    : (entry.receivableAmount !== undefined && entry.receivableAmount !== null ? parseFloat(entry.receivableAmount) : (typeof entry.investorCommission === 'number' ? entry.investorCommission : parseFloat(entry.investorCommission) || Math.round((amount * (receivableCommissionRate / 100)) * 100) / 100));
+
+  const payableCommissionRate = typeof entry.payableCommissionRate === 'number'
+    ? entry.payableCommissionRate
+    : (entry.payableCommissionRate !== undefined && entry.payableCommissionRate !== null ? parseFloat(entry.payableCommissionRate) : 0.0);
+
+  const payableAmount = typeof entry.payableAmount === 'number'
+    ? entry.payableAmount
+    : (entry.payableAmount !== undefined && entry.payableAmount !== null ? parseFloat(entry.payableAmount) : Math.round((amount * (payableCommissionRate / 100)) * 100) / 100);
+
+  const edlinkCommission = typeof entry.edlinkCommission === 'number'
+    ? entry.edlinkCommission
+    : (entry.edlinkCommission !== undefined && entry.edlinkCommission !== null ? parseFloat(entry.edlinkCommission) : Math.round((receivableAmount - payableAmount) * 100) / 100);
+
+  const statementDays = entry.statementDays !== undefined && entry.statementDays !== null
+    ? (typeof entry.statementDays === 'number' ? entry.statementDays : parseInt(entry.statementDays, 10) || null)
+    : null;
 
   return {
     id: String(entry.id),
@@ -38,10 +55,16 @@ function formatEntry(entry: any): InvestorCommissionEntry {
     passportNo: (entry.passportNo || '').trim(),
     date: entry.date || '',
     amount,
-    commissionRate,
-    investorCommission,
+    commissionRate: receivableCommissionRate, // backwards compat
+    investorCommission: receivableAmount, // backwards compat
+    receivableCommissionRate,
+    receivableAmount,
+    payableCommissionRate,
+    payableAmount,
+    edlinkCommission,
+    statementDays,
     accountNo: entry.accountNo ? String(entry.accountNo).trim() : null,
-    reimbursed: entry.reimbursed || 'Yes',
+    reimbursed: entry.reimbursed || 'No',
     status: entry.status || status,
     slipUrl: primarySlipUrl,
     slipUrls: slipUrls && slipUrls.length > 0 ? slipUrls : undefined,
@@ -102,8 +125,13 @@ export async function POST(request: NextRequest) {
       date,
       amount,
       commissionRate = 4.0,
+      receivableCommissionRate,
+      receivableAmount,
+      payableCommissionRate = 0.0,
+      payableAmount,
+      statementDays,
       accountNo,
-      reimbursed = 'Yes',
+      reimbursed = 'No',
       slipUrl,
       slipUrls,
       slipType,
@@ -127,8 +155,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Valid Amount is required.' }, { status: 400 });
     }
 
-    const numRate = parseFloat(commissionRate) >= 0 ? parseFloat(commissionRate) : 4.0;
-    const computedCommission = Math.round((numAmount * (numRate / 100)) * 100) / 100;
+    const recRate = receivableCommissionRate !== undefined 
+      ? (parseFloat(receivableCommissionRate) >= 0 ? parseFloat(receivableCommissionRate) : 4.0)
+      : (commissionRate !== undefined && parseFloat(commissionRate) >= 0 ? parseFloat(commissionRate) : 4.0);
+
+    const recAmount = receivableAmount !== undefined
+      ? parseFloat(receivableAmount)
+      : Math.round((numAmount * (recRate / 100)) * 100) / 100;
+
+    const payRate = payableCommissionRate !== undefined && parseFloat(payableCommissionRate) >= 0
+      ? parseFloat(payableCommissionRate)
+      : 0.0;
+
+    const payAmount = payableAmount !== undefined
+      ? parseFloat(payableAmount)
+      : Math.round((numAmount * (payRate / 100)) * 100) / 100;
+
+    const edlinkComm = Math.round((recAmount - payAmount) * 100) / 100;
+
+    const parsedStatementDays = statementDays !== undefined && statementDays !== null && statementDays !== ''
+      ? parseInt(String(statementDays), 10) || null
+      : null;
+
     const trimmedAccountNo = accountNo ? String(accountNo).trim() : null;
 
     // Duplicate passport number check
@@ -169,18 +217,24 @@ export async function POST(request: NextRequest) {
 
     await prisma.$executeRawUnsafe(
       `INSERT INTO \`InvestorCommissionEntry\` 
-       (\`id\`, \`srNo\`, \`studentName\`, \`passportNo\`, \`date\`, \`amount\`, \`commissionRate\`, \`investorCommission\`, \`accountNo\`, \`reimbursed\`, \`status\`, \`slipUrl\`, \`slipUrls\`, \`slipType\`, \`notes\`, \`addedBy\`, \`createdAt\`, \`updatedAt\`)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(3), NOW(3))`,
+       (\`id\`, \`srNo\`, \`studentName\`, \`passportNo\`, \`date\`, \`amount\`, \`commissionRate\`, \`investorCommission\`, \`receivableCommissionRate\`, \`receivableAmount\`, \`payableCommissionRate\`, \`payableAmount\`, \`edlinkCommission\`, \`statementDays\`, \`accountNo\`, \`reimbursed\`, \`status\`, \`slipUrl\`, \`slipUrls\`, \`slipType\`, \`notes\`, \`addedBy\`, \`createdAt\`, \`updatedAt\`)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(3), NOW(3))`,
       id,
       nextSrNo,
       trimmedName,
       trimmedPassport,
       date,
       numAmount,
-      numRate,
-      computedCommission,
+      recRate,
+      recAmount,
+      recRate,
+      recAmount,
+      payRate,
+      payAmount,
+      edlinkComm,
+      parsedStatementDays,
       trimmedAccountNo,
-      reimbursed || 'Yes',
+      reimbursed || 'No',
       status,
       primarySlipUrl,
       finalSlipUrlsJson,
@@ -224,7 +278,12 @@ export async function PUT(request: NextRequest) {
       passportNo,
       date,
       amount,
-      commissionRate = 4.0,
+      commissionRate,
+      receivableCommissionRate,
+      receivableAmount,
+      payableCommissionRate,
+      payableAmount,
+      statementDays,
       accountNo,
       reimbursed,
       slipUrl,
@@ -269,8 +328,29 @@ export async function PUT(request: NextRequest) {
     }
 
     const finalAmount = amount !== undefined ? parseFloat(amount) : existing.amount;
-    const finalRate = commissionRate !== undefined ? parseFloat(commissionRate) : (existing.commissionRate || 4.0);
-    const computedCommission = Math.round((finalAmount * (finalRate / 100)) * 100) / 100;
+    
+    const recRate = receivableCommissionRate !== undefined
+      ? (parseFloat(receivableCommissionRate) >= 0 ? parseFloat(receivableCommissionRate) : 4.0)
+      : (commissionRate !== undefined && parseFloat(commissionRate) >= 0 ? parseFloat(commissionRate) : (existing.receivableCommissionRate || existing.commissionRate || 4.0));
+
+    const recAmount = receivableAmount !== undefined
+      ? parseFloat(receivableAmount)
+      : Math.round((finalAmount * (recRate / 100)) * 100) / 100;
+
+    const payRate = payableCommissionRate !== undefined && parseFloat(payableCommissionRate) >= 0
+      ? parseFloat(payableCommissionRate)
+      : (existing.payableCommissionRate !== undefined && existing.payableCommissionRate !== null ? existing.payableCommissionRate : 0.0);
+
+    const payAmount = payableAmount !== undefined
+      ? parseFloat(payableAmount)
+      : Math.round((finalAmount * (payRate / 100)) * 100) / 100;
+
+    const edlinkComm = Math.round((recAmount - payAmount) * 100) / 100;
+
+    const parsedStatementDays = statementDays !== undefined
+      ? (statementDays !== null && statementDays !== '' ? parseInt(String(statementDays), 10) || null : null)
+      : existing.statementDays;
+
     const finalAccountNo = accountNo !== undefined ? (accountNo ? String(accountNo).trim() : null) : existing.accountNo;
 
     const finalSlipUrls: string[] = Array.isArray(slipUrls)
@@ -290,6 +370,12 @@ export async function PUT(request: NextRequest) {
         \`amount\` = ?,
         \`commissionRate\` = ?,
         \`investorCommission\` = ?,
+        \`receivableCommissionRate\` = ?,
+        \`receivableAmount\` = ?,
+        \`payableCommissionRate\` = ?,
+        \`payableAmount\` = ?,
+        \`edlinkCommission\` = ?,
+        \`statementDays\` = ?,
         \`accountNo\` = ?,
         \`reimbursed\` = ?,
         \`status\` = ?,
@@ -303,10 +389,16 @@ export async function PUT(request: NextRequest) {
       trimmedPassport || existing.passportNo,
       date || existing.date,
       finalAmount,
-      finalRate,
-      computedCommission,
+      recRate,
+      recAmount,
+      recRate,
+      recAmount,
+      payRate,
+      payAmount,
+      edlinkComm,
+      parsedStatementDays,
       finalAccountNo,
-      reimbursed || existing.reimbursed,
+      reimbursed || existing.reimbursed || 'No',
       status,
       primarySlipUrl,
       finalSlipUrlsJson,

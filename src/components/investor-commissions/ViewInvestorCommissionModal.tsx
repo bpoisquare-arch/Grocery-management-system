@@ -50,6 +50,10 @@ export function ViewInvestorCommissionModal({
     ? [entry.slipUrl]
     : [];
 
+  const recAmt = entry.receivableAmount ?? entry.investorCommission;
+  const payAmt = entry.payableAmount ?? 0;
+  const edlinkAmt = entry.edlinkCommission !== undefined ? entry.edlinkCommission : (recAmt - payAmt);
+
   const activeSlip = slips[selectedSlipIndex] || null;
   const isPdf = activeSlip ? (activeSlip.includes("application/pdf") || activeSlip.endsWith(".pdf")) : false;
 
@@ -101,42 +105,64 @@ export function ViewInvestorCommissionModal({
 
         <div className="flex-1 overflow-y-auto space-y-5 py-3 pr-1">
           {/* Top Summary Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
             {/* Passport No (Highlighted) */}
-            <div className="p-3 rounded-xl bg-slate-50 border border-gray-200">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-gray-200">
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
                 PASSPORT NO.
               </span>
               <div className="mt-1">
-                <span className="inline-flex items-center px-2.5 py-1 rounded-md font-mono text-xs font-black tracking-wider uppercase bg-amber-100 text-amber-950 border border-amber-300">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md font-mono text-xs font-black tracking-wider uppercase bg-amber-100 text-amber-950 border border-amber-300">
                   {entry.passportNo}
                 </span>
               </div>
             </div>
 
             {/* Principal Amount */}
-            <div className="p-3 rounded-xl bg-slate-50 border border-gray-200">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-gray-200">
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
                 PRINCIPAL AMOUNT
               </span>
-              <p className="text-base font-extrabold text-gray-900 mt-1">
+              <p className="text-sm sm:text-base font-extrabold text-gray-900 mt-1 truncate">
                 Rs. {entry.amount.toLocaleString()}
               </p>
             </div>
 
-            {/* Commission % & Investor Commission */}
-            <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-200">
-              <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block flex items-center gap-1">
-                <CalculatorIcon className="size-3" />
-                COMMISSION ({entry.commissionRate}%)
+            {/* Receivable Commission % & Receivable Amount */}
+            <div className="p-2.5 sm:p-3 rounded-xl bg-emerald-50/60 border border-emerald-200">
+              <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block flex items-center gap-1 truncate">
+                <CalculatorIcon className="size-3 text-emerald-600 shrink-0" />
+                <span className="truncate">REC. ({entry.receivableCommissionRate ?? entry.commissionRate}%)</span>
               </span>
-              <p className="text-base font-extrabold text-emerald-700 mt-1">
-                Rs. {entry.investorCommission.toLocaleString()}
+              <p className="text-sm sm:text-base font-extrabold text-emerald-700 mt-1 truncate">
+                Rs. {recAmt.toLocaleString()}
+              </p>
+            </div>
+
+            {/* Payable Commission % & Payable Amount */}
+            <div className="p-2.5 sm:p-3 rounded-xl bg-blue-50/60 border border-blue-200">
+              <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider block flex items-center gap-1 truncate">
+                <CalculatorIcon className="size-3 text-blue-600 shrink-0" />
+                <span className="truncate">PAY. ({entry.payableCommissionRate ?? 0}%)</span>
+              </span>
+              <p className="text-sm sm:text-base font-extrabold text-blue-700 mt-1 truncate">
+                Rs. {payAmt.toLocaleString()}
+              </p>
+            </div>
+
+            {/* EdLink Commission (Auto-Calculated Difference) */}
+            <div className="p-2.5 sm:p-3 rounded-xl bg-purple-50/60 border border-purple-200">
+              <span className="text-[10px] font-bold text-purple-900 uppercase tracking-wider block flex items-center gap-1 truncate">
+                <CalculatorIcon className="size-3 text-purple-600 shrink-0" />
+                <span className="truncate">EDLINK COMM</span>
+              </span>
+              <p className="text-sm sm:text-base font-extrabold text-purple-800 mt-1 truncate">
+                Rs. {edlinkAmt.toLocaleString()}
               </p>
             </div>
 
             {/* Slip Status */}
-            <div className="p-3 rounded-xl bg-slate-50 border border-gray-200">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 border border-gray-200">
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
                 SLIP STATUS
               </span>
@@ -156,8 +182,18 @@ export function ViewInvestorCommissionModal({
             </div>
           </div>
 
-          {/* Secondary Details: Account Number, Reimbursed & Date */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-xl bg-slate-50/50 border border-gray-200/80 text-xs">
+
+          {/* Secondary Details: Statement Days, Account Number, Paid to Investor & Date */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-50/50 border border-gray-200/80 text-xs">
+            <div>
+              <span className="font-bold text-gray-500 uppercase tracking-wider text-[10px] block">
+                STATEMENT DAYS
+              </span>
+              <p className="mt-1 font-bold text-gray-900">
+                {entry.statementDays ? `${entry.statementDays} Days` : <span className="font-sans text-gray-400 font-normal">N/A</span>}
+              </p>
+            </div>
+
             <div>
               <span className="font-bold text-gray-500 uppercase tracking-wider text-[10px] flex items-center gap-1">
                 <CreditCardIcon className="size-3 text-gray-400" /> ACCOUNT NUMBER
@@ -169,7 +205,7 @@ export function ViewInvestorCommissionModal({
 
             <div>
               <span className="font-bold text-gray-500 uppercase tracking-wider text-[10px] block">
-                REIMBURSED TO ME
+                PAID TO INVESTOR
               </span>
               <div className="mt-1">
                 <Badge
@@ -180,7 +216,7 @@ export function ViewInvestorCommissionModal({
                       : "bg-amber-100 text-amber-800 border-amber-200"
                   )}
                 >
-                  {entry.reimbursed === "Yes" ? "Yes (Cleared)" : "No (Pending)"}
+                  {entry.reimbursed === "Yes" ? "✓ Yes (Paid)" : "No (Pending)"}
                 </Badge>
               </div>
             </div>

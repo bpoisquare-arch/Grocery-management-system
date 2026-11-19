@@ -207,23 +207,26 @@ export default function InvestorsCommissionsPage() {
       : entries;
 
     const totalAmount = targetList.reduce((sum, e) => sum + (e.amount || 0), 0);
-    const totalCommission = targetList.reduce((sum, e) => sum + (e.investorCommission || 0), 0);
+    const totalReceivable = targetList.reduce((sum, e) => sum + (e.receivableAmount ?? e.investorCommission ?? 0), 0);
+    const totalPayable = targetList.reduce((sum, e) => sum + (e.payableAmount ?? 0), 0);
     const totalCount = targetList.length;
 
-    const reimbursedEntries = targetList.filter((e) => e.reimbursed === "Yes");
-    const totalReimbursedAmount = reimbursedEntries.reduce((sum, e) => sum + (e.amount || 0), 0);
-    const reimbursedPercentage = totalCount > 0 ? Math.round((reimbursedEntries.length / totalCount) * 100) : 100;
+    const paidEntries = targetList.filter((e) => e.reimbursed === "Yes");
+    const totalPaidAmount = paidEntries.reduce((sum, e) => sum + (e.amount || 0), 0);
+    const paidPercentage = totalCount > 0 ? Math.round((paidEntries.length / totalCount) * 100) : 100;
 
     const uploadedCount = targetList.filter((e) => e.status === "Slip Uploaded").length;
     const missingCount = targetList.filter((e) => e.status === "Slip Missing").length;
 
     return {
       totalAmount,
-      totalCommission,
+      totalCommission: totalReceivable,
+      totalReceivable,
+      totalPayable,
       totalCount,
-      totalReimbursedAmount,
-      reimbursedCount: reimbursedEntries.length,
-      reimbursedPercentage,
+      totalReimbursedAmount: totalPaidAmount,
+      reimbursedCount: paidEntries.length,
+      reimbursedPercentage: paidPercentage,
       uploadedCount,
       missingCount,
     };
@@ -262,34 +265,55 @@ export default function InvestorsCommissionsPage() {
     }
 
     try {
-      const dataToExport = filteredEntries.map((e) => ({
-        "S.No.": e.srNo,
-        "Student Name": e.studentName,
-        "Passport No.": e.passportNo,
-        "Date": e.date,
-        "Amount (Rs.)": e.amount,
-        "Commission Rate (%)": e.commissionRate,
-        "Investor Commission (Rs.)": e.investorCommission,
-        "Account Number": e.accountNo || "",
-        "Reimbursed to Me": e.reimbursed,
-        "Slip Status": e.status,
-        "Remarks": e.notes || "",
-        "Added By": e.addedBy || "Admin",
-      }));
+      const dataToExport = filteredEntries.map((e) => {
+        const recAmt = e.receivableAmount ?? e.investorCommission;
+        const payAmt = e.payableAmount ?? 0;
+        const edlinkAmt = e.edlinkCommission !== undefined ? e.edlinkCommission : (recAmt - payAmt);
+
+        return {
+          "S.No.": e.srNo,
+          "Student Name": e.studentName,
+          "Passport No.": e.passportNo,
+          "Date": e.date,
+          "Amount (Rs.)": e.amount,
+          "Receivable Comm. (%)": e.receivableCommissionRate ?? e.commissionRate,
+          "Receivable Amount (Rs.)": recAmt,
+          "Payable Comm. (%)": e.payableCommissionRate ?? 0,
+          "Payable Amount (Rs.)": payAmt,
+          "EdLink Comm (Rs.)": edlinkAmt,
+          "Statement Days": e.statementDays ? `${e.statementDays} Days` : "",
+          "Account Number": e.accountNo || "",
+          "Paid to Investor": e.reimbursed === "Yes" ? "Paid" : "Pending",
+          "Slip Status": e.status,
+          "Remarks": e.notes || "",
+          "Added By": e.addedBy || "Admin",
+        };
+      });
 
       // Add summary totals row
       const totalAmt = filteredEntries.reduce((sum, e) => sum + e.amount, 0);
-      const totalComm = filteredEntries.reduce((sum, e) => sum + e.investorCommission, 0);
+      const totalRec = filteredEntries.reduce((sum, e) => sum + (e.receivableAmount ?? e.investorCommission ?? 0), 0);
+      const totalPay = filteredEntries.reduce((sum, e) => sum + (e.payableAmount ?? 0), 0);
+      const totalEdLink = filteredEntries.reduce((sum, e) => {
+        const rec = e.receivableAmount ?? e.investorCommission ?? 0;
+        const pay = e.payableAmount ?? 0;
+        return sum + (e.edlinkCommission !== undefined ? e.edlinkCommission : (rec - pay));
+      }, 0);
+
       dataToExport.push({
         "S.No.": "TOTAL" as any,
         "Student Name": `${filteredEntries.length} Records`,
         "Passport No.": "",
         "Date": "",
         "Amount (Rs.)": totalAmt,
-        "Commission Rate (%)": "" as any,
-        "Investor Commission (Rs.)": totalComm,
+        "Receivable Comm. (%)": "" as any,
+        "Receivable Amount (Rs.)": totalRec,
+        "Payable Comm. (%)": "" as any,
+        "Payable Amount (Rs.)": totalPay,
+        "EdLink Comm (Rs.)": totalEdLink,
+        "Statement Days": "",
         "Account Number": "",
-        "Reimbursed to Me": "",
+        "Paid to Investor": "",
         "Slip Status": "",
         "Remarks": "",
         "Added By": "",
@@ -303,10 +327,14 @@ export default function InvestorsCommissionsPage() {
         { wch: 16 }, // Passport No
         { wch: 14 }, // Date
         { wch: 16 }, // Amount
-        { wch: 18 }, // Commission Rate
-        { wch: 24 }, // Investor Commission
+        { wch: 20 }, // Receivable Comm. %
+        { wch: 24 }, // Receivable Amount
+        { wch: 20 }, // Payable Comm. %
+        { wch: 24 }, // Payable Amount
+        { wch: 22 }, // EdLink Comm
+        { wch: 16 }, // Statement Days
         { wch: 20 }, // Account No
-        { wch: 18 }, // Reimbursed
+        { wch: 18 }, // Paid to Investor
         { wch: 16 }, // Slip Status
         { wch: 24 }, // Remarks
         { wch: 16 }, // Added By
@@ -344,45 +372,60 @@ export default function InvestorsCommissionsPage() {
       doc.text("Student Fee Registrations, Commission Payouts & Verification Records", 40, 62);
       doc.text(`Generated on: ${format(new Date(), "dd MMMM yyyy, hh:mm a")}`, 40, 76);
 
-      const tableData = filteredEntries.map((e) => [
-        e.srNo,
-        e.studentName,
-        e.passportNo,
-        e.date,
-        `Rs. ${e.amount.toLocaleString()}`,
-        `${e.commissionRate}%`,
-        `Rs. ${e.investorCommission.toLocaleString()}`,
-        e.accountNo || "-",
-        e.reimbursed,
-        e.status,
-      ]);
+      const tableData = filteredEntries.map((e) => {
+        const recAmt = e.receivableAmount ?? e.investorCommission;
+        const payAmt = e.payableAmount ?? 0;
+        const edlinkAmt = e.edlinkCommission !== undefined ? e.edlinkCommission : (recAmt - payAmt);
+
+        return [
+          e.srNo,
+          e.studentName,
+          e.passportNo,
+          e.date,
+          `Rs. ${e.amount.toLocaleString()}`,
+          `${e.receivableCommissionRate ?? e.commissionRate}%`,
+          `Rs. ${recAmt.toLocaleString()}`,
+          `${e.payableCommissionRate ?? 0}%`,
+          `Rs. ${payAmt.toLocaleString()}`,
+          `Rs. ${edlinkAmt.toLocaleString()}`,
+          e.statementDays ? `${e.statementDays}d` : "-",
+          e.reimbursed === "Yes" ? "Paid" : "Pending",
+          e.status,
+        ];
+      });
 
       const totalAmt = filteredEntries.reduce((sum, e) => sum + e.amount, 0);
-      const totalComm = filteredEntries.reduce((sum, e) => sum + e.investorCommission, 0);
+      const totalRec = filteredEntries.reduce((sum, e) => sum + (e.receivableAmount ?? e.investorCommission ?? 0), 0);
+      const totalPay = filteredEntries.reduce((sum, e) => sum + (e.payableAmount ?? 0), 0);
+      const totalEdLink = filteredEntries.reduce((sum, e) => {
+        const rec = e.receivableAmount ?? e.investorCommission ?? 0;
+        const pay = e.payableAmount ?? 0;
+        return sum + (e.edlinkCommission !== undefined ? e.edlinkCommission : (rec - pay));
+      }, 0);
 
       autoTable(doc, {
-        head: [["S.No", "Student Name", "Passport No.", "Date", "Amount", "Rate", "Investor Comm.", "Account No.", "Reimbursed", "Slip Status"]],
+        head: [["S.No", "Student Name", "Passport No.", "Date", "Amount", "Rec %", "Rec Amt", "Pay %", "Pay Amt", "EdLink Comm", "Days", "Paid to Investor", "Slip Status"]],
         body: tableData,
-        foot: [["", `Total: ${filteredEntries.length} Students`, "", "", `Rs. ${totalAmt.toLocaleString()}`, "", `Rs. ${totalComm.toLocaleString()}`, "", "", ""]],
+        foot: [["", `Total: ${filteredEntries.length} Students`, "", "", `Rs. ${totalAmt.toLocaleString()}`, "", `Rs. ${totalRec.toLocaleString()}`, "", `Rs. ${totalPay.toLocaleString()}`, `Rs. ${totalEdLink.toLocaleString()}`, "", "", ""]],
         startY: 95,
         theme: "striped",
         headStyles: {
           fillColor: [5, 150, 105],
           textColor: 255,
-          fontSize: 8.5,
+          fontSize: 8,
           fontStyle: "bold",
         },
         bodyStyles: {
-          fontSize: 8,
+          fontSize: 7.5,
           textColor: 40,
         },
         footStyles: {
           fillColor: [240, 253, 244],
           textColor: [22, 101, 52],
           fontStyle: "bold",
-          fontSize: 8.5,
+          fontSize: 8,
         },
-        margin: { left: 40, right: 40 },
+        margin: { left: 25, right: 25 },
       });
 
       doc.save(`Investors_Commissions_${format(new Date(), "yyyy-MM-dd")}.pdf`);
@@ -395,9 +438,9 @@ export default function InvestorsCommissionsPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-[1600px] mx-auto w-full">
+      <div className="space-y-6 max-w-[1600px] mx-auto w-full min-w-0">
         {/* Top Header Bar */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 min-w-0">
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
@@ -416,7 +459,7 @@ export default function InvestorsCommissionsPage() {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-start sm:justify-end">
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-start lg:justify-end min-w-0">
             <Button
               variant="outline"
               size="sm"
@@ -473,86 +516,109 @@ export default function InvestorsCommissionsPage() {
           </div>
         </div>
 
-        {/* 4 Metric Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* 5 Metric Summary Cards (Aligned in One Row on Desktop) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2.5 sm:gap-3 min-w-0">
           {/* Card 1: Total Fee Amount */}
-          <Card className="border border-gray-200/80 bg-white shadow-2xs hover:shadow-xs transition-shadow">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+          <Card className="border border-gray-200/80 bg-white shadow-2xs hover:shadow-xs transition-shadow min-w-0 overflow-hidden">
+            <CardContent className="p-3 sm:p-3.5 xl:p-4 min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate">
                   TOTAL FEE AMOUNT
                 </span>
-                <Badge variant="outline" className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border-emerald-200">
+                <Badge variant="outline" className="text-[9px] sm:text-[10px] font-semibold text-emerald-700 bg-emerald-50 border-emerald-200 px-1.5 py-0.5 shrink-0">
                   {selectedMonth === "all" ? "All Records" : selectedMonthLabel}
                 </Badge>
               </div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-extrabold text-gray-900 truncate">
+              <div className="mt-2 flex items-baseline gap-2 min-w-0">
+                <span className="text-lg sm:text-xl xl:text-2xl font-extrabold text-gray-900 truncate">
                   Rs. {stats.totalAmount.toLocaleString()}
                 </span>
               </div>
-              <p className="text-[11px] text-gray-500 mt-1 font-medium truncate">
-                {selectedMonth === "all" ? "Accumulated student fee principal total" : `Principal for ${selectedMonthLabel}`}
+              <p className="text-[10px] sm:text-[11px] text-gray-500 mt-1 font-medium truncate">
+                {selectedMonth === "all" ? "Accumulated student fee total" : `Principal for ${selectedMonthLabel}`}
               </p>
             </CardContent>
           </Card>
 
-          {/* Card 2: Total Investor Commission */}
-          <Card className="border border-gray-200/80 bg-white shadow-2xs hover:shadow-xs transition-shadow">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1">
-                  <CalculatorIcon className="size-3" />
-                  TOTAL COMMISSION
+          {/* Card 2: Total Receivable Commission */}
+          <Card className="border border-gray-200/80 bg-white shadow-2xs hover:shadow-xs transition-shadow min-w-0 overflow-hidden">
+            <CardContent className="p-3 sm:p-3.5 xl:p-4 min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] sm:text-[11px] font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1 truncate">
+                  <CalculatorIcon className="size-3 text-emerald-600 shrink-0" />
+                  <span className="truncate">TOTAL RECEIVABLE</span>
                 </span>
-                <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 text-[10px] font-bold">
-                  Investor Payout
+                <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 shrink-0">
+                  Receivable
                 </Badge>
               </div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-extrabold text-emerald-700 truncate">
-                  Rs. {stats.totalCommission.toLocaleString()}
+              <div className="mt-2 flex items-baseline gap-2 min-w-0">
+                <span className="text-lg sm:text-xl xl:text-2xl font-extrabold text-emerald-700 truncate">
+                  Rs. {stats.totalReceivable.toLocaleString()}
                 </span>
               </div>
-              <p className="text-[11px] text-gray-500 mt-1 font-medium truncate">
-                Calculated commission for {stats.totalCount} student(s)
+              <p className="text-[10px] sm:text-[11px] text-gray-500 mt-1 font-medium truncate">
+                Receivable for {stats.totalCount} student(s)
               </p>
             </CardContent>
           </Card>
 
-          {/* Card 3: Total Entries */}
-          <Card className="border border-gray-200/80 bg-white shadow-2xs hover:shadow-xs transition-shadow">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                  TOTAL ENTRIES
+          {/* Card 3: Total Payable Commission */}
+          <Card className="border border-gray-200/80 bg-white shadow-2xs hover:shadow-xs transition-shadow min-w-0 overflow-hidden">
+            <CardContent className="p-3 sm:p-3.5 xl:p-4 min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] sm:text-[11px] font-bold text-blue-800 uppercase tracking-wider flex items-center gap-1 truncate">
+                  <CalculatorIcon className="size-3 text-blue-600 shrink-0" />
+                  <span className="truncate">TOTAL PAYABLE</span>
                 </span>
-                <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-200 text-[10px] font-bold">
-                  Active
+                <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 border border-blue-200 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 shrink-0">
+                  Payable
                 </Badge>
               </div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-extrabold text-gray-900 truncate">
-                  {stats.totalCount}
+              <div className="mt-2 flex items-baseline gap-2 min-w-0">
+                <span className="text-lg sm:text-xl xl:text-2xl font-extrabold text-blue-700 truncate">
+                  Rs. {stats.totalPayable.toLocaleString()}
                 </span>
               </div>
-              <p className="text-[11px] text-gray-500 mt-1 font-medium truncate">
-                {selectedMonth === "all" ? "Recorded student registrations" : `Recorded in ${selectedMonthLabel}`}
+              <p className="text-[10px] sm:text-[11px] text-gray-500 mt-1 font-medium truncate">
+                Payable for {stats.totalCount} student(s)
               </p>
             </CardContent>
           </Card>
 
-          {/* Card 4: Slip Status */}
-          <Card className="border border-gray-200/80 bg-white shadow-2xs hover:shadow-xs transition-shadow">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+          {/* Card 4: Paid to Investor */}
+          <Card className="border border-gray-200/80 bg-white shadow-2xs hover:shadow-xs transition-shadow min-w-0 overflow-hidden">
+            <CardContent className="p-3 sm:p-3.5 xl:p-4 min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate">
+                  PAID TO INVESTOR
+                </span>
+                <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-200 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 shrink-0">
+                  {stats.reimbursedPercentage}% Paid
+                </Badge>
+              </div>
+              <div className="mt-2 flex items-baseline gap-2 min-w-0">
+                <span className="text-lg sm:text-xl xl:text-2xl font-extrabold text-gray-900 truncate">
+                  Rs. {stats.totalReimbursedAmount.toLocaleString()}
+                </span>
+              </div>
+              <p className="text-[10px] sm:text-[11px] text-gray-500 mt-1 font-medium truncate">
+                {stats.reimbursedCount} of {stats.totalCount} student(s) paid
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Card 5: Slip Verification */}
+          <Card className="border border-gray-200/80 bg-white shadow-2xs hover:shadow-xs transition-shadow min-w-0 overflow-hidden">
+            <CardContent className="p-3 sm:p-3.5 xl:p-4 min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate">
                   SLIP VERIFICATION
                 </span>
                 <Badge
                   variant="outline"
                   className={cn(
-                    "text-[10px] font-bold",
+                    "text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 shrink-0",
                     stats.missingCount > 0
                       ? "bg-amber-50 text-amber-800 border-amber-200"
                       : "bg-emerald-50 text-emerald-800 border-emerald-200"
@@ -561,22 +627,22 @@ export default function InvestorsCommissionsPage() {
                   {stats.missingCount > 0 ? `${stats.missingCount} Missing` : "100% Uploaded"}
                 </Badge>
               </div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-extrabold text-gray-900 truncate">
+              <div className="mt-2 flex items-baseline gap-2 min-w-0">
+                <span className="text-lg sm:text-xl xl:text-2xl font-extrabold text-gray-900 truncate">
                   {stats.uploadedCount}
                 </span>
                 <span className="text-xs font-semibold text-emerald-600">Uploaded</span>
               </div>
-              <p className="text-[11px] text-gray-500 mt-1 font-medium truncate">
-                {stats.missingCount} student(s) currently missing slip
+              <p className="text-[10px] sm:text-[11px] text-gray-500 mt-1 font-medium truncate">
+                {stats.missingCount} student(s) missing slip
               </p>
             </CardContent>
           </Card>
         </div>
 
         {/* Search & Filter Bar */}
-        <Card className="border border-gray-200 bg-white shadow-2xs">
-          <CardContent className="p-4 sm:p-5">
+        <Card className="border border-gray-200 bg-white shadow-2xs min-w-0">
+          <CardContent className="p-3.5 sm:p-4 min-w-0">
             <div className="flex flex-wrap items-end gap-3.5">
               {/* Search details */}
               <div className="flex-1 min-w-[200px] space-y-1.5">
@@ -686,10 +752,10 @@ export default function InvestorsCommissionsPage() {
                 </Select>
               </div>
 
-              {/* Reimbursed Status */}
-              <div className="w-full sm:w-[130px] space-y-1.5">
+              {/* Paid to Investor Status */}
+              <div className="w-full sm:w-[150px] space-y-1.5">
                 <Label className="text-xs font-bold text-gray-700">
-                  Reimbursed
+                  Paid to Investor
                 </Label>
                 <Select
                   value={reimbursedFilter}
@@ -705,8 +771,8 @@ export default function InvestorsCommissionsPage() {
                   </SelectTrigger>
                   <SelectContent className="bg-white border-gray-200">
                     <SelectItem value="all" className="text-xs">All</SelectItem>
-                    <SelectItem value="Yes" className="text-xs text-emerald-700 font-semibold">Yes</SelectItem>
-                    <SelectItem value="No" className="text-xs text-amber-700 font-semibold">No</SelectItem>
+                    <SelectItem value="Yes" className="text-xs text-emerald-700 font-semibold">Yes (Paid)</SelectItem>
+                    <SelectItem value="No" className="text-xs text-amber-700 font-semibold">No (Pending)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -758,9 +824,9 @@ export default function InvestorsCommissionsPage() {
         )}
 
         {/* Main Table Card */}
-        <Card className="border border-gray-200 bg-white shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <Table>
+        <Card className="border border-gray-200 bg-white shadow-2xs overflow-hidden w-full min-w-0">
+          <div className="overflow-x-auto w-full">
+            <Table className="w-full">
               <TableHeader className="bg-slate-50/80 border-b border-gray-200">
                 <TableRow>
                   <TableHead className="w-10">
@@ -787,20 +853,32 @@ export default function InvestorsCommissionsPage() {
                   <TableHead className="w-40 text-xs font-bold text-gray-700">
                     Passport No.
                   </TableHead>
-                  <TableHead className="w-36 text-xs font-bold text-gray-700">
-                    Account No.
-                  </TableHead>
                   <TableHead className="w-32 text-xs font-bold text-gray-700">
                     Amount
                   </TableHead>
                   <TableHead className="w-20 text-xs font-bold text-gray-700">
-                    Rate
+                    Rec %
                   </TableHead>
-                  <TableHead className="w-36 text-xs font-bold text-gray-700">
-                    Investor Comm.
+                  <TableHead className="w-32 text-xs font-bold text-gray-700">
+                    Receivable Amt
+                  </TableHead>
+                  <TableHead className="w-20 text-xs font-bold text-gray-700">
+                    Pay %
+                  </TableHead>
+                  <TableHead className="w-32 text-xs font-bold text-gray-700">
+                    Payable Amt
+                  </TableHead>
+                  <TableHead className="w-32 text-xs font-bold text-gray-700">
+                    EdLink Comm
                   </TableHead>
                   <TableHead className="w-24 text-xs font-bold text-gray-700">
-                    Reimbursed
+                    Days
+                  </TableHead>
+                  <TableHead className="w-36 text-xs font-bold text-gray-700">
+                    Account No.
+                  </TableHead>
+                  <TableHead className="w-28 text-xs font-bold text-gray-700">
+                    Paid to Investor
                   </TableHead>
                   <TableHead className="w-36 text-xs font-bold text-gray-700">
                     Status
@@ -814,7 +892,7 @@ export default function InvestorsCommissionsPage() {
               <TableBody>
                 {isLoading && entries.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={13} className="h-48 text-center text-xs text-gray-400">
+                    <TableCell colSpan={14} className="h-48 text-center text-xs text-gray-400">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <RefreshCwIcon className="size-5 animate-spin text-emerald-600" />
                         <span>Loading investor commission records from database...</span>
@@ -823,7 +901,7 @@ export default function InvestorsCommissionsPage() {
                   </TableRow>
                 ) : paginatedEntries.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={13} className="h-48 text-center text-xs text-gray-400">
+                    <TableCell colSpan={14} className="h-48 text-center text-xs text-gray-400">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <UsersIcon className="size-8 text-gray-300" />
                         <span className="font-semibold text-gray-600">No student records found</span>
@@ -911,6 +989,51 @@ export default function InvestorsCommissionsPage() {
                           </span>
                         </TableCell>
 
+                        {/* Principal Amount */}
+                        <TableCell className="text-sm font-extrabold text-gray-950 whitespace-nowrap">
+                          Rs. {entry.amount.toLocaleString()}
+                        </TableCell>
+
+                        {/* Receivable Commission Rate (%) */}
+                        <TableCell>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            {entry.receivableCommissionRate ?? entry.commissionRate}%
+                          </span>
+                        </TableCell>
+
+                        {/* Receivable Amount (Rs.) */}
+                        <TableCell className="text-sm font-extrabold text-emerald-700 whitespace-nowrap">
+                          Rs. {(entry.receivableAmount ?? entry.investorCommission).toLocaleString()}
+                        </TableCell>
+
+                        {/* Payable Commission Rate (%) */}
+                        <TableCell>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                            {entry.payableCommissionRate ?? 0}%
+                          </span>
+                        </TableCell>
+
+                        {/* Payable Amount (Rs.) */}
+                        <TableCell className="text-sm font-extrabold text-blue-700 whitespace-nowrap">
+                          Rs. {(entry.payableAmount ?? 0).toLocaleString()}
+                        </TableCell>
+
+                        {/* EdLink Comm (Rs.) */}
+                        <TableCell className="text-sm font-extrabold text-purple-700 whitespace-nowrap">
+                          Rs. {(entry.edlinkCommission ?? ((entry.receivableAmount ?? entry.investorCommission) - (entry.payableAmount ?? 0))).toLocaleString()}
+                        </TableCell>
+
+                        {/* Statement Days */}
+                        <TableCell className="text-xs font-mono font-medium text-gray-700 whitespace-nowrap">
+                          {entry.statementDays ? (
+                            <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded border border-slate-200 font-bold">
+                              {entry.statementDays}d
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </TableCell>
+
                         {/* Account Number */}
                         <TableCell className="text-xs font-mono font-medium text-gray-700 whitespace-nowrap">
                           {entry.accountNo ? (
@@ -922,34 +1045,17 @@ export default function InvestorsCommissionsPage() {
                           )}
                         </TableCell>
 
-                        {/* Principal Amount */}
-                        <TableCell className="text-sm font-extrabold text-gray-950 whitespace-nowrap">
-                          Rs. {entry.amount.toLocaleString()}
-                        </TableCell>
-
-                        {/* Commission Rate (%) */}
-                        <TableCell>
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                            {entry.commissionRate}%
-                          </span>
-                        </TableCell>
-
-                        {/* Investor Commission (Rs.) */}
-                        <TableCell className="text-sm font-extrabold text-emerald-700 whitespace-nowrap">
-                          Rs. {entry.investorCommission.toLocaleString()}
-                        </TableCell>
-
-                        {/* Reimbursed to Me */}
+                        {/* Paid to Investor */}
                         <TableCell>
                           <Badge
                             className={cn(
                               "text-xs font-bold px-2.5 py-0.5",
                               entry.reimbursed === "Yes"
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                : "bg-amber-50 text-amber-700 border-amber-200"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                                : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50"
                             )}
                           >
-                            {entry.reimbursed === "Yes" ? "Yes" : "No"}
+                            {entry.reimbursed === "Yes" ? "Paid" : "Pending"}
                           </Badge>
                         </TableCell>
 

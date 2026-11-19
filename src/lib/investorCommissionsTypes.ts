@@ -5,10 +5,16 @@ export interface InvestorCommissionEntry {
   passportNo: string;
   date: string; // YYYY-MM-DD
   amount: number; // Principal Fee Amount (Rs.)
-  commissionRate: number; // Percentage, e.g. 4 (%)
-  investorCommission: number; // Calculated: amount * (commissionRate / 100)
+  commissionRate: number; // Receivable Rate % (kept for backward compat)
+  investorCommission: number; // Receivable Amount (kept for backward compat)
+  receivableCommissionRate: number; // Receivable Commission %
+  receivableAmount: number; // Auto-calculated: amount * (receivableCommissionRate / 100)
+  payableCommissionRate: number; // Payable Commission %
+  payableAmount: number; // Auto-calculated: amount * (payableCommissionRate / 100)
+  edlinkCommission: number; // Auto-calculated: receivableAmount - payableAmount
+  statementDays?: number | null; // Statement Days
   accountNo?: string | null; // Optional Account Number
-  reimbursed: 'Yes' | 'No' | string;
+  reimbursed: 'Yes' | 'No' | string; // Paid to Investor ("No" = Pending, "Yes" = Paid)
   status: 'Slip Uploaded' | 'Slip Missing' | string;
   slipUrl?: string | null;
   slipUrls?: string[] | null;
@@ -26,6 +32,12 @@ export interface InvestorCommissionInput {
   amount: number;
   commissionRate?: number;
   investorCommission?: number;
+  receivableCommissionRate?: number;
+  receivableAmount?: number;
+  payableCommissionRate?: number;
+  payableAmount?: number;
+  edlinkCommission?: number;
+  statementDays?: number | string | null;
   accountNo?: string;
   reimbursed?: string;
   status?: string;

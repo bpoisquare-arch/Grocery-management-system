@@ -124,8 +124,20 @@ export function useInvestorCommissionsStore() {
       const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
       const numAmount = input.amount || 0;
-      const numRate = input.commissionRate !== undefined ? input.commissionRate : 4.0;
-      const computedCommission = Math.round((numAmount * (numRate / 100)) * 100) / 100;
+      const recRate = input.receivableCommissionRate !== undefined
+        ? input.receivableCommissionRate
+        : (input.commissionRate !== undefined ? input.commissionRate : 4.0);
+      const recAmount = input.receivableAmount !== undefined
+        ? input.receivableAmount
+        : Math.round((numAmount * (recRate / 100)) * 100) / 100;
+      const payRate = input.payableCommissionRate !== undefined ? input.payableCommissionRate : 0.0;
+      const payAmount = input.payableAmount !== undefined
+        ? input.payableAmount
+        : Math.round((numAmount * (payRate / 100)) * 100) / 100;
+      const edlinkCommission = Math.round((recAmount - payAmount) * 100) / 100;
+      const statementDays = input.statementDays !== undefined && input.statementDays !== null && input.statementDays !== ''
+        ? parseInt(String(input.statementDays), 10) || null
+        : null;
       const accountNo = input.accountNo ? input.accountNo.trim() : null;
 
       const optimisticEntry: InvestorCommissionEntry = {
@@ -135,10 +147,16 @@ export function useInvestorCommissionsStore() {
         passportNo: cleanPassport,
         date: input.date,
         amount: numAmount,
-        commissionRate: numRate,
-        investorCommission: computedCommission,
+        commissionRate: recRate,
+        investorCommission: recAmount,
+        receivableCommissionRate: recRate,
+        receivableAmount: recAmount,
+        payableCommissionRate: payRate,
+        payableAmount: payAmount,
+        edlinkCommission,
+        statementDays,
         accountNo,
-        reimbursed: input.reimbursed || 'Yes',
+        reimbursed: input.reimbursed || 'No',
         status,
         slipUrl: primarySlipUrl,
         slipUrls: slipUrls.length > 0 ? slipUrls : undefined,
@@ -166,6 +184,12 @@ export function useInvestorCommissionsStore() {
             date: input.date,
             amount: optimisticEntry.amount,
             commissionRate: optimisticEntry.commissionRate,
+            receivableCommissionRate: optimisticEntry.receivableCommissionRate,
+            receivableAmount: optimisticEntry.receivableAmount,
+            payableCommissionRate: optimisticEntry.payableCommissionRate,
+            payableAmount: optimisticEntry.payableAmount,
+            edlinkCommission: optimisticEntry.edlinkCommission,
+            statementDays: optimisticEntry.statementDays,
             accountNo: optimisticEntry.accountNo,
             reimbursed: optimisticEntry.reimbursed,
             slipUrl: primarySlipUrl,
@@ -237,8 +261,22 @@ export function useInvestorCommissionsStore() {
       }
 
       const updatedAmount = input.amount !== undefined ? input.amount : existing.amount;
-      const updatedRate = input.commissionRate !== undefined ? input.commissionRate : (existing.commissionRate || 4.0);
-      const computedCommission = Math.round((updatedAmount * (updatedRate / 100)) * 100) / 100;
+      const recRate = input.receivableCommissionRate !== undefined
+        ? input.receivableCommissionRate
+        : (input.commissionRate !== undefined ? input.commissionRate : (existing.receivableCommissionRate || existing.commissionRate || 4.0));
+      const recAmount = input.receivableAmount !== undefined
+        ? input.receivableAmount
+        : Math.round((updatedAmount * (recRate / 100)) * 100) / 100;
+      const payRate = input.payableCommissionRate !== undefined
+        ? input.payableCommissionRate
+        : (existing.payableCommissionRate !== undefined ? existing.payableCommissionRate : 0.0);
+      const payAmount = input.payableAmount !== undefined
+        ? input.payableAmount
+        : Math.round((updatedAmount * (payRate / 100)) * 100) / 100;
+      const edlinkCommission = Math.round((recAmount - payAmount) * 100) / 100;
+      const statementDays = input.statementDays !== undefined
+        ? (input.statementDays !== null && input.statementDays !== '' ? parseInt(String(input.statementDays), 10) || null : null)
+        : existing.statementDays;
       const updatedAccountNo = input.accountNo !== undefined ? (input.accountNo ? input.accountNo.trim() : null) : existing.accountNo;
 
       // Optimistic update
@@ -251,10 +289,16 @@ export function useInvestorCommissionsStore() {
               passportNo: input.passportNo ? input.passportNo.trim().toUpperCase() : e.passportNo,
               date: input.date || e.date,
               amount: updatedAmount,
-              commissionRate: updatedRate,
-              investorCommission: computedCommission,
+              commissionRate: recRate,
+              investorCommission: recAmount,
+              receivableCommissionRate: recRate,
+              receivableAmount: recAmount,
+              payableCommissionRate: payRate,
+              payableAmount: payAmount,
+              edlinkCommission,
+              statementDays,
               accountNo: updatedAccountNo,
-              reimbursed: input.reimbursed || e.reimbursed,
+              reimbursed: input.reimbursed || e.reimbursed || 'No',
               status,
               slipUrl: primarySlipUrl,
               slipUrls: slipUrls.length > 0 ? slipUrls : undefined,
@@ -280,9 +324,15 @@ export function useInvestorCommissionsStore() {
             passportNo: input.passportNo ? input.passportNo.trim().toUpperCase() : existing.passportNo,
             date: input.date || existing.date,
             amount: updatedAmount,
-            commissionRate: updatedRate,
+            commissionRate: recRate,
+            receivableCommissionRate: recRate,
+            receivableAmount: recAmount,
+            payableCommissionRate: payRate,
+            payableAmount: payAmount,
+            edlinkCommission,
+            statementDays,
             accountNo: updatedAccountNo,
-            reimbursed: input.reimbursed || existing.reimbursed,
+            reimbursed: input.reimbursed || existing.reimbursed || 'No',
             slipUrl: primarySlipUrl,
             slipUrls: slipUrls.length > 0 ? slipUrls : undefined,
             slipType,

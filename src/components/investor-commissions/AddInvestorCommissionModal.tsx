@@ -66,9 +66,11 @@ export function AddInvestorCommissionModal({
   const [passportNo, setPassportNo] = useState("");
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [amountStr, setAmountStr] = useState("100000");
-  const [commissionRateStr, setCommissionRateStr] = useState("4");
+  const [receivableRateStr, setReceivableRateStr] = useState("4");
+  const [payableRateStr, setPayableRateStr] = useState("0");
+  const [statementDaysStr, setStatementDaysStr] = useState("");
   const [accountNo, setAccountNo] = useState("");
-  const [reimbursed, setReimbursed] = useState("Yes");
+  const [reimbursed, setReimbursed] = useState("No");
   const [notes, setNotes] = useState("");
   const [slipItems, setSlipItems] = useState<SlipItem[]>([]);
   const [previewModalItem, setPreviewModalItem] = useState<SlipItem | null>(null);
@@ -76,10 +78,15 @@ export function AddInvestorCommissionModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-calculated Investor Commission
+  // Auto-calculated Receivable, Payable & EdLink Commission Amounts
   const parsedAmount = parseFloat(amountStr) || 0;
-  const parsedRate = parseFloat(commissionRateStr) >= 0 ? parseFloat(commissionRateStr) : 0;
-  const calculatedCommission = Math.round((parsedAmount * (parsedRate / 100)) * 100) / 100;
+  const parsedRecRate = parseFloat(receivableRateStr) >= 0 ? parseFloat(receivableRateStr) : 0;
+  const calculatedReceivableAmount = Math.round((parsedAmount * (parsedRecRate / 100)) * 100) / 100;
+
+  const parsedPayRate = parseFloat(payableRateStr) >= 0 ? parseFloat(payableRateStr) : 0;
+  const calculatedPayableAmount = Math.round((parsedAmount * (parsedPayRate / 100)) * 100) / 100;
+
+  const calculatedEdlinkCommission = Math.round((calculatedReceivableAmount - calculatedPayableAmount) * 100) / 100;
 
   // Real-time duplicate check
   const duplicateStatus = checkDuplicatePassport(passportNo);
@@ -97,9 +104,11 @@ export function AddInvestorCommissionModal({
     setPassportNo("");
     setDate(new Date());
     setAmountStr("100000");
-    setCommissionRateStr("4");
+    setReceivableRateStr("4");
+    setPayableRateStr("0");
+    setStatementDaysStr("");
     setAccountNo("");
-    setReimbursed("Yes");
+    setReimbursed("No");
     setNotes("");
     cleanUpBlobs(slipItems);
     setSlipItems([]);
@@ -275,8 +284,14 @@ export function AddInvestorCommissionModal({
         passportNo: trimmedPassport,
         date: format(date, "yyyy-MM-dd"),
         amount: parsedAmount,
-        commissionRate: parsedRate,
-        investorCommission: calculatedCommission,
+        commissionRate: parsedRecRate,
+        investorCommission: calculatedReceivableAmount,
+        receivableCommissionRate: parsedRecRate,
+        receivableAmount: calculatedReceivableAmount,
+        payableCommissionRate: parsedPayRate,
+        payableAmount: calculatedPayableAmount,
+        edlinkCommission: calculatedEdlinkCommission,
+        statementDays: statementDaysStr ? parseInt(statementDaysStr, 10) : undefined,
         accountNo: accountNo.trim() || undefined,
         reimbursed,
         slipFiles: files,
@@ -294,8 +309,8 @@ export function AddInvestorCommissionModal({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-3xl w-[95vw] md:w-full bg-white p-4 sm:p-5 rounded-2xl ring-1 ring-black/5 shadow-2xl max-h-[96vh] flex flex-col overflow-hidden">
-          <DialogHeader className="pb-2.5 border-b border-gray-100 pr-8 sm:pr-10">
+        <DialogContent className="sm:max-w-4xl lg:max-w-[960px] w-[96vw] bg-white p-4 sm:p-5 rounded-2xl ring-1 ring-black/5 shadow-2xl max-h-[96vh] flex flex-col overflow-hidden">
+          <DialogHeader className="pb-2 border-b border-gray-100 pr-8 sm:pr-10 shrink-0">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
               <div>
                 <DialogTitle className="text-base sm:text-lg md:text-xl font-bold text-gray-900">
@@ -320,8 +335,8 @@ export function AddInvestorCommissionModal({
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto overflow-x-hidden space-y-2.5 sm:space-y-3 py-1.5 pr-0.5">
-            {/* Student Name & Passport No. Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5">
+            {/* Row 1: Student Name, Passport No. & Date */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
               {/* Student Name */}
               <div className="space-y-1">
                 <Label className="text-[11px] sm:text-xs font-bold text-gray-700 flex items-center gap-1">
@@ -371,17 +386,14 @@ export function AddInvestorCommissionModal({
                     <AlertTriangleIcon className="size-3.5 shrink-0 text-rose-600 mt-0.5" />
                     <div>
                       <span className="font-bold">Duplicate Detected! </span>
-                      Existing entry: Student <span className="font-bold">{duplicateStatus.existingEntry.studentName}</span> (S.No: #{duplicateStatus.existingEntry.srNo}, Date: {duplicateStatus.existingEntry.date}).
+                      Existing: <span className="font-bold">{duplicateStatus.existingEntry.studentName}</span> (S.No: #{duplicateStatus.existingEntry.srNo}, Date: {duplicateStatus.existingEntry.date}).
                     </div>
                   </div>
                 )}
               </div>
-            </div>
 
-            {/* Date, Amount, Commission % & Calculated Commission Row (Responsive: 2-cols on mobile/tablet, 4-cols on lg) */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
               {/* Date */}
-              <div className="space-y-1 col-span-1">
+              <div className="space-y-1">
                 <Label className="text-[11px] sm:text-xs font-bold text-gray-700 flex items-center gap-1">
                   <span>DATE</span>
                   <span className="text-rose-500">*</span>
@@ -407,9 +419,12 @@ export function AddInvestorCommissionModal({
                   </PopoverContent>
                 </Popover>
               </div>
+            </div>
 
+            {/* Row 2: Amount, Receivable Comm. % & Receivable Amount */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
               {/* Amount (Rs.) */}
-              <div className="space-y-1 col-span-1">
+              <div className="space-y-1">
                 <Label className="text-[11px] sm:text-xs font-bold text-gray-700 flex items-center gap-1">
                   <span>AMOUNT (RS.)</span>
                   <span className="text-rose-500">*</span>
@@ -426,10 +441,10 @@ export function AddInvestorCommissionModal({
                 />
               </div>
 
-              {/* Commission Percentage (%) */}
-              <div className="space-y-1 col-span-1">
+              {/* Receivable Commission % */}
+              <div className="space-y-1">
                 <Label className="text-[11px] sm:text-xs font-bold text-gray-700 flex items-center gap-1">
-                  <span className="truncate">COMMISSION %</span>
+                  <span className="truncate">RECEIVABLE COMM. %</span>
                   <span className="text-rose-500">*</span>
                 </Label>
                 <div className="relative">
@@ -440,8 +455,8 @@ export function AddInvestorCommissionModal({
                     max="100"
                     step="any"
                     placeholder="4"
-                    value={commissionRateStr}
-                    onChange={(e) => setCommissionRateStr(e.target.value)}
+                    value={receivableRateStr}
+                    onChange={(e) => setReceivableRateStr(e.target.value)}
                     className="h-9 text-xs font-extrabold text-emerald-800 border-gray-200 pr-7"
                   />
                   <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">
@@ -450,22 +465,84 @@ export function AddInvestorCommissionModal({
                 </div>
               </div>
 
-              {/* Auto-Calculated Investor Commission (Non-Editable) */}
-              <div className="space-y-1 col-span-1">
+              {/* Receivable Amount (Auto-Calculated - Non-Editable) */}
+              <div className="space-y-1">
                 <Label className="text-[11px] sm:text-xs font-bold text-emerald-800 flex items-center gap-1 truncate">
                   <CalculatorIcon className="size-3 text-emerald-600 shrink-0" />
-                  <span className="truncate">INVESTOR COMMISSION</span>
+                  <span className="truncate">RECEIVABLE AMOUNT</span>
                 </Label>
                 <div className="h-9 px-2.5 sm:px-3 flex items-center bg-emerald-50/80 border border-emerald-300 rounded-md text-xs font-extrabold text-emerald-950 select-none shadow-2xs">
-                  <span className="truncate">Rs. {calculatedCommission.toLocaleString()}</span>
+                  <span className="truncate">Rs. {calculatedReceivableAmount.toLocaleString()}</span>
                 </div>
               </div>
             </div>
 
-            {/* Account Number (Optional - 2 cols on sm+) & Reimbursed to Me (1 col on sm+) */}
+            {/* Row 3: Payable Comm. %, Payable Amount & EdLink Comm */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
+              {/* Payable Commission % */}
+              <div className="space-y-1">
+                <Label className="text-[11px] sm:text-xs font-bold text-gray-700 flex items-center gap-1">
+                  <span className="truncate">PAYABLE COMM. %</span>
+                </Label>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="any"
+                    placeholder="0"
+                    value={payableRateStr}
+                    onChange={(e) => setPayableRateStr(e.target.value)}
+                    className="h-9 text-xs font-extrabold text-blue-800 border-gray-200 pr-7"
+                  />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">
+                    %
+                  </span>
+                </div>
+              </div>
+
+              {/* Payable Amount (Auto-Calculated - Non-Editable) */}
+              <div className="space-y-1">
+                <Label className="text-[11px] sm:text-xs font-bold text-blue-800 flex items-center gap-1 truncate">
+                  <CalculatorIcon className="size-3 text-blue-600 shrink-0" />
+                  <span className="truncate">PAYABLE AMOUNT</span>
+                </Label>
+                <div className="h-9 px-2.5 sm:px-3 flex items-center bg-blue-50/80 border border-blue-200 rounded-md text-xs font-extrabold text-blue-950 select-none shadow-2xs">
+                  <span className="truncate">Rs. {calculatedPayableAmount.toLocaleString()}</span>
+                </div>
+              </div>
+
+              {/* EdLink Comm (Auto-Calculated Difference - Non-Editable) */}
+              <div className="space-y-1">
+                <Label className="text-[11px] sm:text-xs font-bold text-purple-900 flex items-center gap-1 truncate">
+                  <CalculatorIcon className="size-3 text-purple-600 shrink-0" />
+                  <span className="truncate">EDLINK COMM</span>
+                </Label>
+                <div className="h-9 px-2.5 sm:px-3 flex items-center bg-purple-50/80 border border-purple-200 rounded-md text-xs font-extrabold text-purple-950 select-none shadow-2xs">
+                  <span className="truncate">Rs. {calculatedEdlinkCommission.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Row 4: Statement Days, Account Number & Paid to Investor */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
+              {/* Statement Days */}
+              <div className="space-y-1">
+                <Label className="text-[11px] sm:text-xs font-bold text-gray-700 flex items-center gap-1">
+                  <span>STATEMENT DAYS</span>
+                </Label>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="e.g. 30"
+                  value={statementDaysStr}
+                  onChange={(e) => setStatementDaysStr(e.target.value)}
+                  className="h-9 text-xs font-medium border-gray-200"
+                />
+              </div>
+
               {/* Account Number (Optional) */}
-              <div className="sm:col-span-2 space-y-1">
+              <div className="space-y-1">
                 <Label className="text-[11px] sm:text-xs font-bold text-gray-700 flex items-center justify-between">
                   <span>ACCOUNT NUMBER</span>
                   <span className="text-[10px] font-normal text-gray-400">Optional</span>
@@ -478,24 +555,24 @@ export function AddInvestorCommissionModal({
                 />
               </div>
 
-              {/* Reimbursed to Me */}
-              <div className="sm:col-span-1 space-y-1">
+              {/* Paid to Investor */}
+              <div className="space-y-1">
                 <Label className="text-[11px] sm:text-xs font-bold text-gray-700">
-                  REIMBURSED TO ME
+                  PAID TO INVESTOR
                 </Label>
                 <Select value={reimbursed} onValueChange={(val) => { if (val) setReimbursed(val); }}>
                   <SelectTrigger className="h-9 text-xs font-semibold bg-white border-gray-200 w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-white border-gray-200">
-                    <SelectItem value="Yes" className="text-xs font-semibold text-emerald-700">Yes</SelectItem>
-                    <SelectItem value="No" className="text-xs font-semibold text-amber-700">No</SelectItem>
+                    <SelectItem value="No" className="text-xs font-semibold text-amber-700">No (Pending)</SelectItem>
+                    <SelectItem value="Yes" className="text-xs font-semibold text-emerald-700">Yes (Paid)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            {/* Slip Upload Area (Compact Sleek Dropzone) */}
+            {/* Row 5: Slip Upload Area (Height increased as requested) */}
             <div className="space-y-1.5 pt-0.5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                 <Label className="text-[11px] sm:text-xs font-bold text-gray-700">
@@ -522,15 +599,15 @@ export function AddInvestorCommissionModal({
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
                 className={cn(
-                  "border-2 border-dashed rounded-xl py-2.5 px-3.5 text-center cursor-pointer transition-all",
+                  "border-2 border-dashed rounded-xl py-4 sm:py-5 px-4 text-center cursor-pointer transition-all min-h-[85px] flex flex-col items-center justify-center",
                   dragActive
                     ? "border-emerald-500 bg-emerald-50/50 scale-[1.01]"
                     : "border-gray-200 hover:border-emerald-400 hover:bg-slate-50/50 bg-white"
                 )}
               >
                 <div className="flex items-center justify-center gap-2.5 text-gray-500">
-                  <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
-                    <UploadIcon className="size-4" />
+                  <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
+                    <UploadIcon className="size-5" />
                   </div>
                   <div className="text-left">
                     <span className="text-xs font-bold text-gray-800 block leading-tight">

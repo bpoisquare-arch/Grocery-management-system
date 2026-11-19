@@ -40,11 +40,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           "--header-height": "4rem",
         } as React.CSSProperties
       }
+      className="min-w-0 max-w-full overflow-x-hidden"
     >
       <AppSidebar variant="inset" />
-      <SidebarInset className="bg-slate-50 flex flex-col min-h-screen">
+      <SidebarInset className="bg-slate-50 flex flex-col min-h-screen min-w-0 max-w-full overflow-x-hidden">
         <SiteHeader />
-        <main className="flex flex-1 flex-col p-4 md:p-6 lg:p-8 w-full">
+        <main className="flex flex-1 flex-col p-3 sm:p-4 md:p-6 lg:p-8 w-full min-w-0 max-w-full overflow-x-hidden">
           {children}
         </main>
       </SidebarInset>

@@ -47,6 +47,11 @@ interface ParsedRow {
   amount: number;
   commissionRate: number;
   investorCommission: number;
+  receivableCommissionRate: number;
+  receivableAmount: number;
+  payableCommissionRate: number;
+  payableAmount: number;
+  statementDays?: number | null;
   accountNo: string;
   reimbursed: string;
   isDuplicate: boolean;
@@ -122,9 +127,11 @@ export function ImportInvestorCommissionModal({
       const passportIdx = headers.findIndex((h) => h.includes("passport"));
       const dateIdx = headers.findIndex((h) => h.includes("date"));
       const amountIdx = headers.findIndex((h) => h.includes("amount") || h.includes("fee"));
-      const rateIdx = headers.findIndex((h) => h.includes("percent") || h.includes("rate") || h.includes("commission %"));
+      const recRateIdx = headers.findIndex((h) => h.includes("receivable") || h.includes("percent") || h.includes("rate") || h.includes("commission %"));
+      const payRateIdx = headers.findIndex((h) => h.includes("payable"));
+      const daysIdx = headers.findIndex((h) => h.includes("day") || h.includes("statement"));
       const accountIdx = headers.findIndex((h) => h.includes("account"));
-      const reimbursedIdx = headers.findIndex((h) => h.includes("reimburs"));
+      const reimbursedIdx = headers.findIndex((h) => h.includes("paid") || h.includes("investor") || h.includes("reimburs"));
 
       const rows: ParsedRow[] = [];
       const seenInFile = new Set<string>();
@@ -137,9 +144,11 @@ export function ImportInvestorCommissionModal({
         const rawPassport = passportIdx !== -1 ? row[passportIdx] : row[2];
         const rawDate = dateIdx !== -1 ? row[dateIdx] : row[3];
         const rawAmount = amountIdx !== -1 ? row[amountIdx] : row[4];
-        const rawRate = rateIdx !== -1 ? row[rateIdx] : row[5];
+        const rawRecRate = recRateIdx !== -1 ? row[recRateIdx] : row[5];
+        const rawPayRate = payRateIdx !== -1 ? row[payRateIdx] : 0;
+        const rawDays = daysIdx !== -1 ? row[daysIdx] : null;
         const rawAccount = accountIdx !== -1 ? row[accountIdx] : "";
-        const rawReimbursed = reimbursedIdx !== -1 ? row[reimbursedIdx] : row[6];
+        const rawReimbursed = reimbursedIdx !== -1 ? row[reimbursedIdx] : row[7];
 
         const studentName = String(rawName || "").trim();
         const passportNo = String(rawPassport || "").trim().toUpperCase();
@@ -166,10 +175,13 @@ export function ImportInvestorCommissionModal({
         }
 
         const amount = parseFloat(rawAmount) || 0;
-        const commissionRate = (rawRate !== undefined && rawRate !== null && rawRate !== "") ? parseFloat(rawRate) : 4.0;
-        const investorCommission = Math.round((amount * (commissionRate / 100)) * 100) / 100;
+        const receivableCommissionRate = (rawRecRate !== undefined && rawRecRate !== null && rawRecRate !== "") ? parseFloat(rawRecRate) : 4.0;
+        const receivableAmount = Math.round((amount * (receivableCommissionRate / 100)) * 100) / 100;
+        const payableCommissionRate = (rawPayRate !== undefined && rawPayRate !== null && rawPayRate !== "") ? parseFloat(rawPayRate) : 0.0;
+        const payableAmount = Math.round((amount * (payableCommissionRate / 100)) * 100) / 100;
+        const statementDays = rawDays !== null && rawDays !== undefined && rawDays !== "" ? parseInt(String(rawDays), 10) || null : null;
         const accountNo = String(rawAccount || "").trim();
-        const reimbursed = String(rawReimbursed || "Yes").toLowerCase().startsWith("y") ? "Yes" : "No";
+        const reimbursed = String(rawReimbursed || "No").toLowerCase().startsWith("y") ? "Yes" : "No";
 
         let isDuplicate = false;
         let duplicateReason = "";
@@ -190,8 +202,13 @@ export function ImportInvestorCommissionModal({
           passportNo,
           date: dateStr,
           amount,
-          commissionRate,
-          investorCommission,
+          commissionRate: receivableCommissionRate,
+          investorCommission: receivableAmount,
+          receivableCommissionRate,
+          receivableAmount,
+          payableCommissionRate,
+          payableAmount,
+          statementDays,
           accountNo,
           reimbursed,
           isDuplicate,
@@ -229,8 +246,13 @@ export function ImportInvestorCommissionModal({
         passportNo: r.passportNo,
         date: r.date,
         amount: r.amount,
-        commissionRate: r.commissionRate,
-        investorCommission: r.investorCommission,
+        commissionRate: r.receivableCommissionRate,
+        investorCommission: r.receivableAmount,
+        receivableCommissionRate: r.receivableCommissionRate,
+        receivableAmount: r.receivableAmount,
+        payableCommissionRate: r.payableCommissionRate,
+        payableAmount: r.payableAmount,
+        statementDays: r.statementDays,
         accountNo: r.accountNo,
         reimbursed: r.reimbursed,
       }));
@@ -249,10 +271,10 @@ export function ImportInvestorCommissionModal({
   const downloadSampleTemplate = () => {
     const sample = [
       ["Investors Commissions"],
-      ["S.No.", "Student Name", "Passport No.", "Date", "Amount", "Commission %", "Account No", "Reimbursed to Me"],
-      [1, "M Mohsin Wakeel", "AU6309431", "23/06/2026", 100000, 4.0, "0123456789", "Yes"],
-      [2, "Mudassar Ijaz khokar", "WV4166251", "24/06/2026", 150000, 4.0, "9876543210", "Yes"],
-      [3, "M Absaar Aqeel", "AQ1305932", "27/07/2026", 80000, 4.0, "", "Yes"],
+      ["S.No.", "Student Name", "Passport No.", "Date", "Amount", "Receivable Commission %", "Payable Commission %", "Statement Days", "Account No", "Paid to Investor"],
+      [1, "M Mohsin Wakeel", "AU6309431", "23/06/2026", 100000, 4.0, 0.0, 30, "0123456789", "No"],
+      [2, "Mudassar Ijaz khokar", "WV4166251", "24/06/2026", 150000, 4.0, 0.0, 60, "9876543210", "No"],
+      [3, "M Absaar Aqeel", "AQ1305932", "27/07/2026", 80000, 4.0, 0.0, null, "", "No"],
     ];
     const ws = XLSX.utils.aoa_to_sheet(sample);
     const wb = XLSX.utils.book_new();
@@ -353,7 +375,7 @@ export function ImportInvestorCommissionModal({
                     <TableHead className="w-20 text-xs font-bold">Rate</TableHead>
                     <TableHead className="w-28 text-xs font-bold">Commission</TableHead>
                     <TableHead className="w-28 text-xs font-bold">Account</TableHead>
-                    <TableHead className="w-24 text-xs font-bold">Reimbursed</TableHead>
+                    <TableHead className="w-28 text-xs font-bold">Paid to Investor</TableHead>
                     <TableHead className="w-36 text-xs font-bold">Validation</TableHead>
                   </TableRow>
                 </TableHeader>

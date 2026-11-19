@@ -391,7 +391,7 @@ export default function LawChambersPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-[1600px] mx-auto w-full">
+      <div className="space-y-6 max-w-[1600px] mx-auto w-full min-w-0">
         {/* Top Header Bar (Matching Grocery UI) */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
@@ -759,8 +759,8 @@ export default function LawChambersPage() {
         )}
 
         {/* Data Table (Matching Grocery UI Table - Attachment 3) */}
-        <Card className="border border-gray-200 bg-white shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
+        <Card className="border border-gray-200 bg-white shadow-2xs overflow-hidden w-full min-w-0">
+          <div className="overflow-x-auto w-full">
             <Table className="min-w-[920px]">
               <TableHeader className="bg-slate-50/80 border-b border-gray-200">
                 <TableRow>
