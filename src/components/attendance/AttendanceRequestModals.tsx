@@ -97,7 +97,7 @@ export function ApplyLeaveModal({
     probation_leaves: isOldStaff ? 0 : (employee?.leave_quotas?.probation_leaves ?? 3),
   }
 
-  const effectiveQuotas = balanceSummary?.quotas || employee?.leave_quotas || {
+  const effectiveQuotas = balanceSummary?.quotas || employee?.base_leave_quotas || {
     annual_leaves: 6,
     sick_leaves: 7,
     casual_leaves: 7,
@@ -107,11 +107,12 @@ export function ApplyLeaveModal({
 
   // Fetch live balance from API
   useEffect(() => {
-    if (isOpen && employee?.id && date) {
+    if (isOpen && (employee?.id || employee?.employee_id) && date) {
       setError(null)
       setLeaveDays('1')
       setIsLoadingBalance(true)
-      fetch(`/api/attendance/leave-balance?employeeId=${encodeURIComponent(employee.id)}&date=${encodeURIComponent(date)}`)
+      const empIdParam = employee.employee_id || employee.id
+      fetch(`/api/attendance/leave-balance?employeeId=${encodeURIComponent(empIdParam)}&date=${encodeURIComponent(date)}`)
         .then((res) => res.json())
         .then((data) => {
           if (data.success) {
@@ -126,7 +127,7 @@ export function ApplyLeaveModal({
         .catch((err) => console.error('Error loading leave balance:', err))
         .finally(() => setIsLoadingBalance(false))
     }
-  }, [isOpen, employee?.id, date])
+  }, [isOpen, employee?.id, employee?.employee_id, date])
 
   const isWfh = selectedLeaveType === 'Work From Home'
 

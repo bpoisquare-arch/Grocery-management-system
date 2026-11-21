@@ -212,18 +212,65 @@ export async function getEmployeeLeaveBalanceSummary(
   probationDates: string[]
   hasProbationInTargetMonth: boolean
 }> {
+  const misUrl = process.env.NEXT_PUBLIC_MIS_API_URL || 'https://mis.isquarebpo.com'
+  try {
+    const q = new URLSearchParams()
+    q.set('employeeId', employeeIdOrUuid)
+    if (targetDate) q.set('date', targetDate)
+    if (excludeRecordId) q.set('excludeRecordId', excludeRecordId)
+
+    const res = await fetch(`${misUrl}/api/attendance/leave-balance?${q.toString()}`, {
+      cache: 'no-store',
+      headers: {
+        'x-internal-key': process.env.INTERNAL_API_SECRET || 'isquare-internal-attendance-bridge-2026',
+      },
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data && data.success) {
+        return {
+          isProbation: Boolean(data.isProbation),
+          joiningDate: data.joiningDate || null,
+          quotas: {
+            probation_leaves: data.quotas?.probation_leaves ?? 3,
+            annual_leaves: data.quotas?.annual_leaves ?? 6,
+            sick_leaves: data.quotas?.sick_leaves ?? 7,
+            casual_leaves: data.quotas?.casual_leaves ?? 7,
+            wfh_quota: data.quotas?.wfh_quota ?? 4,
+          },
+          used: {
+            probation_leaves: data.used?.probation_leaves ?? 0,
+            annual_leaves: data.used?.annual_leaves ?? 0,
+            sick_leaves: data.used?.sick_leaves ?? 0,
+            casual_leaves: data.used?.casual_leaves ?? 0,
+            wfh_quota: data.used?.wfh_quota ?? 0,
+          },
+          remaining: {
+            probation_leaves: data.remaining?.probation_leaves ?? 0,
+            annual_leaves: data.remaining?.annual_leaves ?? 0,
+            sick_leaves: data.remaining?.sick_leaves ?? 0,
+            casual_leaves: data.remaining?.casual_leaves ?? 0,
+            wfh_quota: data.remaining?.wfh_quota ?? 0,
+          },
+          probationDates: Array.isArray(data.probationDates) ? data.probationDates : [],
+          hasProbationInTargetMonth: Boolean(data.hasProbationInTargetMonth),
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('MIS real-time leave-balance API fetch warning, using local fallback:', err)
+  }
+
+  // Fallback if MIS API is unreachable
   const employees = await getEmployees()
   const emp = employees.find(
     (e) => e.id === employeeIdOrUuid || e.employee_id === employeeIdOrUuid
   )
 
-  const meta: any = {}
-  const isOldStaff = meta.is_old_staff !== undefined ? Boolean(meta.is_old_staff) : Boolean(emp?.is_old_staff)
-  const joiningDate = isOldStaff ? null : (meta.joining_date || emp?.joining_date || emp?.created_at || null)
+  const isOldStaff = Boolean(emp?.is_old_staff)
+  const joiningDate = isOldStaff ? null : (emp?.joining_date || emp?.created_at || null)
 
   const targetDateStr = targetDate ? targetDate.split('T')[0] : ''
-  const targetMonthStr = targetDateStr ? targetDateStr.substring(0, 7) : ''
-  const year = targetDateStr ? targetDateStr.substring(0, 4) : String(new Date().getFullYear())
 
   let isProbation = false
   if (!isOldStaff && joiningDate && targetDateStr) {
@@ -236,96 +283,35 @@ export async function getEmployeeLeaveBalanceSummary(
     }
   }
 
-  const initialQuotas = {
-    annual_leaves: emp?.leave_quotas?.annual_leaves ?? emp?.base_leave_quotas?.annual_leaves ?? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.annual_leaves,
-    sick_leaves: emp?.leave_quotas?.sick_leaves ?? emp?.base_leave_quotas?.sick_leaves ?? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.sick_leaves,
-    casual_leaves: emp?.leave_quotas?.casual_leaves ?? emp?.base_leave_quotas?.casual_leaves ?? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.casual_leaves,
-    wfh_quota: emp?.leave_quotas?.wfh_quota ?? emp?.base_leave_quotas?.wfh_quota ?? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.wfh_quota,
-    probation_leaves: isOldStaff ? 0 : (emp?.leave_quotas?.probation_leaves ?? emp?.base_leave_quotas?.probation_leaves ?? (isProbation ? DEFAULT_EMPLOYEE_LEAVE_QUOTAS.probation_leaves : 0)),
+  const baseQuotas = {
+    probation_leaves: isOldStaff ? 0 : (emp?.base_leave_quotas?.probation_leaves ?? (isProbation ? 3 : 0)),
+    annual_leaves: emp?.base_leave_quotas?.annual_leaves ?? 6,
+    sick_leaves: emp?.base_leave_quotas?.sick_leaves ?? 7,
+    casual_leaves: emp?.base_leave_quotas?.casual_leaves ?? 7,
+    wfh_quota: emp?.base_leave_quotas?.wfh_quota ?? 4,
   }
 
-  const initial_prob = isOldStaff ? 0 : (initialQuotas.probation_leaves !== undefined ? Number(initialQuotas.probation_leaves) : (isProbation ? 3 : 0))
-  const initial_ann = initialQuotas.annual_leaves !== undefined ? Number(initialQuotas.annual_leaves) : 6
-  const initial_sick = initialQuotas.sick_leaves !== undefined ? Number(initialQuotas.sick_leaves) : 7
-  const initial_cas = initialQuotas.casual_leaves !== undefined ? Number(initialQuotas.casual_leaves) : 7
-  const initial_wfh = initialQuotas.wfh_quota !== undefined ? Number(initialQuotas.wfh_quota) : 4
-
-  const empId = emp?.employee_id || employeeIdOrUuid
-  const allRecords = await getAttendanceRecords({ employeeId: empId, startDate: `${year}-01-01`, endDate: `${year}-12-31` })
-
-  const probationDates: string[] = []
-  let used_annual = 0
-  let used_sick = 0
-  let used_casual = 0
-  let used_probation = 0
-  let used_wfh = 0
-
-  if (allRecords && allRecords.length > 0) {
-    for (const r of allRecords) {
-      if (excludeRecordId && r.id === excludeRecordId) continue
-      if (targetDateStr && r.attendance_date === targetDateStr) continue
-
-      const arrStatus = r.arrival_status || ''
-      const depStatus = r.departure_status || ''
-
-      let noteStr: string | null = r.notes || null
-      if (Array.isArray(r.raw_punches)) {
-        const found = (r.raw_punches as any[]).find((p) => p && typeof p === 'object' && p.notes)
-        if (found) noteStr = found.notes
-      }
-      const leaveVal = parseLeaveValue(noteStr || depStatus)
-
-      const isLeave = arrStatus === 'Leave' || depStatus.includes('Leave') || ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Probation Leave', 'Probation Leaves'].includes(depStatus)
-      const isWfh = depStatus === 'Work From Home' || arrStatus === 'Work From Home'
-
-      if (isWfh) {
-        used_wfh += leaveVal
-      } else if (isLeave) {
-        if (depStatus.includes('Probation') || arrStatus.includes('Probation')) {
-          used_probation += leaveVal
-          if (r.attendance_date) {
-            probationDates.push(r.attendance_date.split('T')[0])
-          }
-        } else if (depStatus.includes('Annual') || arrStatus.includes('Annual')) {
-          used_annual += leaveVal
-        } else if (depStatus.includes('Sick') || arrStatus.includes('Sick')) {
-          used_sick += leaveVal
-        } else if (depStatus.includes('Casual') || arrStatus.includes('Casual')) {
-          used_casual += leaveVal
-        }
-      }
-    }
+  const remaining = {
+    probation_leaves: isOldStaff ? 0 : (emp?.leave_quotas?.probation_leaves ?? (isProbation ? 3 : 0)),
+    annual_leaves: emp?.leave_quotas?.annual_leaves ?? 6,
+    sick_leaves: emp?.leave_quotas?.sick_leaves ?? 7,
+    casual_leaves: emp?.leave_quotas?.casual_leaves ?? 7,
+    wfh_quota: emp?.leave_quotas?.wfh_quota ?? 4,
   }
-
-  const hasProbationInTargetMonth = targetMonthStr
-    ? probationDates.some((d) => d.startsWith(targetMonthStr))
-    : false
 
   return {
     isProbation,
     joiningDate,
-    quotas: {
-      probation_leaves: isOldStaff ? 0 : 3,
-      annual_leaves: 6,
-      sick_leaves: 7,
-      casual_leaves: 7,
-      wfh_quota: 4,
-    },
+    quotas: baseQuotas,
     used: {
-      probation_leaves: Number(used_probation.toFixed(2)),
-      annual_leaves: Number(used_annual.toFixed(2)),
-      sick_leaves: Number(used_sick.toFixed(2)),
-      casual_leaves: Number(used_casual.toFixed(2)),
-      wfh_quota: Number(used_wfh.toFixed(2)),
+      probation_leaves: Math.max(0, baseQuotas.probation_leaves - remaining.probation_leaves),
+      annual_leaves: Math.max(0, baseQuotas.annual_leaves - remaining.annual_leaves),
+      sick_leaves: Math.max(0, baseQuotas.sick_leaves - remaining.sick_leaves),
+      casual_leaves: Math.max(0, baseQuotas.casual_leaves - remaining.casual_leaves),
+      wfh_quota: baseQuotas.wfh_quota - remaining.wfh_quota,
     },
-    remaining: {
-      probation_leaves: isOldStaff ? 0 : Math.max(0, Number((initial_prob - used_probation).toFixed(2))),
-      annual_leaves: Math.max(0, Number((initial_ann - used_annual).toFixed(2))),
-      sick_leaves: Math.max(0, Number((initial_sick - used_sick).toFixed(2))),
-      casual_leaves: Math.max(0, Number((initial_cas - used_casual).toFixed(2))),
-      wfh_quota: Number((initial_wfh - used_wfh).toFixed(2)),
-    },
-    probationDates,
-    hasProbationInTargetMonth,
+    remaining,
+    probationDates: [],
+    hasProbationInTargetMonth: false,
   }
 }
